@@ -7,7 +7,8 @@ import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged }
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
 // --- 1. Firebase 配置 ---
-apiKey: "AIzaSyCfnMao6o2QCNY4ZuV40XATZv-VrZSK_Rg",
+const firebaseConfig = {
+  apiKey: "AIzaSyCfnMao6o2QCNY4ZuV40XATZv-VrZSK_Rg",
   authDomain: "kcvocabapp.firebaseapp.com",
   databaseURL: "https://kcvocabapp-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "kcvocabapp",
@@ -17,8 +18,17 @@ apiKey: "AIzaSyCfnMao6o2QCNY4ZuV40XATZv-VrZSK_Rg",
   measurementId: "G-C1SDRQR6MS"
 };
 
-// --- 2. Google AI 金鑰 (直接寫入，保證朋友可用) ---
-const GEMINI_API_KEY = "AIzaSyAQqoHqY0lpfWCGyq2Xacgp7kl4x6mwWWY";
+// --- 2. Google AI 金鑰 (改用環境變數，絕對不要再把金鑰寫死在這裡！) ---
+// Vercel 會自動從後台的環境變數讀取這把鑰匙，Google 機器人就掃不到了！
+// 加入安全防護，避免在不支援 import.meta 的環境下引發錯誤
+let GEMINI_API_KEY = "";
+try {
+  if (typeof import.meta !== 'undefined' && import.meta.env) {
+    GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
+  }
+} catch (e) {
+  // 環境不支援時靜默攔截
+}
 
 // 自動判斷環境
 const isCanvas = typeof __firebase_config !== 'undefined';
@@ -189,7 +199,7 @@ const App = () => {
     if (!input.trim() || genLoading) return;
     
     if (!isCanvas && (!apiKey || apiKey.includes("xxxxxxxx"))) {
-      setError('❌ 尚未設定有效的 API 金鑰！');
+      setError('❌ 尚未在 Vercel 設定 VITE_GEMINI_API_KEY 環境變數！');
       return;
     }
 
@@ -308,7 +318,7 @@ const App = () => {
         <button onClick={generate} disabled={genLoading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50">
           {genLoading ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {genLoading ? '請求中...' : 'AI 智慧生成單字卡'}
         </button>
-        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">v9.3 智慧語系切換版</div>
+        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">v9.5 終極隱形金鑰版</div>
       </div>
     </div>
   );
