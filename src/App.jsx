@@ -609,6 +609,8 @@ const App = () => {
             上傳 CSV 檔案
             <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
           </label>
+          
+          <div className="text-center text-slate-300 text-xs mt-6 font-bold">Vercel 終極版 v2.0</div>
         </div>
       </div>
     );
