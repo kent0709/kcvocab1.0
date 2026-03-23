@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  Volume2, RefreshCcw, Brain, Zap, Star, Flame, Share2, Check, Loader2, AlertTriangle, ChevronRight, Clock
+  Volume2, RefreshCcw, Brain, Zap, Star, Flame, Share2, Check, Loader2, AlertTriangle, ChevronRight, Clock, Home, Trophy
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
@@ -16,16 +16,15 @@ const firebaseConfig = {
   appId: "1:835597766849:web:962ccd9b694c7e08250440"
 };
 
-// --- 2. 你的最新 Google AI 金鑰 (nKU 版) ---
+// --- 2. Google AI 金鑰 ---
 const GEMINI_API_KEY = "AIzaSyD7yp67pTR39yfiIfFamYnPEdmRr-lEnKU";
 
-// 自動判斷環境：Canvas 介面必須用空字串，Vercel 才會用你的金鑰
+// 自動判斷環境
 const isCanvas = typeof __firebase_config !== 'undefined';
 const app = initializeApp(isCanvas ? JSON.parse(__firebase_config) : firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// 將 Canvas 環境下 appId 中的斜線替換掉，防止 Firestore 路徑解析錯誤
 const appId = typeof __app_id !== 'undefined' ? String(__app_id).replace(/\//g, '_') : 'kcvocabapp';
 const apiKey = isCanvas ? "" : GEMINI_API_KEY;
 
@@ -44,6 +43,9 @@ const App = () => {
   const [input, setInput] = useState('');
   const [genLoading, setGenLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  // 自訂彈窗狀態
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, type: '', message: '' });
 
   // 1. 系統登入初始化
   useEffect(() => {
@@ -67,7 +69,7 @@ const App = () => {
     return () => unsubscribe();
   }, []);
 
-  // 2. 載入資料庫存檔 (必須確保已登入)
+  // 2. 載入資料庫存檔
   useEffect(() => {
     if (!user) return; 
     
@@ -88,6 +90,9 @@ const App = () => {
         })
         .catch(err => {
           console.error("資料讀取失敗", err);
+          if (err.message.includes("permissions")) {
+            setError("❌ 資料庫權限不足！請至 Firebase 控制台將規則改為 allow read, write: if true;");
+          }
           setLoading(false);
         });
     } else {
@@ -99,8 +104,24 @@ const App = () => {
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(t);
     u.lang = /[a-zA-Z]/.test(t) ? 'en-US' : 'ja-JP';
-    u.rate = 0.9;
+    u.rate = 0.85;
     window.speechSynthesis.speak(u);
+  };
+
+  const getSpeakableText = (c) => {
+    if (!c) return "";
+    let textToSpeak = c.word;
+    let ex = null;
+    if (c.info && c.info.includes('【例句】')) {
+      ex = c.info.split('【例句】')[1];
+    } else if (c.example) {
+      ex = c.example;
+    }
+    if (ex) {
+      const sentence = ex.split('(')[0].trim();
+      if (sentence) textToSpeak += "。 " + sentence;
+    }
+    return textToSpeak;
   };
 
   const handleAction = async (type) => {
@@ -115,20 +136,55 @@ const App = () => {
     
     if (nextQ.length === 0) setIsFinished(true);
     else { setQueue(nextQ); setIsFlipped(false); }
-    if (deckId && user) updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', deckId), { queue: nextQ, history: nextH });
+    
+    if (deckId && user) {
+      try {
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', deckId), { queue: nextQ, history: nextH });
+      } catch(err) {
+        console.error("更新進度失敗", err);
+      }
+    }
   };
 
-  // AI 核心：智慧限流與降級機制
+  // 自訂彈窗處理
+  const openConfirm = (type, message) => setConfirmDialog({ isOpen: true, type, message });
+  const closeConfirm = () => setConfirmDialog({ isOpen: false, type: '', message: '' });
+
+  const executeConfirm = () => {
+    if (confirmDialog.type === 'home') {
+      setCards([]);
+      setQueue([]);
+      setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
+      setIsFinished(false);
+      setIsFlipped(false);
+      setDeckId(null);
+      setInput('');
+      // 防堵 Canvas 環境報錯
+      if (!isCanvas) {
+        try { window.history.pushState({}, '', window.location.pathname); } catch (e) {}
+      }
+    } else if (confirmDialog.type === 'finish') {
+      setIsFinished(true);
+    }
+    closeConfirm();
+  };
+
   const generate = async () => {
     if (!input.trim() || genLoading) return;
+    
+    if (!isCanvas && !apiKey) {
+      setError('❌ 找不到金鑰！');
+      return;
+    }
+
     setGenLoading(true); setError('');
     const isEn = /[a-zA-Z]/.test(input);
-    // 嚴格遵守學習原則：拆解字根、意象化連結
+    
+    // 🛑 核心修改：在 prompt 中強制要求標註動詞分類
     const prompt = isEn 
-      ? `分析文字 """${input}""" 萃取出重要英文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "音標", "meaning": "意思", "breakdown": "字根拆解與意象說明", "example": "例句", "example_zh": "翻譯"}]。請只回傳 JSON。`
-      : `分析文字 """${input}""" 萃取出重要日文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "讀音", "meaning": "意思", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明", "example": "例句", "example_zh": "翻譯"}]。請只回傳 JSON。`;
+      ? `分析文字 """${input}""" 萃取出重要英文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明", "example": "例句", "example_kana": "例句發音", "example_zh": "翻譯"}]。請只回傳 JSON。`
+      : `分析文字 """${input}""" 萃取出重要日文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一類、第二類或第三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
 
-    // 🛑 Canvas 環境與 Vercel 雲端環境自動切換模型
     const targets = isCanvas 
       ? [{ v: "v1beta", m: "gemini-2.5-flash-preview-09-2025" }] 
       : [
@@ -156,7 +212,7 @@ const App = () => {
               lastError = `模型 ${target.m} 無免費額度`;
               continue; 
             } else {
-              throw new Error("⚠️ 請求太快了！Google 限制每分鐘 15 次，請等 30 秒後再點擊一次。");
+              throw new Error("⚠️ 請求太快了！Google 限制每分鐘 15 次，請等 30 秒後再試。");
             }
           }
           throw new Error(data.error?.message || "Google 拒絕連線");
@@ -167,7 +223,13 @@ const App = () => {
         
         const newCards = parsed.map(c => ({
           word: c.word,
-          info: `${c.reading} ${c.meaning} 💡 [分析] ${c.breakdown} 【例句】${c.example}()${c.example_zh}`
+          reading: c.reading || '',
+          meaning: c.meaning || '',
+          breakdown: c.breakdown || '',
+          example: c.example || '',
+          example_kana: c.example_kana || '',
+          example_zh: c.example_zh || '',
+          info: `${c.reading || ''} ${c.meaning || ''} 💡 [分析] ${c.breakdown || ''} 【例句】${c.example || ''}(${c.example_kana || ''})${c.example_zh || ''}`
         }));
         
         setCards(newCards);
@@ -191,10 +253,9 @@ const App = () => {
       const word = cards[queue[0]].word;
       if (!imageUrls[word]) setImageUrls(p => ({ ...p, [word]: `https://loremflickr.com/500/300/${encodeURIComponent(word)}` }));
     }
-    if (isFlipped && queue.length > 0) speak(cards[queue[0]].word);
+    if (isFlipped && queue.length > 0) speak(getSpeakableText(cards[queue[0]]));
   }, [queue, isFlipped]);
 
-  // 評分計算函數 (強勢回歸！)
   const getRating = () => {
     const t = history.again + history.hard + history.good + history.easy;
     if (t === 0) return { score: 0, text: "尚未作答", color: "text-slate-500", emoji: "🤔" };
@@ -214,7 +275,7 @@ const App = () => {
         <textarea value={input} onChange={e => setInput(e.target.value)} placeholder="貼上想背的單字..." className="w-full h-40 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" />
         
         {error && (
-          <div className={`p-4 rounded-2xl text-[11px] font-bold mb-4 text-left flex gap-2 leading-relaxed ${error.includes('請求太快') ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-red-50 text-red-500 border border-red-100'}`}>
+          <div className={`p-4 rounded-2xl text-[11px] font-bold mb-4 text-left flex gap-2 leading-relaxed ${error.includes('權限不足') || error.includes('請求太快') ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-red-50 text-red-500 border border-red-100'}`}>
             {error.includes('請求太快') ? <Clock size={16} className="shrink-0 mt-0.5" /> : <AlertTriangle size={16} className="shrink-0 mt-0.5" />}
             {error}
           </div>
@@ -223,29 +284,90 @@ const App = () => {
         <button onClick={generate} disabled={genLoading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50">
           {genLoading ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {genLoading ? '請求中...' : 'AI 智慧生成單字卡'}
         </button>
-        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">Vercel 計分回歸版 v6.1</div>
+        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">Vercel 動詞分類版 v8.4</div>
       </div>
     </div>
   );
 
-  // 結算畫面 (帶入計分與評語)
   if (isFinished) {
     const r = getRating();
     return (
       <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center text-center">
-        <div className="bg-white p-12 rounded-[3rem] shadow-2xl border max-w-lg w-full">
-          <div className="text-8xl mb-6 animate-bounce">{r.emoji}</div>
-          <h1 className="text-3xl font-black mb-2 text-slate-800">完成練習！</h1>
-          <div className={`text-5xl font-black ${r.color} mb-8`}>
+        <div className="bg-white p-10 rounded-[3rem] shadow-2xl border border-slate-100 max-w-md w-full">
+          <div className="text-7xl mb-4 animate-bounce drop-shadow-md">{r.emoji}</div>
+          <h1 className="text-2xl font-black mb-2 text-slate-800">完成本日練習！</h1>
+          
+          <div className={`text-5xl font-black ${r.color} mb-6`}>
             {r.score} <span className="text-xl text-slate-400 font-bold ml-1">分 - {r.text}</span>
           </div>
-          <button onClick={() => { setQueue(Array.from({length: cards.length}, (_, i) => i)); setHistory({again:0, hard:0, good:0, easy:0}); setIsFinished(false); }} className="w-full bg-slate-900 text-white font-black py-5 rounded-[2rem] flex items-center justify-center gap-2 shadow-xl hover:bg-black transition-all"><RefreshCcw size={20} />重新開始</button>
+
+          <div className="grid grid-cols-4 gap-2 mb-8">
+            <div className="bg-red-50 p-3 rounded-2xl border border-red-100 flex flex-col items-center justify-center">
+              <p className="text-red-600 font-black text-xl mb-1">{history.again}</p>
+              <p className="text-red-500 text-[9px] font-bold uppercase tracking-widest">Again</p>
+            </div>
+            <div className="bg-orange-50 p-3 rounded-2xl border border-orange-100 flex flex-col items-center justify-center">
+              <p className="text-orange-600 font-black text-xl mb-1">{history.hard}</p>
+              <p className="text-orange-500 text-[9px] font-bold uppercase tracking-widest">Hard</p>
+            </div>
+            <div className="bg-blue-50 p-3 rounded-2xl border border-blue-100 flex flex-col items-center justify-center">
+              <p className="text-blue-600 font-black text-xl mb-1">{history.good}</p>
+              <p className="text-blue-500 text-[9px] font-bold uppercase tracking-widest">Good</p>
+            </div>
+            <div className="bg-green-50 p-3 rounded-2xl border border-green-100 flex flex-col items-center justify-center">
+              <p className="text-green-600 font-black text-xl mb-1">{history.easy}</p>
+              <p className="text-green-500 text-[9px] font-bold uppercase tracking-widest">Easy</p>
+            </div>
+          </div>
+
+          <button onClick={() => { setQueue(Array.from({length: cards.length}, (_, i) => i)); setHistory({again:0, hard:0, good:0, easy:0}); setIsFinished(false); }} className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl hover:bg-black transition-all">
+            <RefreshCcw size={18} />重新開始
+          </button>
         </div>
       </div>
     );
   }
 
   const card = cards[queue[0]];
+  
+  let d_word = card.word;
+  let d_reading = card.reading;
+  let d_meaning = card.meaning;
+  let d_breakdowns = [];
+  let d_example = card.example ? `${card.example}(${card.example_kana || ''})${card.example_zh}` : null;
+
+  if (card.info) {
+    const splitByLight = card.info.split('💡');
+    if (!d_reading && !d_meaning) {
+       const firstPart = splitByLight[0].trim();
+       const spaceIdx = firstPart.indexOf(' ');
+       if (spaceIdx !== -1) {
+           d_reading = firstPart.substring(0, spaceIdx).trim();
+           d_meaning = firstPart.substring(spaceIdx).trim();
+       } else {
+           d_reading = "";
+           d_meaning = firstPart;
+       }
+    }
+    
+    splitByLight.slice(1).forEach(part => {
+        if(part.includes('【例句】')) {
+            const b = part.split('【例句】')[0].replace(/\[.*?\]/, '').trim();
+            if(b) d_breakdowns.push(b);
+            if(!d_example) d_example = part.split('【例句】')[1].trim();
+        } else {
+            if(part.trim()) d_breakdowns.push(part.replace(/\[.*?\]/, '').trim());
+        }
+    });
+    
+    if (splitByLight[0].includes('【例句】') && !d_example) {
+        d_example = splitByLight[0].split('【例句】')[1].trim();
+    }
+  }
+
+  if (d_reading && d_reading.startsWith('(') && d_reading.endsWith(')')) {
+      d_reading = d_reading.slice(1, -1);
+  }
   
   const btnConfig = [
     { id: 'again', label: 'Again', color: 'red', icon: <RefreshCcw size={18} /> },
@@ -257,53 +379,120 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center py-10 px-4 font-sans text-slate-800 overflow-x-hidden">
+      
+      {/* 自訂確認彈窗 */}
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-black text-slate-800 mb-6">{confirmDialog.message}</h3>
+            <div className="flex gap-3">
+              <button onClick={closeConfirm} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-all">取消</button>
+              <button onClick={executeConfirm} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-md">確定</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="w-full max-w-md mb-6 space-y-4">
-        <div className="flex justify-between items-center px-1 text-[15px] font-black">
-          <div className="bg-white px-5 py-2 rounded-full shadow-sm border flex items-center gap-2 text-slate-600"><Brain size={18} className="text-indigo-600" />{total-queue.length}/{total}</div>
+        <div className="flex justify-between items-center gap-2">
+          {/* 回到首頁按鈕 */}
+          <button onClick={() => openConfirm('home', '確定要放棄目前的進度，回到首頁嗎？')} className="w-10 h-10 flex items-center justify-center bg-white rounded-full shadow-sm border border-slate-200 text-slate-500 hover:text-red-500 transition-all shrink-0" title="回到首頁換單字">
+            <Home size={18} />
+          </button>
+
+          {/* 進度顯示 */}
+          <div className="flex-1 bg-white h-10 rounded-full shadow-sm border border-slate-200 flex items-center justify-center gap-2 text-slate-600 font-black text-[15px]">
+            <Brain size={18} className="text-indigo-600" />
+            {total-queue.length} / {total}
+          </div>
+
+          {/* 提前結算按鈕 */}
+          <button onClick={() => openConfirm('finish', '確定要提前結束，查看目前的結算分數嗎？')} className="w-10 h-10 flex items-center justify-center bg-white rounded-full shadow-sm border border-slate-200 text-slate-500 hover:text-amber-500 transition-all shrink-0" title="提前結算看分數">
+            <Trophy size={18} />
+          </button>
+
+          {/* 儲存與分享按鈕 */}
           <button onClick={async () => {
-            if (!user) return; // 確保有使用者權限才能儲存
-            if (!deckId) {
-              const id = crypto.randomUUID();
-              await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', id), { cards, queue, history, creator: user.uid, createdAt: new Date().toISOString() });
-              setDeckId(id); window.history.pushState({}, '', `?deckId=${id}`);
+            if (!user) return;
+            try {
+              let shareId = deckId;
+              if (!shareId) {
+                shareId = crypto.randomUUID();
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', shareId), { cards, queue, history, creator: user.uid, createdAt: new Date().toISOString() });
+                setDeckId(shareId); 
+                // 防堵 Canvas 環境報錯
+                if (!isCanvas) {
+                  try { window.history.pushState({}, '', `?deckId=${shareId}`); } catch (e) {}
+                }
+              }
+              const shareUrl = `${window.location.origin}${window.location.pathname}?deckId=${shareId}`;
+              const el = document.createElement('textarea'); el.value = shareUrl; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el); setCopyOk(true); setTimeout(() => setCopyOk(false), 2000);
+            } catch (err) {
+              if (err.message.includes("permissions")) {
+                setError("❌ 資料庫權限不足！請至 Firebase 控制台 > Firestore Database > Rules，將規則改為 allow read, write: if true;");
+              } else {
+                setError("❌ 儲存失敗：" + err.message);
+              }
             }
-            const el = document.createElement('textarea'); el.value = window.location.href; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el); setCopyOk(true); setTimeout(() => setCopyOk(false), 2000);
-          }} className={`px-5 py-2 rounded-full shadow-md text-xs text-white transition-all ${copyOk ? 'bg-green-500' : 'bg-indigo-600'}`}>{copyOk ? '已複製' : '儲存與分享'}</button>
+          }} className={`w-10 h-10 flex items-center justify-center rounded-full shadow-md text-white transition-all shrink-0 ${copyOk ? 'bg-green-500' : 'bg-indigo-600 hover:bg-indigo-700'}`} title="儲存與分享">
+            {copyOk ? <Check size={16} /> : <Share2 size={16} />}
+          </button>
         </div>
         <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden border shadow-inner"><div className="bg-indigo-500 h-full transition-all duration-1000" style={{ width: `${((total - queue.length)/total)*100}%` }} /></div>
       </div>
 
-      <div className="relative w-full max-w-md h-[65vh] min-h-[500px] perspective-1000 group" onClick={() => !isFlipped && setIsFlipped(true)}>
+      <div className="relative w-full max-w-md h-[68vh] min-h-[520px] perspective-1000 group" onClick={() => !isFlipped && setIsFlipped(true)}>
         <div className={`relative w-full h-full transition-all duration-700 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
+          
           <div className="absolute inset-0 backface-hidden bg-white rounded-[3rem] shadow-2xl flex flex-col items-center justify-center p-10 border text-center">
-            <h2 className="text-[3.5rem] font-black mb-12 leading-tight break-words w-full">{card.word}</h2>
+            <h2 className="text-[3.5rem] font-black mb-12 leading-tight break-words w-full text-slate-800">{card.word}</h2>
             <button onClick={e => { e.stopPropagation(); speak(card.word); }} className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 shadow-inner hover:scale-110 transition-transform"><Volume2 size={40} /></button>
             <div className="absolute bottom-10 text-slate-300 text-[11px] font-black tracking-widest uppercase animate-pulse">點擊翻面</div>
           </div>
+          
           <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white rounded-[3rem] shadow-2xl flex flex-col p-6 border overflow-hidden">
-            <img src={imageUrls[card.word]} className="w-full h-36 object-cover rounded-3xl mb-5 shadow-inner border border-slate-50" alt="" onError={e => e.target.src='https://loremflickr.com/500/300/japan'} />
-            <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar text-left">
-              <div className="text-[18px] text-slate-800 font-bold border-l-4 border-indigo-500 pl-3 leading-relaxed whitespace-pre-line">{card.info.split('💡')[0].trim()}</div>
-              {card.info.split('💡').slice(1).map((s, i) => (
-                <div key={i} className="bg-amber-50/70 p-3 rounded-2xl text-[13px] text-amber-900 leading-relaxed font-medium">💡 {s.split('【例句】')[0].trim()}</div>
-              ))}
-              {card.info.includes('【例句】') && (
-                <div className="bg-slate-50/80 p-4 rounded-2xl border text-[14px] text-slate-700 leading-relaxed">
-                  {((s) => {
-                     const m = s.match(/^(.*?)\((.*?)\)(.*)$/);
-                     if (!m) return s;
-                     return <>
-                       <div className="text-[15px] font-bold text-slate-800 leading-tight">{m[1].trim()}</div>
-                       <div className="text-[12px] font-medium text-indigo-500">{m[2].trim()}</div>
-                       <div className="text-[13px] text-slate-600 mt-1 border-l-2 pl-2 border-slate-200">{m[3].trim()}</div>
-                     </>;
-                   })(card.info.split('【例句】')[1])}
-                </div>
-              )}
+            {imageUrls[card.word] && (
+              <img src={imageUrls[card.word]} className="w-full h-28 object-cover rounded-2xl mb-4 shadow-inner border border-slate-50 shrink-0" alt="" onError={e => e.target.src='https://loremflickr.com/500/300/japan'} />
+            )}
+
+            <div className="flex-1 overflow-y-auto px-1 custom-scrollbar text-center flex flex-col">
+              <div className="mb-4 pb-4 border-b border-slate-100 shrink-0">
+                <div className="text-[28px] font-black text-slate-800 leading-tight mb-2">{d_word}</div>
+                {d_reading && <div className="text-[13px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full inline-block mb-3 border border-indigo-100/50">({d_reading})</div>}
+                <div className="text-[17px] font-bold text-slate-700">{d_meaning}</div>
+              </div>
+
+              <div className="text-left space-y-3">
+                {d_breakdowns.map((b, i) => (
+                  <div key={i} className="bg-amber-50/70 p-3 rounded-2xl text-[13px] text-amber-900 font-medium leading-relaxed shadow-sm">💡 {b}</div>
+                ))}
+                
+                {d_example && (
+                  <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-100 shadow-sm">
+                    {((s) => {
+                       const m = s.match(/^(.*?)\((.*?)\)(.*)$/);
+                       if (!m) return <div className="text-[14px] text-slate-700 leading-relaxed">{s}</div>;
+                       return <>
+                         <div className="text-[16px] font-bold text-slate-800 leading-tight mb-2">{m[1].trim()}</div>
+                         {m[2].trim() && <div className="text-[14px] font-medium text-indigo-600 mb-2">({m[2].trim()})</div>}
+                         <div className="text-[14px] font-bold text-slate-700 mt-1">{m[3].trim()}</div>
+                       </>;
+                     })(d_example)}
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="grid grid-cols-5 gap-1.5 mt-5 pt-5 border-t shrink-0">
+
+            <div className="grid grid-cols-5 gap-1.5 mt-3 pt-3 border-t shrink-0">
               {btnConfig.map(btn => (
-                <button key={btn.id} onClick={e => { e.stopPropagation(); btn.id==='listen'?speak(card.word):handleAction(btn.id); }} className={`flex flex-col items-center gap-1 ${btn.special?'-mt-4 hover:scale-110':'hover:scale-105'} transition-all`}>
+                <button 
+                  key={btn.id} 
+                  onClick={e => { 
+                    e.stopPropagation(); 
+                    btn.id==='listen' ? speak(getSpeakableText(card)) : handleAction(btn.id); 
+                  }} 
+                  className={`flex flex-col items-center gap-1 ${btn.special?'-mt-4 hover:scale-110':'hover:scale-105'} transition-all`}
+                >
                   <div className={`${btn.special?'w-14 h-14 rounded-full bg-indigo-600 text-white shadow-xl border-4 border-white':`w-11 h-11 rounded-2xl bg-${btn.color}-50 text-${btn.color}-600 border border-${btn.color}-100 shadow-sm`} flex items-center justify-center`}>{btn.icon}</div>
                   <span className={`text-[10px] font-black uppercase ${btn.special?'text-indigo-600':`text-${btn.color}-500/80`}`}>{btn.label}</span>
                 </button>
@@ -312,7 +501,7 @@ const App = () => {
           </div>
         </div>
       </div>
-      <style dangerouslySetInnerHTML={{ __html: `.perspective-1000 { perspective: 1000px; } .backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; } .rotate-y-180 { transform: rotateY(180deg); } .transform-style-3d { transform-style: preserve-3d; } .custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }` }} />
+      <style dangerouslySetInnerHTML={{ __html: `.perspective-1000 { perspective: 1000px; } .backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; } .rotate-y-180 { transform: rotateY(180deg); } .transform-style-3d { transform-style: preserve-3d; } .custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }` }} />
     </div>
   );
 };
