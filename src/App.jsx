@@ -22,7 +22,7 @@ import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged }
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
 // ==========================================
-// 🔴 步驟一：你的專屬 Firebase 資料庫金鑰
+// 🔴 步驟一：Firebase 設定 (kcvocabapp)
 // ==========================================
 const myFirebaseConfig = {
   apiKey: "AIzaSyCfnMao6o2QCNY4ZuV40XATZv-VrZSK_Rg",
@@ -78,7 +78,7 @@ const App = () => {
           await signInAnonymously(auth);
         }
       } catch (err) {
-        setAuthError('資料庫連線失敗');
+        setAuthError('連線失敗');
         setIsLoading(false);
       }
     };
@@ -193,7 +193,7 @@ const App = () => {
     }
   };
 
-  // --- 終極修正：直接使用 Google v1 正式版路徑與 GA 模型 ---
+  // --- 終極修正：暴力破解連線模組 ---
   const generateCardsWithAI = async () => {
     if (!inputText.trim()) return;
     setIsGeneratingCards(true);
@@ -202,65 +202,67 @@ const App = () => {
 
     const isEn = /[a-zA-Z]/.test(inputText);
     const prompt = isEn 
-      ? `分析文字 """${inputText}""" 萃取出重要英文單字，務必只回傳 JSON 陣列：[{"word": "單字", "reading": "音標", "meaning": "意思", "derivatives": "變化", "collocations": "搭配", "example_en": "英文例句", "example_zh": "翻譯"}]。`
-      : `分析文字 """${inputText}""" 萃取出重要日文單字，務必只回傳 JSON 陣列：[{"word": "單字", "reading": "讀音", "meaning": "意思", "breakdown": "拆解記憶法", "example_jp": "日文例句", "example_kana": "例句讀音", "example_zh": "翻譯"}]。`;
+      ? `分析文字 """${inputText}""" 萃取重要英文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "音標", "meaning": "意思", "derivatives": "變化", "collocations": "搭配", "example_en": "英文例句", "example_zh": "翻譯"}]。請只回傳 JSON，不要廢話。`
+      : `分析文字 """${inputText}""" 萃取重要日文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "讀音", "meaning": "意思", "breakdown": "記憶法", "example_jp": "日文例句", "example_kana": "讀音", "example_zh": "翻譯"}]。請只回傳 JSON，不要廢話。`;
 
-    // 🛑 核心修復：強制使用 v1 正式版路徑，這解決了「v1beta找不到模型」的矛盾
-    const config = isCanvasEnvironment 
-      ? { ver: "v1beta", model: "gemini-2.5-flash-preview-09-2025" } 
-      : { ver: "v1", model: "gemini-1.5-flash" };
+    // 🛑 核心修復：嘗試所有可能的 API 地址與模型組合 (解決 Google 遷移期的混亂)
+    const targets = isCanvasEnvironment 
+      ? [{ v: "v1beta", m: "gemini-2.5-flash-preview-09-2025" }] 
+      : [
+          { v: "v1beta", m: "gemini-1.5-flash" },
+          { v: "v1", m: "gemini-1.5-flash" },
+          { v: "v1beta", m: "gemini-1.5-flash-latest" },
+          { v: "v1", m: "gemini-1.5-flash-latest" },
+          { v: "v1beta", m: "gemini-1.5-pro" },
+          { v: "v1", m: "gemini-1.5-pro" }
+        ];
 
-    try {
-      const url = `https://generativelanguage.googleapis.com/${config.ver}/models/${config.model}:generateContent?key=${apiKey}`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-      });
+    let success = false;
+    let finalErrorDetail = "";
 
-      if (!response.ok) {
-        const errData = await response.json();
-        // 如果 v1 還是不認帳，自動切換到 v1beta 作為最後備援
-        if (config.ver === "v1") {
-          const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${apiKey}`;
-          const fallbackRes = await fetch(fallbackUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-          });
-          if (fallbackRes.ok) {
-            const data = await fallbackRes.json();
-            processAiResponse(data, isEn);
-            return;
+    for (const target of targets) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/${target.v}/models/${target.m}:generateContent?key=${apiKey}`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (raw) {
+            const cleanJson = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+            const parsed = JSON.parse(cleanJson);
+            
+            const newCards = parsed.map(item => {
+              if (!isEn) return { word: item.word, info: `${item.reading} ${item.meaning} 💡 [記憶] ${item.breakdown} 【例句】${item.example_jp}(${item.example_kana})${item.example_zh}` };
+              return { word: item.word, info: `${item.reading || ''} ${item.meaning} 💡 [變化] ${item.derivatives || ''} 💡 [搭配] ${item.collocations || ''} 【例句】${item.example_en}()${item.example_zh}` };
+            });
+
+            setCards(newCards);
+            setQueue(Array.from({ length: newCards.length }, (_, i) => i));
+            setTotalInitial(newCards.length);
+            setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
+            setIsFinished(false);
+            setIsFlipped(false);
+            success = true;
+            break; 
           }
+        } else {
+          const err = await response.json();
+          finalErrorDetail += `[${target.v}/${target.m}] ${err.error?.message || 'Failed'}\n`;
         }
-        throw new Error(errData.error?.message || "Google 拒絕連線");
+      } catch (e) {
+        finalErrorDetail += `[${target.m}] Connection error\n`;
       }
-
-      const data = await response.json();
-      processAiResponse(data, isEn);
-
-    } catch (e) {
-      setGenError(`❌ Google 系統連線失敗：\n${e.message}\n\n💡 建議：請確認在 Google AI Studio 裡是否有開啟 "Generative Language API" 權限！`);
-    } finally {
-      setIsGeneratingCards(false);
     }
-  };
 
-  const processAiResponse = (data, isEn) => {
-    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!raw) throw new Error("AI 回傳空內容");
-    const parsed = JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim());
-    const newCards = parsed.map(item => {
-      if (!isEn) return { word: item.word, info: `${item.reading} ${item.meaning} 💡 [記憶] ${item.breakdown} 【例句】${item.example_jp}(${item.example_kana})${item.example_zh}` };
-      return { word: item.word, info: `${item.reading || ''} ${item.meaning} 💡 [變化] ${item.derivatives || ''} 💡 [搭配] ${item.collocations || ''} 【例句】${item.example_en}()${item.example_zh}` };
-    });
-    setCards(newCards);
-    setQueue(Array.from({ length: newCards.length }, (_, i) => i));
-    setTotalInitial(newCards.length);
-    setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
-    setIsFinished(false);
-    setIsFlipped(false);
+    if (!success) {
+      setGenError(`❌ Google 伺服器拒絕所有連線方案。這代表您的 API Key 可能未啟用「Generative Language API」權限，或已達免費額度上限。\n\n詳細錯誤：\n${finalErrorDetail}`);
+    }
+    setIsGeneratingCards(false);
   };
 
   const saveAndShare = async () => {
@@ -294,26 +296,24 @@ const App = () => {
 
   const getRating = () => {
     const total = history.again + history.hard + history.good + history.easy;
-    if (total === 0) return { score: 0, text: "尚無資料", color: "text-slate-500", emoji: "🤔" };
+    if (total === 0) return { score: 0, text: "無資料", color: "text-slate-500", emoji: "🤔" };
     const score = Math.round(((history.easy * 100) + (history.good * 100) + (history.hard * 50)) / total);
-    if (score >= 90) return { score, text: "極佳", color: "text-green-500", emoji: "🌟" };
-    if (score >= 60) return { score, text: "穩定", color: "text-blue-500", emoji: "👌" };
-    return { score, text: "加油", color: "text-red-500", emoji: "💪" };
+    return { score, text: score >= 90 ? "優秀" : "穩定", color: score >= 90 ? "text-green-500" : "text-blue-500", emoji: "🌟" };
   };
 
-  if (isLoading) return <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 gap-4"><Loader2 className="animate-spin text-indigo-600 w-12 h-12" /><span className="font-bold text-slate-400 text-xs tracking-widest uppercase">系統啟動中...</span></div>;
+  if (isLoading) return <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50"><Loader2 className="animate-spin text-indigo-600 w-12 h-12" /></div>;
 
   if (cards.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-6">
-        <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-md w-full text-center border border-slate-100">
-          <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner"><Brain className="text-indigo-600 w-10 h-10" /></div>
-          <h1 className="text-2xl font-black text-slate-800 mb-2">建立你的專屬字庫</h1>
-          <p className="text-slate-400 text-sm font-medium mb-8">貼上單字，由 AI 自動補完解釋</p>
-          <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} disabled={isGeneratingCards} placeholder={`在這裡輸入單字...\n例如：\n車站\n食べる\nEfficiency`} className="w-full h-40 p-5 mb-4 bg-slate-50 border-2 border-slate-100 rounded-3xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 transition-all outline-none font-medium resize-none text-slate-700 shadow-inner" />
-          {genError && <div className="text-red-600 bg-red-50 border border-red-200 p-4 rounded-2xl text-[11px] font-bold mb-5 whitespace-pre-wrap text-left shadow-sm flex items-start gap-2 leading-relaxed"><AlertTriangle size={14} className="shrink-0 mt-0.5" /> {genError}</div>}
-          <button onClick={generateCardsWithAI} disabled={isGeneratingCards || !inputText.trim()} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 group disabled:opacity-50">{isGeneratingCards ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300 group-hover:rotate-12 transition-transform" />} {isGeneratingCards ? '正在嘗試連線 Google...' : '✨ AI 智慧生成完整單字卡'}</button>
-          <div className="text-center text-slate-300 text-[10px] mt-10 font-black uppercase tracking-[0.3em]">Vercel 終極直連版 v4.4</div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-6 text-center">
+        <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-md w-full border border-slate-100">
+          <Brain className="text-indigo-600 w-12 h-12 mx-auto mb-4" />
+          <h1 className="text-2xl font-black mb-2">建立你的專屬字庫</h1>
+          <p className="text-slate-400 text-sm mb-8">貼上單字，讓 AI 自動補完所有解釋</p>
+          <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} disabled={isGeneratingCards} placeholder={`在這裡輸入單字...\n例如：\n車站\n食べる\nEfficiency`} className="w-full h-40 p-5 mb-4 bg-slate-50 border-2 border-slate-100 rounded-3xl focus:border-indigo-500 transition-all outline-none font-medium resize-none text-slate-700 shadow-inner" />
+          {genError && <div className="text-red-600 bg-red-50 border border-red-200 p-4 rounded-2xl text-[11px] font-bold mb-5 whitespace-pre-wrap text-left shadow-sm flex items-start gap-2"><AlertTriangle size={14} className="shrink-0 mt-0.5" /> {genError}</div>}
+          <button onClick={generateCardsWithAI} disabled={isGeneratingCards || !inputText.trim()} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50">{isGeneratingCards ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {isGeneratingCards ? '連線破解中...' : '✨ AI 生成單字卡'}</button>
+          <div className="text-center text-slate-300 text-[10px] mt-10 font-bold uppercase tracking-[0.3em]">Vercel 終極破解版 v4.5</div>
         </div>
       </div>
     );
@@ -324,10 +324,10 @@ const App = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-6 text-slate-800">
         <div className="bg-white p-12 rounded-[3rem] shadow-2xl max-w-lg w-full text-center border border-slate-100">
-          <div className="text-8xl mb-6 animate-bounce drop-shadow-lg">{r.emoji}</div>
+          <div className="text-8xl mb-6 animate-bounce">{r.emoji}</div>
           <h1 className="text-3xl font-black mb-1">完成本日練習！</h1>
-          <div className={`text-4xl font-black ${r.color} mb-8`}>{r.score} 分 - {r.text}</div>
-          <button onClick={() => { setQueue(Array.from({ length: cards.length }, (_, i) => i)); setHistory({ again: 0, hard: 0, good: 0, easy: 0 }); setIsFinished(false); }} className="w-full bg-slate-900 hover:bg-black text-white font-black py-5 rounded-[2rem] flex items-center justify-center gap-3 transition-all shadow-xl"><RefreshCcw size={22} />重新開始這一輪</button>
+          <div className={`text-4xl font-black ${r.color} mb-8`}>{r.score} 分</div>
+          <button onClick={() => { setQueue(Array.from({ length: cards.length }, (_, i) => i)); setHistory({ again: 0, hard: 0, good: 0, easy: 0 }); setIsFinished(false); }} className="w-full bg-slate-900 hover:bg-black text-white font-black py-5 rounded-[2rem] flex items-center justify-center gap-3 transition-all shadow-xl"><RefreshCcw size={22} />重新開始</button>
         </div>
       </div>
     );
@@ -340,28 +340,28 @@ const App = () => {
     <div className="min-h-screen bg-slate-50 flex flex-col items-center py-10 px-4 font-sans text-slate-800 overflow-x-hidden">
       <div className="w-full max-w-md mb-6 space-y-4">
         <div className="flex justify-between items-center px-1">
-          <div className="bg-white px-5 py-2.5 rounded-full shadow-sm border border-slate-100 text-[15px] font-black flex items-center gap-2 text-slate-700"><Brain size={18} className="text-indigo-600" />{totalInitial - queue.length} <span className="text-slate-300 font-medium mx-1">/</span> {totalInitial}</div>
-          <button onClick={currentDeckId || shareUrl ? copyToClipboard : saveAndShare} disabled={isSaving} className={`px-5 py-2.5 rounded-full text-xs font-black shadow-md transition-all flex items-center gap-2 ${copySuccess ? 'bg-green-500 text-white shadow-green-100' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>{isSaving ? <Loader2 className="animate-spin" size={14} /> : (copySuccess ? <Check size={14} /> : <Share2 size={14} />)}{copySuccess ? '已複製連結' : (currentDeckId || shareUrl ? '分享連結' : '儲存至雲端')}</button>
+          <div className="bg-white px-5 py-2.5 rounded-full shadow-sm border border-slate-100 text-[15px] font-black flex items-center gap-2 text-slate-700"><Brain size={18} className="text-indigo-600" />{totalInitial - queue.length} / {totalInitial}</div>
+          <button onClick={currentDeckId || shareUrl ? copyToClipboard : saveAndShare} disabled={isSaving} className={`px-5 py-2.5 rounded-full text-xs font-black shadow-md transition-all flex items-center gap-2 ${copySuccess ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>{isSaving ? <Loader2 className="animate-spin" size={14} /> : (copySuccess ? <Check size={14} /> : <Share2 size={14} />)}{copySuccess ? '已複製' : '儲存與分享'}</button>
         </div>
-        <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden shadow-inner border border-slate-100"><div className="bg-indigo-500 h-full transition-all duration-1000 ease-out" style={{ width: `${progress}%` }} /></div>
+        <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden border border-slate-100 shadow-inner"><div className="bg-indigo-500 h-full transition-all duration-1000" style={{ width: `${progress}%` }} /></div>
       </div>
 
       <div className="relative w-full max-w-md h-[68vh] min-h-[500px] cursor-pointer perspective-1000 group" onClick={() => !isFlipped && setIsFlipped(true)}>
         <div className={`relative w-full h-full transition-all duration-700 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
           <div className="absolute inset-0 backface-hidden bg-white rounded-[3rem] shadow-2xl flex flex-col items-center justify-center p-10 border border-slate-100">
-            <h2 className="text-[3.5rem] font-black text-slate-900 text-center leading-[1.1] mb-12 break-words w-full">{currentCard.word}</h2>
-            <button onClick={(e) => { e.stopPropagation(); speak(currentCard.word); }} className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 shadow-inner hover:bg-indigo-100 hover:scale-110 transition-all border-2 border-indigo-100/50"><Volume2 size={40} /></button>
+            <h2 className="text-[3.5rem] font-black text-slate-900 text-center mb-12 break-words w-full">{currentCard.word}</h2>
+            <button onClick={(e) => { e.stopPropagation(); speak(currentCard.word); }} className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 shadow-inner border-2 border-indigo-100/50 hover:scale-110 transition-all"><Volume2 size={40} /></button>
             <div className="absolute bottom-10 flex items-center gap-2 text-slate-300 text-[11px] font-black tracking-[0.3em] uppercase animate-pulse">點擊翻面 <ChevronRight size={14} /></div>
           </div>
-          <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white rounded-[3rem] shadow-2xl flex flex-col p-6 border border-slate-100 overflow-hidden">
+          <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white rounded-[3rem] shadow-2xl flex flex-col p-6 border border-slate-100 overflow-hidden text-left">
             <div className="w-full h-36 bg-slate-100 rounded-3xl mb-5 overflow-hidden shadow-inner shrink-0 border border-slate-50"><img src={imageUrls[currentCard.word]} className="w-full h-full object-cover transition-transform hover:scale-105" alt="" onError={(e) => e.target.src = 'https://loremflickr.com/500/300/japan'} /></div>
             <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-4">{formatBackHeader(currentCard)}{currentCard.info.includes('【例句】') && <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-100 shadow-sm">{formatExampleText(currentCard.info.split('【例句】')[1])}</div>}</div>
             <div className="grid grid-cols-5 gap-1.5 mt-5 pt-5 border-t border-slate-100 shrink-0">
-              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('again'); }} className="flex flex-col items-center gap-1 hover:scale-110 transition-transform"><div className="w-11 h-11 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 shadow-sm"><RefreshCcw size={20} /></div><span className="text-[10px] font-black text-red-500/80 uppercase">Again</span></button>
-              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('hard'); }} className="flex flex-col items-center gap-1 hover:scale-110 transition-transform"><div className="w-11 h-11 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 shadow-sm"><Flame size={20} /></div><span className="text-[10px] font-black text-orange-500/80 uppercase">Hard</span></button>
+              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('again'); }} className="flex flex-col items-center gap-1"><div className="w-11 h-11 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 shadow-sm"><RefreshCcw size={20} /></div><span className="text-[10px] font-black text-red-500/80 uppercase">Again</span></button>
+              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('hard'); }} className="flex flex-col items-center gap-1"><div className="w-11 h-11 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 shadow-sm"><Flame size={20} /></div><span className="text-[10px] font-black text-orange-500/80 uppercase">Hard</span></button>
               <button onClick={(e) => { e.stopPropagation(); speak(getSpeakableText(currentCard)); }} className="flex flex-col items-center gap-1 -mt-4 hover:scale-110 transition-transform group"><div className="w-14 h-14 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-xl border-4 border-white group-hover:bg-indigo-700 transition-colors"><Volume2 size={24} /></div><span className="text-[10px] font-black text-indigo-600 uppercase">Listen</span></button>
-              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('good'); }} className="flex flex-col items-center gap-1 hover:scale-110 transition-transform"><div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shadow-sm"><Star size={20} /></div><span className="text-[10px] font-black text-blue-500/80 uppercase">Good</span></button>
-              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('easy'); }} className="flex flex-col items-center gap-1 hover:scale-110 transition-transform"><div className="w-11 h-11 rounded-2xl bg-green-50 text-green-600 flex items-center justify-center border border-green-100 shadow-sm"><Zap size={20} /></div><span className="text-[10px] font-black text-green-500/80 uppercase">Easy</span></button>
+              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('good'); }} className="flex flex-col items-center gap-1"><div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shadow-sm"><Star size={20} /></div><span className="text-[10px] font-black text-blue-500/80 uppercase">Good</span></button>
+              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('easy'); }} className="flex flex-col items-center gap-1"><div className="w-11 h-11 rounded-2xl bg-green-50 text-green-600 flex items-center justify-center border border-green-100 shadow-sm"><Zap size={20} /></div><span className="text-[10px] font-black text-green-500/80 uppercase">Easy</span></button>
             </div>
           </div>
         </div>
