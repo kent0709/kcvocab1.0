@@ -17,7 +17,7 @@ const firebaseConfig = {
 };
 
 // --- 2. Google AI 金鑰 ---
-const GEMINI_API_KEY = "AIzaSyD7yp67pTR39yfiIfFamYnPEdmRr-lEnKU";
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 // 自動判斷環境
 const isCanvas = typeof __firebase_config !== 'undefined';
