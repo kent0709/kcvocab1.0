@@ -222,6 +222,16 @@ const App = () => {
     }
   };
 
+  // 輔助函式：清理 AI 回傳的 Markdown 標籤並解析 JSON
+  const safeJsonParse = (text) => {
+    try {
+      const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(cleaned);
+    } catch (e) {
+      throw new Error("JSON 解析失敗，請再試一次");
+    }
+  };
+
   const generateCardsWithAI = async () => {
     if (!inputText.trim()) return;
     setIsGeneratingCards(true);
@@ -234,19 +244,19 @@ const App = () => {
     try {
       const isEnglishMode = /[a-zA-Z]/.test(inputText);
       const prompt = isEnglishMode 
-        ? `你是一位專業英文教師。請從 """${inputText}""" 萃取英文單字並回傳 JSON 陣列：word, reading(音標), meaning(詞性意思), derivatives, collocations, example_en, example_zh`
-        : `你是一位專業日文教師。請從 """${inputText}""" 萃取日文單字並回傳 JSON 陣列：word, reading, meaning, breakdown, example_jp, example_kana, example_zh`;
+        ? `你是一位專業英文教師。請從 """${inputText}""" 萃取英文單字。務必只回傳一個 JSON 陣列，格式如下：[{"word": "...", "reading": "...", "meaning": "...", "derivatives": "...", "collocations": "...", "example_en": "...", "example_zh": "..."}]`
+        : `你是一位專業日文教師。請從 """${inputText}""" 萃取日文單字。務必只回傳一個 JSON 陣列，格式如下：[{"word": "...", "reading": "...", "meaning": "...", "breakdown": "...", "example_jp": "...", "example_kana": "...", "example_zh": "..."}]`;
 
-      // 🛑 核心修復：Vercel 環境使用 v1 正式版 API 地址
-      const BASE_URL = isCanvasEnvironment ? "v1beta" : "v1";
+      // 修復：正式版與測試版環境採取一致的 v1 地址與最穩定呼叫方式
+      const API_VERSION = isCanvasEnvironment ? "v1beta" : "v1";
       const MODEL_NAME = isCanvasEnvironment ? "gemini-2.5-flash-preview-09-2025" : "gemini-1.5-flash";
       
-      const response = await fetch(`https://generativelanguage.googleapis.com/${BASE_URL}/models/${MODEL_NAME}:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/${API_VERSION}/models/${MODEL_NAME}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: "application/json" }
+          contents: [{ parts: [{ text: prompt }] }]
+          // 移除 responseMimeType 以避免 v1 正式版報錯，改用 Prompt 強制約束
         })
       });
 
@@ -256,7 +266,7 @@ const App = () => {
       }
       
       const data = await response.json();
-      const parsedData = JSON.parse(data.candidates[0].content.parts[0].text);
+      const parsedData = safeJsonParse(data.candidates[0].content.parts[0].text);
       
       const newCards = parsedData.map(item => {
         if (!isEnglishMode) {
@@ -318,7 +328,7 @@ const App = () => {
     return { score, text: "加油", color: "text-red-500", emoji: "💪" };
   };
 
-  if (isLoading) return <div className="flex items-center justify-center min-h-screen bg-slate-50"><Loader2 className="animate-spin" /></div>;
+  if (isLoading) return <div className="flex items-center justify-center min-h-screen bg-slate-50"><Loader2 className="animate-spin text-indigo-600" /></div>;
 
   if (cards.length === 0) {
     return (
@@ -331,9 +341,9 @@ const App = () => {
             onChange={(e) => setInputText(e.target.value)}
             disabled={isGeneratingCards}
             placeholder="請直接輸入單字..."
-            className="w-full h-32 p-4 mb-3 bg-slate-50 border rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-medium"
+            className="w-full h-32 p-4 mb-3 bg-slate-50 border rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-medium resize-none"
           />
-          {genError && <div className="text-red-600 bg-red-50 border border-red-200 p-2 rounded-lg text-xs font-bold mb-3">{genError}</div>}
+          {genError && <div className="text-red-600 bg-red-50 border border-red-200 p-2 rounded-lg text-xs font-bold mb-3 whitespace-pre-wrap text-left">{genError}</div>}
           <button
             onClick={generateCardsWithAI}
             disabled={isGeneratingCards || !inputText.trim()}
@@ -342,7 +352,7 @@ const App = () => {
             {isGeneratingCards ? <Loader2 className="animate-spin" /> : <Star size={18} />}
             {isGeneratingCards ? 'AI 分析中...' : '✨ AI 生成單字卡'}
           </button>
-          <div className="text-center text-slate-300 text-[10px] mt-6 font-bold uppercase tracking-widest">Vercel 終極正式版 v3.0</div>
+          <div className="text-center text-slate-300 text-[10px] mt-6 font-bold uppercase tracking-widest">Vercel 終極修復版 v3.1</div>
         </div>
       </div>
     );
@@ -355,7 +365,7 @@ const App = () => {
         <div className="bg-white p-10 rounded-[2rem] shadow-2xl max-w-lg w-full text-center">
           <div className="text-6xl mb-4 animate-bounce">{rating.emoji}</div>
           <h1 className="text-2xl font-black">{rating.score} 分 - {rating.text}</h1>
-          <button onClick={() => { setQueue(Array.from({ length: cards.length }, (_, i) => i)); setHistory({ again: 0, hard: 0, good: 0, easy: 0 }); setIsFinished(false); }} className="mt-8 w-full bg-slate-800 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2"><RefreshCcw size={20} />重新開始</button>
+          <button onClick={() => { setQueue(Array.from({ length: cards.length }, (_, i) => i)); setHistory({ again: 0, hard: 0, good: 0, easy: 0 }); setIsFinished(false); }} className="mt-8 w-full bg-slate-800 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all hover:bg-black"><RefreshCcw size={20} />重新開始</button>
         </div>
       </div>
     );
@@ -372,7 +382,7 @@ const App = () => {
             <Brain size={16} className="text-indigo-600" />
             {totalInitial - queue.length} / {totalInitial}
           </div>
-          <button onClick={saveAndShare} disabled={isSaving} className="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold shadow-md">
+          <button onClick={saveAndShare} disabled={isSaving} className="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold shadow-md hover:bg-indigo-700 transition-all">
             {isSaving ? <Loader2 className="animate-spin" /> : (shareUrl ? '已儲存' : '儲存進度')}
           </button>
         </div>
@@ -382,27 +392,27 @@ const App = () => {
       <div className="relative w-full max-w-md h-[70vh] min-h-[450px] cursor-pointer perspective-1000" onClick={() => !isFlipped && setIsFlipped(true)}>
         <div className={`relative w-full h-full transition-all duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
           <div className="absolute inset-0 backface-hidden bg-white rounded-[2rem] shadow-xl flex flex-col items-center justify-center p-8 border">
-            <h2 className="text-[3rem] font-black text-slate-800 text-center leading-tight mb-8">{currentCard.word}</h2>
-            <button onClick={(e) => { e.stopPropagation(); speak(currentCard.word); }} className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 shadow-sm"><Volume2 size={32} /></button>
+            <h2 className="text-[3rem] font-black text-slate-800 text-center leading-tight mb-8 break-words w-full">{currentCard.word}</h2>
+            <button onClick={(e) => { e.stopPropagation(); speak(currentCard.word); }} className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 shadow-sm hover:bg-indigo-100 transition-all"><Volume2 size={32} /></button>
             <div className="absolute bottom-8 text-slate-400 text-xs font-bold tracking-widest animate-pulse">點擊卡片翻面</div>
           </div>
           <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white rounded-[2rem] shadow-xl flex flex-col p-4 border overflow-hidden">
-            <img src={imageUrls[currentCard.word]} className="w-full h-28 object-cover rounded-xl mb-3 shadow-inner" alt="" onError={(e) => e.target.src = 'https://loremflickr.com/400/300/japan'} />
+            <img src={imageUrls[currentCard.word]} className="w-full h-28 object-cover rounded-xl mb-3 shadow-inner bg-slate-100" alt="" onError={(e) => e.target.src = 'https://loremflickr.com/400/300/japan'} />
             <div className="flex-1 overflow-y-auto pr-1">
               {formatBackHeader(currentCard)}
               {currentCard.info.includes('【例句】') && <div className="bg-slate-50 p-2.5 rounded-xl border mt-2">{formatExampleText(currentCard.info.split('【例句】')[1])}</div>}
             </div>
             <div className="grid grid-cols-5 gap-1 mt-2 pt-2 border-t">
-              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('again'); }} className="flex flex-col items-center text-red-500"><div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center"><RefreshCcw size={16} /></div><span className="text-[9px] font-bold">Again</span></button>
-              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('hard'); }} className="flex flex-col items-center text-orange-500"><div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center"><Flame size={16} /></div><span className="text-[9px] font-bold">Hard</span></button>
-              <button onClick={(e) => { e.stopPropagation(); speak(getSpeakableText(currentCard)); }} className="flex flex-col items-center -mt-2"><div className="w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg"><Volume2 size={20} /></div><span className="text-[9px] font-bold text-indigo-600">Listen</span></button>
-              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('good'); }} className="flex flex-col items-center text-blue-500"><div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center"><Star size={16} /></div><span className="text-[9px] font-bold">Good</span></button>
-              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('easy'); }} className="flex flex-col items-center text-green-500"><div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center"><Zap size={16} /></div><span className="text-[9px] font-bold">Easy</span></button>
+              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('again'); }} className="flex flex-col items-center text-red-500 hover:scale-105 transition-transform"><div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center"><RefreshCcw size={16} /></div><span className="text-[9px] font-bold">Again</span></button>
+              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('hard'); }} className="flex flex-col items-center text-orange-500 hover:scale-105 transition-transform"><div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center"><Flame size={16} /></div><span className="text-[9px] font-bold">Hard</span></button>
+              <button onClick={(e) => { e.stopPropagation(); speak(getSpeakableText(currentCard)); }} className="flex flex-col items-center -mt-2 hover:scale-110 transition-transform"><div className="w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg"><Volume2 size={20} /></div><span className="text-[9px] font-bold text-indigo-600">Listen</span></button>
+              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('good'); }} className="flex flex-col items-center text-blue-500 hover:scale-105 transition-transform"><div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center"><Star size={16} /></div><span className="text-[9px] font-bold">Good</span></button>
+              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('easy'); }} className="flex flex-col items-center text-green-500 hover:scale-105 transition-transform"><div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center"><Zap size={16} /></div><span className="text-[9px] font-bold">Easy</span></button>
             </div>
           </div>
         </div>
       </div>
-      <style dangerouslySetInnerHTML={{ __html: `.perspective-1000 { perspective: 1000px; } .backface-hidden { backface-visibility: hidden; } .rotate-y-180 { transform: rotateY(180deg); } .transform-style-3d { transform-style: preserve-3d; }` }} />
+      <style dangerouslySetInnerHTML={{ __html: `.perspective-1000 { perspective: 1000px; } .backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; } .rotate-y-180 { transform: rotateY(180deg); } .transform-style-3d { transform-style: preserve-3d; }` }} />
     </div>
   );
 };
