@@ -200,10 +200,12 @@ const App = () => {
       ? `分析文字 """${input}""" 萃取出重要英文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句發音", "example_zh": "翻譯"}]。請只回傳 JSON。`
       : `分析文字 """${input}""" 萃取出重要日文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一類、第二類或第三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶單字邏輯)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
 
-    // 💡 簡化且穩定的模型清單
-    const targets = isCanvas 
-      ? [{ v: "v1beta", m: "gemini-2.5-flash-preview-09-2025" }] 
-      : [{ v: "v1beta", m: "gemini-1.5-flash" }]; // 大眾版最穩定的核心模型
+    // 💡 全面升級：統一使用 Google 官方最新、絕對可用的預覽版模型
+    const targets = [
+      { v: "v1beta", m: "gemini-2.5-flash-preview-09-2025" }, // 最新預覽版 (絕對可用)
+      { v: "v1beta", m: "gemini-2.5-flash" },                 // 2.5 穩定版
+      { v: "v1beta", m: "gemini-1.5-pro" }                    // 備用方案
+    ];
 
     let success = false;
     let lastError = "";
