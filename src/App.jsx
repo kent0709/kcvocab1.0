@@ -175,9 +175,12 @@ const App = () => {
     
     if (deckId && user) {
       try {
-        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', deckId), { queue: nextQ, history: nextH });
+        const updatePromise = updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', deckId), { queue: nextQ, history: nextH });
+        // 加入 5 秒背景更新超時，避免卡死
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 5000));
+        await Promise.race([updatePromise, timeoutPromise]);
       } catch(err) {
-        console.error("更新進度失敗", err);
+        console.error("背景進度更新失敗 (可能是網路或資料庫未啟用)", err);
       }
     }
   };
@@ -326,7 +329,7 @@ const App = () => {
           {genLoading ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {genLoading ? '請求中...' : 'AI 智慧生成單字卡'}
         </button>
         {/* 客製化調整：加上 byKC 簽名 */}
-        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">v9.5 終極隱形金鑰版 byKC</div>
+        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">v9.6 連線防卡死版 byKC</div>
       </div>
     </div>
   );
@@ -486,28 +489,36 @@ const App = () => {
             <Trophy size={18} />
           </button>
 
-          {/* 儲存與分享按鈕 (已加入轉圈動畫與視窗機制) */}
+          {/* 儲存與分享按鈕 (加入超時偵測防卡死) */}
           <button onClick={async () => {
             if (!user) {
-              // 提醒使用者是否忘記開 Firebase 匿名登入
-              setError("❌ 無法連線！請確認 Firebase 裡的「Authentication -> 匿名登入」是否有開啟！");
+              setError("❌ 系統連線中，或 Firebase 未開啟匿名登入！");
               setTimeout(() => setError(""), 4000);
               return;
             }
             if (isSaving) return;
             setIsSaving(true);
+            setError("");
             
             try {
               let shareId = deckId;
               if (!shareId) {
-                shareId = crypto.randomUUID();
-                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', shareId), { cards, queue, history, creator: user.uid, createdAt: new Date().toISOString() });
+                // 安全防護：避免舊版瀏覽器不支援 crypto 導致壞掉
+                shareId = (typeof crypto !== 'undefined' && crypto.randomUUID) 
+                  ? crypto.randomUUID() 
+                  : 'deck-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
+                
+                // 設定 8 秒超時保護機制，避免轉圈圈轉到天荒地老
+                const savePromise = setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', shareId), { cards, queue, history, creator: user.uid, createdAt: new Date().toISOString() });
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 8000));
+                
+                await Promise.race([savePromise, timeoutPromise]);
+                
                 setDeckId(shareId); 
                 safePushState(`?deckId=${shareId}`);
               }
               const shareUrl = `${window.location.origin}${window.location.pathname}?deckId=${shareId}`;
               
-              // 背景嘗試自動複製
               try {
                 if (navigator.clipboard && window.isSecureContext) {
                   await navigator.clipboard.writeText(shareUrl);
@@ -515,22 +526,22 @@ const App = () => {
                   const el = document.createElement('textarea'); el.value = shareUrl; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el);
                 }
               } catch (copyErr) {
-                console.warn("剪貼簿自動複製被阻擋，但資料已成功儲存！");
+                console.warn("剪貼簿自動複製被阻擋");
               }
 
               setCopyOk(true); 
               setTimeout(() => setCopyOk(false), 2000);
-              
-              // 🌟 彈出保證能拿到的專屬網址視窗
               setShareModal({ isOpen: true, url: shareUrl });
 
             } catch (err) {
-              if (err.message.includes("permissions")) {
-                setError("❌ 資料庫權限不足！請至 Firebase 將規則改為 allow read, write: if true;");
+              if (err.message === "TIMEOUT") {
+                setError("❌ 連線逾時！請確認 Firebase 裡的 Firestore Database 是否已『建立』！");
+              } else if (err.message.includes("permissions")) {
+                setError("❌ 資料庫權限不足！請確認 Firebase Rules 規則。");
               } else {
                 setError("❌ 儲存失敗：" + err.message);
               }
-              setTimeout(() => setError(""), 4000);
+              setTimeout(() => setError(""), 5000);
             } finally {
               setIsSaving(false);
             }
