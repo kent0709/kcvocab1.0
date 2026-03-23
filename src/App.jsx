@@ -17,7 +17,6 @@ const firebaseConfig = {
 };
 
 // --- 2. Google AI 金鑰 (直接寫入，保證朋友可用) ---
-// ⚠️ 注意：若上一把金鑰曾上傳至 GitHub，極可能已被 Google 強制停用！請換上「全新」申請的金鑰。
 const GEMINI_API_KEY = "AIzaSyAQqoHqY0lpfWCGyq2Xacgp7kl4x6mwWWY";
 
 // 自動判斷環境
@@ -196,15 +195,15 @@ const App = () => {
     setGenLoading(true); setError('');
     const isEn = /[a-zA-Z]/.test(input);
     
+    // 💡 智慧語系翻譯指令
     const prompt = isEn 
-      ? `分析文字 """${input}""" 萃取出重要英文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句發音", "example_zh": "翻譯"}]。請只回傳 JSON。`
-      : `分析文字 """${input}""" 萃取出重要日文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一類、第二類或第三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶單字邏輯)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
+      ? `請分析以下文字：\n"""${input}"""\n這是一份「英文學習清單」。請提取出英文單字。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯"}]。請只回傳 JSON。`
+      : `請分析以下文字：\n"""${input}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
 
-    // 💡 全面升級：統一使用 Google 官方最新、絕對可用的預覽版模型
     const targets = [
-      { v: "v1beta", m: "gemini-2.5-flash-preview-09-2025" }, // 最新預覽版 (絕對可用)
-      { v: "v1beta", m: "gemini-2.5-flash" },                 // 2.5 穩定版
-      { v: "v1beta", m: "gemini-1.5-pro" }                    // 備用方案
+      { v: "v1beta", m: "gemini-2.5-flash-preview-09-2025" },
+      { v: "v1beta", m: "gemini-2.5-flash" },
+      { v: "v1beta", m: "gemini-1.5-pro" }
     ];
 
     let success = false;
@@ -223,10 +222,9 @@ const App = () => {
         if (!res.ok) {
           const errMsg = data.error?.message || "";
           
-          // 🛑 核心防護：攔截「金鑰被停權」的真實原因
           if (res.status === 400 || res.status === 403) {
-            lastError = `API 金鑰無效或已被 Google 停權（可能是因為之前外洩到 GitHub）。請申請一把「全新」的金鑰替換！`;
-            break; // 遇到金鑰問題直接中斷，不繼續嘗試其他模型
+            lastError = `API 金鑰無效或已被 Google 停權。請申請一把「全新」的金鑰替換！`;
+            break; 
           }
 
           if (res.status === 429) {
@@ -309,7 +307,7 @@ const App = () => {
         <button onClick={generate} disabled={genLoading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50">
           {genLoading ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {genLoading ? '請求中...' : 'AI 智慧生成單字卡'}
         </button>
-        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">絕對通關版 v8.10</div>
+        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">v9.3 智慧語系切換版</div>
       </div>
     </div>
   );
@@ -418,6 +416,13 @@ const App = () => {
         </div>
       )}
 
+      {/* 畫面頂部提示區 */}
+      {error && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-xl text-xs font-bold shadow-lg flex items-center gap-2">
+          <AlertTriangle size={14} /> {error}
+        </div>
+      )}
+
       <div className="w-full max-w-md mb-6 space-y-4">
         <div className="flex justify-between items-center gap-2">
           {/* 回到首頁按鈕 */}
@@ -438,7 +443,11 @@ const App = () => {
 
           {/* 儲存與分享按鈕 */}
           <button onClick={async () => {
-            if (!user) return;
+            if (!user) {
+              setError("❌ 系統正在連線到資料庫，請稍候再試！");
+              setTimeout(() => setError(""), 3000);
+              return;
+            }
             try {
               let shareId = deckId;
               if (!shareId) {
@@ -448,15 +457,29 @@ const App = () => {
                 safePushState(`?deckId=${shareId}`);
               }
               const shareUrl = `${window.location.origin}${window.location.pathname}?deckId=${shareId}`;
-              const el = document.createElement('textarea'); el.value = shareUrl; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el); setCopyOk(true); setTimeout(() => setCopyOk(false), 2000);
+              
+              // 💡 更強大的複製邏輯，確保各種裝置都能順利複製
+              try {
+                if (navigator.clipboard && window.isSecureContext) {
+                  await navigator.clipboard.writeText(shareUrl);
+                } else {
+                  const el = document.createElement('textarea'); el.value = shareUrl; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el);
+                }
+              } catch (copyErr) {
+                console.warn("剪貼簿自動複製被阻擋，但資料已成功儲存！");
+              }
+
+              setCopyOk(true); 
+              setTimeout(() => setCopyOk(false), 2000);
             } catch (err) {
               if (err.message.includes("permissions")) {
-                setError("❌ 資料庫權限不足！請至 Firebase 控制台 > Firestore Database > Rules，將規則改為 allow read, write: if true;");
+                setError("❌ 資料庫權限不足！請至 Firebase 將規則改為 allow read, write: if true;");
               } else {
                 setError("❌ 儲存失敗：" + err.message);
               }
+              setTimeout(() => setError(""), 3000);
             }
-          }} className={`w-10 h-10 flex items-center justify-center rounded-full shadow-md text-white transition-all shrink-0 ${copyOk ? 'bg-green-500' : 'bg-indigo-600 hover:bg-indigo-700'}`} title="儲存與分享">
+          }} className={`w-10 h-10 flex items-center justify-center rounded-full shadow-md text-white transition-all shrink-0 ${copyOk ? 'bg-green-500 scale-110' : 'bg-indigo-600 hover:bg-indigo-700'}`} title="儲存與分享">
             {copyOk ? <Check size={16} /> : <Share2 size={16} />}
           </button>
         </div>
@@ -494,9 +517,13 @@ const App = () => {
                     {((s) => {
                        const m = s.match(/^(.*?)\((.*?)\)(.*)$/);
                        if (!m) return <div className="text-[14px] text-slate-700 leading-relaxed">{s}</div>;
+                       
+                       // 💡 判斷是否為英文單字：如果是英文，強制不顯示中間的括號列！
+                       const isEnglish = /[a-zA-Z]/.test(card.word);
+                       
                        return <>
                          <div className="text-[16px] font-bold text-slate-800 leading-tight mb-2">{m[1].trim()}</div>
-                         {m[2].trim() && <div className="text-[14px] font-medium text-indigo-600 mb-2">({m[2].trim()})</div>}
+                         {m[2].trim() && !isEnglish && <div className="text-[14px] font-medium text-indigo-600 mb-2">({m[2].trim()})</div>}
                          <div className="text-[14px] font-bold text-slate-700 mt-1">{m[3].trim()}</div>
                        </>;
                      })(d_example)}
