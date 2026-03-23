@@ -352,7 +352,7 @@ const App = () => {
       }
 
       // 動態切換引擎：在畫布中使用 2.5，發布後使用 1.5
-      const AI_MODEL = isCanvasEnvironment ? 'gemini-2.5-flash-preview-09-2025' : 'gemini-1.5-flash';
+      const AI_MODEL = isCanvasEnvironment ? 'gemini-2.5-flash-preview-09-2025' : 'gemini-1.5-flash-latest';
       
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL}:generateContent?key=${apiKey}`, {
         method: 'POST',
@@ -470,7 +470,7 @@ const App = () => {
             ? `Extract a highly visual, simple English phrase for generating a stock photo (max 5 words) representing the concept: ${card.word}. Return ONLY the English text.`
             : `Translate this Japanese/Chinese vocabulary meaning into a highly visual, simple English phrase for generating a stock photo (max 5 words). Return ONLY the English text. Vocabulary: ${card.word}, Meaning: ${hint}`;
 
-          const AI_MODEL = isCanvasEnvironment ? 'gemini-2.5-flash-preview-09-2025' : 'gemini-1.5-flash';
+          const AI_MODEL = isCanvasEnvironment ? 'gemini-2.5-flash-preview-09-2025' : 'gemini-1.5-flash-latest';
           const textRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL}:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
