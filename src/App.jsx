@@ -32,14 +32,15 @@ const myFirebaseConfig = {
 };
 
 // ==========================================
-// 🔴 步驟二：你的 Google AI 金鑰 (已自動填入！)
+// 🔴 步驟二：你的 Google AI 金鑰 (已填妥！)
 // ==========================================
 const GEMINI_API_KEY = "AIzaSyBZ5d_jU5ZJLQ9oUCLqRDi4hS3P4lfOyQQ"; 
 
 // --- 系統自動判斷環境邏輯 ---
 const isCanvasEnvironment = typeof __firebase_config !== 'undefined';
 const activeConfig = isCanvasEnvironment ? JSON.parse(__firebase_config) : myFirebaseConfig;
-const activeGeminiKey = isCanvasEnvironment ? "" : GEMINI_API_KEY;
+// 修復盲點：在畫布環境使用空字串，在 Vercel 環境使用你的真實金鑰
+const apiKey = isCanvasEnvironment ? "" : GEMINI_API_KEY;
 
 const app = initializeApp(activeConfig);
 const auth = getAuth(app);
@@ -305,20 +306,20 @@ const App = () => {
     }
   };
 
-  // --- 6. AI 智慧生成單字卡內容 (加入強力除錯功能) ---
+  // --- 6. AI 智慧生成單字卡內容 (終極修復邏輯) ---
   const generateCardsWithAI = async () => {
     if (!inputText.trim()) return;
     setIsGeneratingCards(true);
     setGenError('');
     
-    if (!activeGeminiKey) {
-      setGenError('請先在程式碼最上方填入 GEMINI_API_KEY 金鑰喔！');
+    // 修復盲點：只在 Vercel 檢查有沒有金鑰，畫布環境直接放行
+    if (!isCanvasEnvironment && !apiKey) {
+      setGenError('❌ 找不到金鑰！請確定你在 StackBlitz 已經點擊了 Commit & Push 同步到 Vercel 喔！');
       setIsGeneratingCards(false);
       return;
     }
 
     try {
-      const apiKey = activeGeminiKey; 
       const isEnglishMode = /[a-zA-Z]/.test(inputText);
       const isJapaneseMode = !isEnglishMode;
       
@@ -351,7 +352,6 @@ const App = () => {
         `;
       }
 
-      // 動態切換引擎：在畫布中使用 2.5，發布後使用 1.5
       const AI_MODEL = isCanvasEnvironment ? 'gemini-2.5-flash-preview-09-2025' : 'gemini-1.5-flash';
       
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL}:generateContent?key=${apiKey}`, {
@@ -363,7 +363,6 @@ const App = () => {
         })
       });
 
-      // 🛑 加入真實錯誤攔截器
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(`Google 拒絕連線：${errorData.error?.message || response.statusText}`);
@@ -403,7 +402,6 @@ const App = () => {
 
     } catch (e) {
       console.error("AI 處理失敗", e);
-      // 🛑 將真實錯誤顯示在畫面上！
       if (e.name === 'SyntaxError') {
         setGenError(`❌ AI 格式錯亂，請重新點擊生成一次！`);
       } else {
@@ -452,7 +450,6 @@ const App = () => {
   // --- 8. AI 意象圖預載 ---
   useEffect(() => {
     if (cards.length === 0 || isFinished) return;
-    if (!activeGeminiKey) return;
 
     const loadImages = async () => {
       const nextCards = queue.slice(0, 3).map(idx => cards[idx]);
@@ -464,8 +461,6 @@ const App = () => {
         const isEnglish = /[a-zA-Z]/.test(card.word);
 
         try {
-          const apiKey = activeGeminiKey; 
-          
           const translationPrompt = isEnglish 
             ? `Extract a highly visual, simple English phrase for generating a stock photo (max 5 words) representing the concept: ${card.word}. Return ONLY the English text.`
             : `Translate this Japanese/Chinese vocabulary meaning into a highly visual, simple English phrase for generating a stock photo (max 5 words). Return ONLY the English text. Vocabulary: ${card.word}, Meaning: ${hint}`;
@@ -485,10 +480,9 @@ const App = () => {
             const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
             if (text) enText = text;
           }
-          
-          // 針對 StackBlitz/Vercel 環境，因為標準金鑰暫不支援 imagen，先強制使用靜態美圖代替
+
           let finalImgUrl = `https://loremflickr.com/400/300/${encodeURIComponent(enText)}`;
-          
+
           if (isCanvasEnvironment) {
             const imgRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`, {
               method: 'POST',
