@@ -17,7 +17,8 @@ const firebaseConfig = {
 };
 
 // --- 2. Google AI 金鑰 (直接寫入，保證朋友可用) ---
-const GEMINI_API_KEY = "AIzaSyD7yp67pTR39yfiIfFamYnPEdmRr-lEnKU";
+// ⚠️ 注意：若上一把金鑰曾上傳至 GitHub，極可能已被 Google 強制停用！請換上「全新」申請的金鑰。
+const GEMINI_API_KEY = "AIzaSyAQqoHqY0lpfWCGyq2Xacgp7kl4x6mwWWY";
 
 // 自動判斷環境
 const isCanvas = typeof __firebase_config !== 'undefined';
@@ -26,7 +27,6 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 const appId = typeof __app_id !== 'undefined' ? String(__app_id).replace(/\//g, '_') : 'kcvocabapp';
-// 確保 Vercel 環境必定使用真實金鑰
 const apiKey = isCanvas ? "" : GEMINI_API_KEY;
 
 // 安全更新網址列，避免在特定環境中產生錯誤
@@ -166,7 +166,6 @@ const App = () => {
     }
   };
 
-  // 自訂彈窗處理
   const openConfirm = (type, message) => setConfirmDialog({ isOpen: true, type, message });
   const closeConfirm = () => setConfirmDialog({ isOpen: false, type: '', message: '' });
 
@@ -189,33 +188,28 @@ const App = () => {
   const generate = async () => {
     if (!input.trim() || genLoading) return;
     
+    if (!isCanvas && (!apiKey || apiKey.includes("xxxxxxxx"))) {
+      setError('❌ 尚未設定有效的 API 金鑰！');
+      return;
+    }
+
     setGenLoading(true); setError('');
     const isEn = /[a-zA-Z]/.test(input);
     
-    // 使用通用比喻，適合分享給大眾
     const prompt = isEn 
       ? `分析文字 """${input}""" 萃取出重要英文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句發音", "example_zh": "翻譯"}]。請只回傳 JSON。`
       : `分析文字 """${input}""" 萃取出重要日文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一類、第二類或第三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶單字邏輯)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
 
-    // 💡 終極解法：加入多重模型備援機制 (Auto-Fallback)
-    // 只要有任何一個模型名稱過期或不支援，系統會自動往下嘗試下一個，保證一定能通！
+    // 💡 簡化且穩定的模型清單
     const targets = isCanvas 
       ? [{ v: "v1beta", m: "gemini-2.5-flash-preview-09-2025" }] 
-      : [
-          { v: "v1beta", m: "gemini-2.5-flash" },             // 最新的 2.5 版本
-          { v: "v1beta", m: "gemini-1.5-flash-latest" },      // 1.5 最新安全版
-          { v: "v1beta", m: "gemini-1.5-flash" },             // 1.5 基礎版
-          { v: "v1beta", m: "gemini-1.5-flash-8b" },          // 1.5 輕量版
-          { v: "v1beta", m: "gemini-pro" },                   // 穩定的 Pro 版
-          { v: "v1beta", m: "gemini-2.5-flash-preview-09-2025"} // 預覽版
-        ];
+      : [{ v: "v1beta", m: "gemini-1.5-flash" }]; // 大眾版最穩定的核心模型
 
     let success = false;
     let lastError = "";
 
     for (const target of targets) {
       try {
-        console.log(`正在嘗試使用模型: ${target.m}`);
         const res = await fetch(`https://generativelanguage.googleapis.com/${target.v}/models/${target.m}:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -225,17 +219,25 @@ const App = () => {
         const data = await res.json();
         
         if (!res.ok) {
+          const errMsg = data.error?.message || "";
+          
+          // 🛑 核心防護：攔截「金鑰被停權」的真實原因
+          if (res.status === 400 || res.status === 403) {
+            lastError = `API 金鑰無效或已被 Google 停權（可能是因為之前外洩到 GitHub）。請申請一把「全新」的金鑰替換！`;
+            break; // 遇到金鑰問題直接中斷，不繼續嘗試其他模型
+          }
+
           if (res.status === 429) {
-            const errMsg = data.error?.message || "";
             if (errMsg.includes("limit: 0")) {
-              lastError = `模型 ${target.m} 無免費額度`;
-              continue; // 沒額度，換下一個模型
+              lastError = `此地區/帳號無免費額度`;
+              continue; 
             } else {
-              throw new Error("⚠️ 請求太快了！Google 限制每分鐘 15 次，請等 30 秒後再試。");
+              lastError = "⚠️ 請求太快了！Google 限制每分鐘 15 次，請等 30 秒後再試。";
+              break;
             }
           }
-          // 如果發生 404 Not Found 或其他錯誤，紀錄下來並在迴圈中繼續嘗試下一個模型
-          lastError = data.error?.message || "連線錯誤";
+          
+          lastError = errMsg;
           continue; 
         }
         
@@ -258,14 +260,14 @@ const App = () => {
         setTotal(newCards.length);
         setIsFinished(false); setIsFlipped(false);
         success = true;
-        break; // 成功取得資料，立刻跳出迴圈！
+        break; 
       } catch (e) { 
         lastError = e.message; 
-        if (e.message.includes("請求太快")) break; // 請求太快就不要再狂打了，直接停止
+        if (e.message.includes("請求太快")) break; 
       }
     }
 
-    if (!success) setError(`❌ 生成失敗，已嘗試多種模型。最後錯誤：${lastError}`);
+    if (!success) setError(`${lastError}`);
     setGenLoading(false);
   };
 
@@ -296,8 +298,8 @@ const App = () => {
         <textarea value={input} onChange={e => setInput(e.target.value)} placeholder="貼上想背的單字..." className="w-full h-40 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" />
         
         {error && (
-          <div className={`p-4 rounded-2xl text-[11px] font-bold mb-4 text-left flex gap-2 leading-relaxed ${error.includes('權限不足') || error.includes('請求太快') ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-red-50 text-red-500 border border-red-100'}`}>
-            {error.includes('請求太快') ? <Clock size={16} className="shrink-0 mt-0.5" /> : <AlertTriangle size={16} className="shrink-0 mt-0.5" />}
+          <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed ${error.includes('權限不足') || error.includes('請求太快') ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-red-50 text-red-600 border border-red-100'}`}>
+            {error.includes('請求太快') ? <Clock size={18} className="shrink-0 mt-0.5" /> : <AlertTriangle size={18} className="shrink-0 mt-0.5" />}
             {error}
           </div>
         )}
@@ -305,7 +307,7 @@ const App = () => {
         <button onClick={generate} disabled={genLoading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50">
           {genLoading ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {genLoading ? '請求中...' : 'AI 智慧生成單字卡'}
         </button>
-        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">絕對通關版 v8.9</div>
+        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">絕對通關版 v8.10</div>
       </div>
     </div>
   );
