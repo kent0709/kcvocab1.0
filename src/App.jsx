@@ -36,7 +36,7 @@ const myFirebaseConfig = {
 };
 
 // ==========================================
-// 🔴 步驟二：你的「新」Google AI 金鑰 (已幫你填入)
+// 🔴 步驟二：你的最新 Google AI 金鑰
 // ==========================================
 const GEMINI_API_KEY = "AIzaSyBPzpFcXj7FnZEMy6YGaabbknoBdvsT72k"; 
 
@@ -67,9 +67,9 @@ const App = () => {
   const [isGeneratingCards, setIsGeneratingCards] = useState(false); 
   const [genError, setGenError] = useState(''); 
   const [authError, setAuthError] = useState(''); 
-  const [showRatingModal, setShowRatingModal] = useState(false); 
   const translatingRef = useRef(new Set());
 
+  // 初始化登入與資料獲取
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -98,82 +98,42 @@ const App = () => {
     const deckId = params.get('deckId');
     if (deckId) {
       setCurrentDeckId(deckId);
-      const fetchDeck = async () => {
+      (async () => {
         setIsLoading(true);
         try {
-          const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'decks', deckId);
-          const docSnap = await getDoc(docRef);
+          const docSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', deckId));
           if (docSnap.exists()) {
             const data = docSnap.data();
             setCards(data.cards);
             setTotalInitial(data.cards.length);
-            if (data.queue) {
-              setQueue(data.queue);
-              setHistory(data.history || { again: 0, hard: 0, good: 0, easy: 0 });
-              if (data.queue.length === 0) setIsFinished(true);
-            } else {
-              setQueue(Array.from({ length: data.cards.length }, (_, i) => i));
-            }
+            setQueue(data.queue || Array.from({ length: data.cards.length }, (_, i) => i));
+            setHistory(data.history || { again: 0, hard: 0, good: 0, easy: 0 });
+            if (data.queue?.length === 0) setIsFinished(true);
           }
         } catch (err) {} finally { setIsLoading(false); }
-      };
-      fetchDeck();
+      })();
     } else { setIsLoading(false); }
   }, [user]);
 
+  // 工具函式：語音與格式化
   const speak = (text) => {
     if (!text) return;
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = /[a-zA-Z]/.test(text) ? 'en-US' : 'ja-JP';
-    utterance.rate = 0.85; 
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const getSpeakableText = (card) => {
-    if (!card) return "";
-    let t = card.word; 
-    if (card.info && card.info.includes('【例句】')) {
-      const parts = card.info.split('【例句】')[1];
-      if (parts) t += "、" + parts.split('(')[0].trim();
-    }
-    return t;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = /[a-zA-Z]/.test(text) ? 'en-US' : 'ja-JP';
+    u.rate = 0.85; 
+    window.speechSynthesis.speak(u);
   };
 
   const formatExampleText = (s) => {
     if (!s) return null;
     const m = s.match(/^(.*?)\((.*?)\)(.*)$/);
-    if (m) return (
+    if (!m) return <div className="text-[14px] text-slate-700">{s}</div>;
+    return (
       <div className="space-y-1 text-left">
-        <div className="text-[15px] font-bold text-slate-800 leading-snug">{m[1].trim()}</div>
+        <div className="text-[15px] font-bold text-slate-800">{m[1].trim()}</div>
         {m[2].trim() && <div className="text-[12px] font-medium text-indigo-500 bg-indigo-50/50 px-2 py-0.5 rounded inline-block">{m[2].trim()}</div>}
         {m[3].trim() && <div className="text-[13px] text-slate-600 mt-1 border-l-2 border-slate-200 pl-2">{m[3].trim()}</div>}
-      </div>
-    );
-    return <div className="text-[14px] text-slate-700">{s}</div>;
-  };
-
-  const formatBackHeader = (card) => {
-    if (!card.info) return null;
-    const main = card.info.split('【例句】')[0].trim();
-    const parts = main.split('💡').map(p => p.trim());
-    const header = parts[0];
-    const extra = parts.slice(1);
-    const spaceIdx = header.indexOf(' ');
-    let reading = "", meaning = header;
-    if (spaceIdx !== -1) { reading = header.substring(0, spaceIdx).trim(); meaning = header.substring(spaceIdx).trim(); }
-    return (
-      <div className="space-y-3 text-left">
-        <div className="flex items-end gap-3 flex-wrap">
-          <span className="text-3xl font-black text-slate-900 leading-none">{card.word}</span>
-          {reading && <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg border border-indigo-100">{reading}</span>}
-        </div>
-        <div className="text-[16px] text-slate-700 font-semibold whitespace-pre-line leading-relaxed border-l-4 border-indigo-500 pl-3">{meaning}</div>
-        {extra.map((sec, i) => (
-          <div key={i} className="bg-amber-50/70 border border-amber-100 p-3 rounded-2xl text-[13px] text-amber-900 font-medium leading-relaxed shadow-sm">
-            💡 {sec.replace(/\[.*?\]\s*/, '').trim()}
-          </div>
-        ))}
       </div>
     );
   };
@@ -184,92 +144,60 @@ const App = () => {
     newQueue.shift();
     const newHistory = { ...history, [type]: history[type] + 1 };
     setHistory(newHistory);
-    if (type === 'again') { if (newQueue.length >= 1) newQueue.splice(1, 0, currentQueueIdx); else newQueue.push(currentQueueIdx); }
+    
+    if (type === 'again') newQueue.splice(1, 0, currentQueueIdx);
     else if (type === 'hard') newQueue.splice(Math.floor(newQueue.length / 2), 0, currentQueueIdx);
     else if (type === 'good') newQueue.push(currentQueueIdx);
+
     if (newQueue.length === 0) setIsFinished(true);
     else { setQueue(newQueue); setIsFlipped(false); }
+
     if (currentDeckId && user) {
       try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', currentDeckId), { queue: newQueue, history: newHistory }); } catch (e) {}
     }
   };
 
-  // --- 暴力連線：多地址 + 多驗證 確保新 KEY 運作 ---
+  // 精簡後的 AI 生成邏輯
   const generateCardsWithAI = async () => {
     if (!inputText.trim()) return;
     setIsGeneratingCards(true);
     setGenError('');
-    if (!isCanvasEnvironment && !apiKey) { setGenError('❌ 找不到金鑰！'); setIsGeneratingCards(false); return; }
+    if (!isCanvasEnvironment && !apiKey) { setGenError('❌ 找不到金鑰'); setIsGeneratingCards(false); return; }
 
     const isEn = /[a-zA-Z]/.test(inputText);
     const prompt = isEn 
-      ? `分析文字 """${inputText}""" 萃取出重要英文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "音標", "meaning": "意思", "derivatives": "變化", "collocations": "搭配", "example_en": "英文例句", "example_zh": "翻譯"}]。請只回傳 JSON。`
-      : `分析文字 """${inputText}""" 萃取出重要日文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "讀音", "meaning": "意思", "breakdown": "記憶法", "example_jp": "日文例句", "example_kana": "讀音", "example_zh": "翻譯"}]。請只回傳 JSON。`;
+      ? `分析文字 """${inputText}""" 萃取出重要英文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "音標", "meaning": "意思", "derivatives": "變化", "collocations": "搭配", "example_en": "英文例句", "example_zh": "翻譯"}]。不要廢話。`
+      : `分析文字 """${inputText}""" 萃取出重要日文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "讀音", "meaning": "意思", "breakdown": "記憶法", "example_jp": "日文例句", "example_kana": "讀音", "example_zh": "翻譯"}]。不要廢話。`;
 
-    // 🛑 核心修復：同時嘗試最新的 2.0 模型
-    const targets = isCanvasEnvironment 
-      ? [{ v: "v1beta", m: "gemini-2.5-flash-preview-09-2025" }] 
-      : [
-          { v: "v1beta", m: "gemini-2.0-flash" },
-          { v: "v1beta", m: "gemini-1.5-flash" },
-          { v: "v1", m: "gemini-1.5-flash" }
-        ];
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      });
 
-    let success = false;
-    let errorLog = "";
-    let isQuotaError = false;
+      if (!response.ok) throw new Error(response.status === 429 ? "額度用滿了，請稍後一分鐘" : "Google 連線失敗");
 
-    for (const target of targets) {
-      try {
-        const url = `https://generativelanguage.googleapis.com/${target.v}/models/${target.m}:generateContent?key=${apiKey}`;
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'x-goog-api-key': apiKey // 標頭補強驗證
-          },
-          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-        });
+      const data = await response.json();
+      const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      const parsed = JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim());
 
-        if (response.ok) {
-          const data = await response.json();
-          const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (raw) {
-            const cleanJson = raw.replace(/```json/g, '').replace(/```/g, '').trim();
-            const parsed = JSON.parse(cleanJson);
-            
-            const newCards = parsed.map(item => {
-              if (!isEn) return { word: item.word, info: `${item.reading} ${item.meaning} 💡 [記憶] ${item.breakdown} 【例句】${item.example_jp}(${item.example_kana})${item.example_zh}` };
-              return { word: item.word, info: `${item.reading || ''} ${item.meaning} 💡 [變化] ${item.derivatives || ''} 💡 [搭配] ${item.collocations || ''} 【例句】${item.example_en}()${item.example_zh}` };
-            });
+      const newCards = parsed.map(item => ({
+        word: item.word,
+        info: isEn 
+          ? `${item.reading || ''} ${item.meaning} 💡 [變化] ${item.derivatives || ''} 💡 [搭配] ${item.collocations || ''} 【例句】${item.example_en}()${item.example_zh}`
+          : `${item.reading} ${item.meaning} 💡 [記憶] ${item.breakdown} 【例句】${item.example_jp}(${item.example_kana})${item.example_zh}`
+      }));
 
-            setCards(newCards);
-            setQueue(Array.from({ length: newCards.length }, (_, i) => i));
-            setTotalInitial(newCards.length);
-            setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
-            setIsFinished(false);
-            setIsFlipped(false);
-            success = true;
-            break; 
-          }
-        } else {
-          if (response.status === 429) isQuotaError = true;
-          const err = await response.json();
-          errorLog += `❌ [${target.m}] ${err.error?.message || '不支援'}\n`;
-        }
-      } catch (e) {
-        errorLog += `❌ [${target.m}] 連線異常\n`;
-      }
-    }
-
-    if (!success) {
-      if (isQuotaError) {
-        setGenError(`⚠️ 額度用滿了！請休息 1 分鐘後再試，或換一把新鑰匙。`);
-      } else {
-        setGenError(`❌ Google 系統連線失敗。\n詳細診斷：\n${errorLog}\n\n💡 請確認 Google AI Studio 的 Generative Language API 權限。`);
-      }
-    }
-    setIsGeneratingCards(false);
+      setCards(newCards);
+      setQueue(Array.from({ length: newCards.length }, (_, i) => i));
+      setTotalInitial(newCards.length);
+      setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
+      setIsFinished(false);
+      setIsFlipped(false);
+    } catch (e) {
+      setGenError(`❌ ${e.message}`);
+    } finally { setIsGeneratingCards(false); }
   };
 
   const saveAndShare = async () => {
@@ -284,13 +212,6 @@ const App = () => {
     } catch (err) {} finally { setIsSaving(false); }
   };
 
-  const copyToClipboard = () => {
-    const el = document.createElement('textarea');
-    el.value = shareUrl || `${window.location.origin}${window.location.pathname}?deckId=${currentDeckId}`;
-    document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el);
-    setCopySuccess(true); setTimeout(() => setCopySuccess(false), 2000);
-  };
-
   useEffect(() => {
     if (cards.length === 0 || isFinished) return;
     const card = cards[queue[0]];
@@ -299,7 +220,12 @@ const App = () => {
     setImageUrls(prev => ({ ...prev, [card.word]: `https://loremflickr.com/500/300/${encodeURIComponent(card.word)}` }));
   }, [queue, cards, isFinished, imageUrls]);
 
-  useEffect(() => { if (queue.length > 0 && !isFinished && cards.length > 0 && isFlipped) speak(getSpeakableText(cards[queue[0]])); }, [isFlipped]);
+  useEffect(() => { if (isFlipped && queue.length > 0) {
+    const card = cards[queue[0]];
+    let t = card.word; 
+    if (card.info.includes('【例句】')) t += "、" + card.info.split('【例句】')[1].split('(')[0].trim();
+    speak(t);
+  }}, [isFlipped]);
 
   if (isLoading) return <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50"><Loader2 className="animate-spin text-indigo-600 w-12 h-12" /></div>;
 
@@ -310,17 +236,10 @@ const App = () => {
           <Brain className="text-indigo-600 w-12 h-12 mx-auto mb-4" />
           <h1 className="text-2xl font-black mb-2">建立你的專屬字庫</h1>
           <p className="text-slate-400 text-sm mb-8 font-medium">貼上單字，由 AI 為你補完解釋</p>
-          <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} disabled={isGeneratingCards} placeholder={`車站\n食べる\nEfficiency`} className="w-full h-40 p-5 mb-4 bg-slate-50 border-2 border-slate-100 rounded-3xl focus:border-indigo-500 transition-all outline-none font-medium resize-none text-slate-700 shadow-inner" />
-          
-          {genError && (
-            <div className={`p-4 rounded-2xl text-[11px] font-bold mb-5 whitespace-pre-wrap text-left shadow-sm flex items-start gap-2 leading-relaxed ${genError.includes('額度') ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'text-red-600 bg-red-50 border border-red-200'}`}>
-              {genError.includes('額度') ? <Clock size={14} className="shrink-0 mt-0.5" /> : <AlertTriangle size={14} className="shrink-0 mt-0.5" />}
-              {genError}
-            </div>
-          )}
-
-          <button onClick={generateCardsWithAI} disabled={isGeneratingCards || !inputText.trim()} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50">{isGeneratingCards ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {isGeneratingCards ? '金鑰破鎖中...' : '✨ AI 生成單字卡'}</button>
-          <div className="text-center text-slate-300 text-[10px] mt-10 font-black uppercase tracking-[0.3em]">Vercel 雙重保險版 v4.8</div>
+          <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} disabled={isGeneratingCards} placeholder={`在這裡輸入單字...\n例如：\n車站\n食べる\nEfficiency`} className="w-full h-40 p-5 mb-4 bg-slate-50 border-2 border-slate-100 rounded-3xl focus:border-indigo-500 transition-all outline-none font-medium resize-none text-slate-700 shadow-inner" />
+          {genError && <div className="text-red-600 bg-red-50 border border-red-200 p-4 rounded-2xl text-[11px] font-bold mb-5 whitespace-pre-wrap text-left shadow-sm flex items-start gap-2"><AlertTriangle size={14} /> {genError}</div>}
+          <button onClick={generateCardsWithAI} disabled={isGeneratingCards || !inputText.trim()} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50">{isGeneratingCards ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {isGeneratingCards ? '正在連線 AI...' : '✨ AI 生成單字卡'}</button>
+          <div className="text-center text-slate-300 text-[10px] mt-10 font-black uppercase tracking-[0.3em]">Vercel 精簡穩定版 v5.0</div>
         </div>
       </div>
     );
@@ -346,7 +265,7 @@ const App = () => {
       <div className="w-full max-w-md mb-6 space-y-4">
         <div className="flex justify-between items-center px-1">
           <div className="bg-white px-5 py-2.5 rounded-full shadow-sm border border-slate-100 text-[15px] font-black flex items-center gap-2 text-slate-700"><Brain size={18} className="text-indigo-600" />{totalInitial - queue.length} / {totalInitial}</div>
-          <button onClick={currentDeckId || shareUrl ? copyToClipboard : saveAndShare} disabled={isSaving} className={`px-5 py-2.5 rounded-full text-xs font-black shadow-md transition-all flex items-center gap-2 ${copySuccess ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white'}`}>{isSaving ? <Loader2 className="animate-spin" size={14} /> : (copySuccess ? <Check size={14} /> : <Share2 size={14} />)}{copySuccess ? '已複製' : '雲端儲存'}</button>
+          <button onClick={currentDeckId || shareUrl ? () => { const el = document.createElement('textarea'); el.value = shareUrl || window.location.href; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el); setCopySuccess(true); setTimeout(()=>setCopySuccess(false), 2000); } : saveAndShare} disabled={isSaving} className={`px-5 py-2.5 rounded-full text-xs font-black shadow-md transition-all flex items-center gap-2 ${copySuccess ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white'}`}>{isSaving ? <Loader2 className="animate-spin" size={14} /> : (copySuccess ? <Check size={14} /> : <Share2 size={14} />)}{copySuccess ? '已複製' : '雲端儲存'}</button>
         </div>
         <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden border border-slate-100 shadow-inner"><div className="bg-indigo-500 h-full transition-all duration-1000" style={{ width: `${progress}%` }} /></div>
       </div>
@@ -360,13 +279,44 @@ const App = () => {
           </div>
           <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white rounded-[3rem] shadow-2xl flex flex-col p-6 border border-slate-100 overflow-hidden text-left">
             <div className="w-full h-36 bg-slate-100 rounded-3xl mb-5 overflow-hidden shadow-inner shrink-0 border border-slate-50"><img src={imageUrls[currentCard.word]} className="w-full h-full object-cover transition-transform hover:scale-105" alt="" onError={(e) => e.target.src = 'https://loremflickr.com/500/300/japan'} /></div>
-            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-4">{formatBackHeader(currentCard)}{currentCard.info.includes('【例句】') && <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-100 shadow-sm">{formatExampleText(currentCard.info.split('【例句】')[1])}</div>}</div>
+            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-4">
+              <div className="space-y-3">
+                <div className="flex items-baseline gap-2"><span className="text-3xl font-black text-slate-900">{currentCard.word}</span></div>
+                <div className="text-[16px] text-slate-700 font-semibold border-l-4 border-indigo-500 pl-3 leading-relaxed whitespace-pre-line">{currentCard.info.split('💡')[0].trim()}</div>
+                {currentCard.info.split('💡').slice(1).map((sec, i) => (
+                  <div key={i} className="bg-amber-50/70 border border-amber-100 p-3 rounded-2xl text-[13px] text-amber-900 font-medium leading-relaxed">💡 {sec.split('【例句】')[0].replace(/\[.*?\]\s*/, '').trim()}</div>
+                ))}
+              </div>
+              {currentCard.info.includes('【例句】') && <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-100 shadow-sm">{formatExampleText(currentCard.info.split('【例句】')[1])}</div>}
+            </div>
             <div className="grid grid-cols-5 gap-1.5 mt-5 pt-5 border-t border-slate-100 shrink-0">
-              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('again'); }} className="flex flex-col items-center gap-1"><div className="w-11 h-11 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 shadow-sm"><RefreshCcw size={20} /></div><span className="text-[10px] font-black text-red-500/80 uppercase">Again</span></button>
-              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('hard'); }} className="flex flex-col items-center gap-1"><div className="w-11 h-11 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 shadow-sm"><Flame size={20} /></div><span className="text-[10px] font-black text-orange-500/80 uppercase">Hard</span></button>
-              <button onClick={(e) => { e.stopPropagation(); speak(getSpeakableText(currentCard)); }} className="flex flex-col items-center gap-1 -mt-4 hover:scale-110 transition-transform group"><div className="w-14 h-14 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-xl border-4 border-white group-hover:bg-indigo-700 transition-colors"><Volume2 size={24} /></div><span className="text-[10px] font-black text-indigo-600 uppercase">Listen</span></button>
-              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('good'); }} className="flex flex-col items-center gap-1"><div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shadow-sm"><Star size={20} /></div><span className="text-[10px] font-black text-blue-500/80 uppercase">Good</span></button>
-              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('easy'); }} className="flex flex-col items-center gap-1"><div className="w-11 h-11 rounded-2xl bg-green-50 text-green-600 flex items-center justify-center border border-green-100 shadow-sm"><Zap size={20} /></div><span className="text-[10px] font-black text-green-500/80 uppercase">Easy</span></button>
+              {[
+                { type: 'again', label: 'Again', color: 'red', icon: <RefreshCcw size={18} /> },
+                { type: 'hard', label: 'Hard', color: 'orange', icon: <Flame size={18} /> },
+                { type: 'listen', label: 'Listen', color: 'indigo', icon: <Volume2 size={24} />, isMain: true },
+                { type: 'good', label: 'Good', color: 'blue', icon: <Star size={18} /> },
+                { type: 'easy', label: 'Easy', color: 'green', icon: <Zap size={18} /> }
+              ].map((btn) => (
+                <button 
+                  key={btn.type}
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    if (btn.type === 'listen') {
+                      let t = currentCard.word; 
+                      if (currentCard.info.includes('【例句】')) t += "、" + currentCard.info.split('【例句】')[1].split('(')[0].trim();
+                      speak(t);
+                    } else {
+                      handleSrsAction(btn.type);
+                    }
+                  }} 
+                  className={`flex flex-col items-center gap-1 ${btn.isMain ? '-mt-4 hover:scale-110 transition-transform' : 'hover:scale-105'}`}
+                >
+                  <div className={`${btn.isMain ? 'w-14 h-14 rounded-full bg-indigo-600 text-white shadow-xl border-4 border-white' : `w-11 h-11 rounded-2xl bg-${btn.color}-50 text-${btn.color}-600 border border-${btn.color}-100 shadow-sm`} flex items-center justify-center`}>
+                    {btn.icon}
+                  </div>
+                  <span className={`text-[10px] font-black uppercase ${btn.isMain ? 'text-indigo-600' : `text-${btn.color}-500/80`}`}>{btn.label}</span>
+                </button>
+              ))}
             </div>
           </div>
         </div>
