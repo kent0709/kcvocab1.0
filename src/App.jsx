@@ -32,10 +32,9 @@ const myFirebaseConfig = {
 };
 
 // ==========================================
-// 🔴 步驟二：請在這裡貼上你的 Google AI 金鑰 
-// (拿來生成單字拆解跟生圖用的！)
+// 🔴 步驟二：你的 Google AI 金鑰 (已自動填入！)
 // ==========================================
-const GEMINI_API_KEY = "AIzaSyBZ5d_jU5ZJLQ9oUCLqRDi4hS3P4lfOyQQ"; // <--- 把在 Google AI Studio 複製的那串亂碼重新貼回引號裡面！
+const GEMINI_API_KEY = "AIzaSyBZ5d_jU5ZJLQ9oUCLqRDi4hS3P4lfOyQQ"; 
 
 // --- 系統自動判斷環境邏輯 ---
 const isCanvasEnvironment = typeof __firebase_config !== 'undefined';
@@ -306,7 +305,7 @@ const App = () => {
     }
   };
 
-  // --- 6. AI 智慧生成單字卡內容 (已更換為 gemini-1.5-flash) ---
+  // --- 6. AI 智慧生成單字卡內容 (加入強力除錯功能) ---
   const generateCardsWithAI = async () => {
     if (!inputText.trim()) return;
     setIsGeneratingCards(true);
@@ -352,8 +351,10 @@ const App = () => {
         `;
       }
 
-      // 注意：這裡改成 gemini-1.5-flash 了！
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+      // 動態切換引擎：在畫布中使用 2.5，發布後使用 1.5
+      const AI_MODEL = isCanvasEnvironment ? 'gemini-2.5-flash-preview-09-2025' : 'gemini-1.5-flash';
+      
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -362,7 +363,11 @@ const App = () => {
         })
       });
 
-      if (!response.ok) throw new Error("API 回應錯誤，可能是金鑰不正確或額度用盡");
+      // 🛑 加入真實錯誤攔截器
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Google 拒絕連線：${errorData.error?.message || response.statusText}`);
+      }
       
       const data = await response.json();
       let jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
@@ -398,7 +403,12 @@ const App = () => {
 
     } catch (e) {
       console.error("AI 處理失敗", e);
-      setGenError('AI 生成失敗，請確認你的 GEMINI_API_KEY 是否填寫正確！');
+      // 🛑 將真實錯誤顯示在畫面上！
+      if (e.name === 'SyntaxError') {
+        setGenError(`❌ AI 格式錯亂，請重新點擊生成一次！`);
+      } else {
+        setGenError(`❌ ${e.message}`);
+      }
     } finally {
       setIsGeneratingCards(false);
     }
@@ -460,8 +470,8 @@ const App = () => {
             ? `Extract a highly visual, simple English phrase for generating a stock photo (max 5 words) representing the concept: ${card.word}. Return ONLY the English text.`
             : `Translate this Japanese/Chinese vocabulary meaning into a highly visual, simple English phrase for generating a stock photo (max 5 words). Return ONLY the English text. Vocabulary: ${card.word}, Meaning: ${hint}`;
 
-          // 注意：這裡改成 gemini-1.5-flash 了！
-          const textRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+          const AI_MODEL = isCanvasEnvironment ? 'gemini-2.5-flash-preview-09-2025' : 'gemini-1.5-flash';
+          const textRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL}:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -476,7 +486,27 @@ const App = () => {
             if (text) enText = text;
           }
           
-          setImageUrls(prev => ({ ...prev, [card.word]: `https://loremflickr.com/400/300/${encodeURIComponent(enText)}` }));
+          // 針對 StackBlitz/Vercel 環境，因為標準金鑰暫不支援 imagen，先強制使用靜態美圖代替
+          let finalImgUrl = `https://loremflickr.com/400/300/${encodeURIComponent(enText)}`;
+          
+          if (isCanvasEnvironment) {
+            const imgRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                instances: { prompt: `A clear, high quality stock photo representing the concept: ${enText}. Realistic, professional lighting, clean background, no text.` },
+                parameters: { sampleCount: 1 }
+              })
+            });
+            if (imgRes.ok) {
+              const imgData = await imgRes.json();
+              if (imgData.predictions && imgData.predictions[0] && imgData.predictions[0].bytesBase64Encoded) {
+                finalImgUrl = `data:image/png;base64,${imgData.predictions[0].bytesBase64Encoded}`;
+              }
+            }
+          }
+          
+          setImageUrls(prev => ({ ...prev, [card.word]: finalImgUrl }));
         } catch (e) {
           setImageUrls(prev => ({ ...prev, [card.word]: `https://loremflickr.com/400/300/japan` }));
         }
@@ -552,7 +582,7 @@ const App = () => {
             className="w-full h-32 p-4 mb-3 text-[15px] bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none transition-all placeholder:text-slate-400 font-medium disabled:opacity-50"
           />
           
-          {genError && <p className="text-red-500 text-xs font-bold mb-3">{genError}</p>}
+          {genError && <div className="text-red-600 bg-red-50 border border-red-200 p-2 rounded-lg text-xs font-bold mb-3 whitespace-pre-wrap">{genError}</div>}
 
           <div className="flex flex-col gap-3 mb-6">
             <button
