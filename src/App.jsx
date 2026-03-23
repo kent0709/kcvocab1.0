@@ -24,7 +24,9 @@ const isCanvas = typeof __firebase_config !== 'undefined';
 const app = initializeApp(isCanvas ? JSON.parse(__firebase_config) : firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'kcvocabapp';
+
+// 將 Canvas 環境下 appId 中的斜線替換掉，防止 Firestore 路徑解析錯誤
+const appId = typeof __app_id !== 'undefined' ? String(__app_id).replace(/\//g, '_') : 'kcvocabapp';
 const apiKey = isCanvas ? "" : GEMINI_API_KEY;
 
 const App = () => {
@@ -43,18 +45,37 @@ const App = () => {
   const [genLoading, setGenLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // 初始化與資料同步
+  // 1. 系統登入初始化
   useEffect(() => {
-    (async () => {
-      if (isCanvas && typeof __initial_auth_token !== 'undefined') await signInWithCustomToken(auth, __initial_auth_token);
-      else await signInAnonymously(auth);
-    })();
-    onAuthStateChanged(auth, u => {
+    const initAuth = async () => {
+      try {
+        if (isCanvas && typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) {
+        console.error("登入錯誤", err);
+        setLoading(false);
+      }
+    };
+    initAuth();
+
+    const unsubscribe = onAuthStateChanged(auth, u => {
       setUser(u);
-      const id = new URLSearchParams(window.location.search).get('deckId');
-      if (id) {
-        setDeckId(id);
-        getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', id)).then(s => {
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 2. 載入資料庫存檔 (必須確保已登入)
+  useEffect(() => {
+    if (!user) return; 
+    
+    const id = new URLSearchParams(window.location.search).get('deckId');
+    if (id) {
+      setDeckId(id);
+      getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', id))
+        .then(s => {
           if (s.exists()) {
             const d = s.data();
             setCards(d.cards);
@@ -64,10 +85,15 @@ const App = () => {
             if (d.queue?.length === 0) setIsFinished(true);
           }
           setLoading(false);
+        })
+        .catch(err => {
+          console.error("資料讀取失敗", err);
+          setLoading(false);
         });
-      } else setLoading(false);
-    });
-  }, []);
+    } else {
+      setLoading(false);
+    }
+  }, [user]);
 
   const speak = (t) => {
     window.speechSynthesis.cancel();
@@ -115,7 +141,6 @@ const App = () => {
 
     for (const target of targets) {
       try {
-        // 修正：動態套用 apiKey 變數 (Canvas為空，Vercel為真)
         const res = await fetch(`https://generativelanguage.googleapis.com/${target.v}/models/${target.m}:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -169,7 +194,17 @@ const App = () => {
     if (isFlipped && queue.length > 0) speak(cards[queue[0]].word);
   }, [queue, isFlipped]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600" /></div>;
+  // 評分計算函數 (強勢回歸！)
+  const getRating = () => {
+    const t = history.again + history.hard + history.good + history.easy;
+    if (t === 0) return { score: 0, text: "尚未作答", color: "text-slate-500", emoji: "🤔" };
+    const score = Math.round(((history.easy * 100) + (history.good * 100) + (history.hard * 50)) / t);
+    if (score >= 90) return { score, text: "極佳", color: "text-green-500", emoji: "🏆" };
+    if (score >= 60) return { score, text: "穩定", color: "text-blue-500", emoji: "🌟" };
+    return { score, text: "加油", color: "text-orange-500", emoji: "💪" };
+  };
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600 w-12 h-12" /></div>;
 
   if (cards.length === 0) return (
     <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center text-center">
@@ -188,20 +223,27 @@ const App = () => {
         <button onClick={generate} disabled={genLoading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50">
           {genLoading ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {genLoading ? '請求中...' : 'AI 智慧生成單字卡'}
         </button>
-        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">Vercel 畫布雲端雙棲版 v5.8</div>
+        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">Vercel 計分回歸版 v6.1</div>
       </div>
     </div>
   );
 
-  if (isFinished) return (
-    <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center text-center">
-      <div className="bg-white p-12 rounded-[3rem] shadow-2xl border max-w-lg w-full">
-        <div className="text-8xl mb-6">🌟</div>
-        <h1 className="text-3xl font-black mb-8">完成練習！</h1>
-        <button onClick={() => { setQueue(Array.from({length: cards.length}, (_, i) => i)); setHistory({again:0, hard:0, good:0, easy:0}); setIsFinished(false); }} className="w-full bg-slate-900 text-white font-black py-5 rounded-[2rem] flex items-center justify-center gap-2 shadow-xl hover:bg-black transition-all"><RefreshCcw size={20} />重新開始</button>
+  // 結算畫面 (帶入計分與評語)
+  if (isFinished) {
+    const r = getRating();
+    return (
+      <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center text-center">
+        <div className="bg-white p-12 rounded-[3rem] shadow-2xl border max-w-lg w-full">
+          <div className="text-8xl mb-6 animate-bounce">{r.emoji}</div>
+          <h1 className="text-3xl font-black mb-2 text-slate-800">完成練習！</h1>
+          <div className={`text-5xl font-black ${r.color} mb-8`}>
+            {r.score} <span className="text-xl text-slate-400 font-bold ml-1">分 - {r.text}</span>
+          </div>
+          <button onClick={() => { setQueue(Array.from({length: cards.length}, (_, i) => i)); setHistory({again:0, hard:0, good:0, easy:0}); setIsFinished(false); }} className="w-full bg-slate-900 text-white font-black py-5 rounded-[2rem] flex items-center justify-center gap-2 shadow-xl hover:bg-black transition-all"><RefreshCcw size={20} />重新開始</button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   const card = cards[queue[0]];
   
@@ -219,13 +261,14 @@ const App = () => {
         <div className="flex justify-between items-center px-1 text-[15px] font-black">
           <div className="bg-white px-5 py-2 rounded-full shadow-sm border flex items-center gap-2 text-slate-600"><Brain size={18} className="text-indigo-600" />{total-queue.length}/{total}</div>
           <button onClick={async () => {
+            if (!user) return; // 確保有使用者權限才能儲存
             if (!deckId) {
               const id = crypto.randomUUID();
               await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', id), { cards, queue, history, creator: user.uid, createdAt: new Date().toISOString() });
               setDeckId(id); window.history.pushState({}, '', `?deckId=${id}`);
             }
             const el = document.createElement('textarea'); el.value = window.location.href; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el); setCopyOk(true); setTimeout(() => setCopyOk(false), 2000);
-          }} className={`px-5 py-2 rounded-full shadow-md text-xs text-white transition-all ${copyOk ? 'bg-green-500' : 'bg-indigo-600'}`}>{copyOk ? '已複製' : '雲端存檔'}</button>
+          }} className={`px-5 py-2 rounded-full shadow-md text-xs text-white transition-all ${copyOk ? 'bg-green-500' : 'bg-indigo-600'}`}>{copyOk ? '已複製' : '儲存與分享'}</button>
         </div>
         <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden border shadow-inner"><div className="bg-indigo-500 h-full transition-all duration-1000" style={{ width: `${((total - queue.length)/total)*100}%` }} /></div>
       </div>
