@@ -193,7 +193,7 @@ const App = () => {
     }
   };
 
-  // --- 終極修正：暴力破解連線模組 ---
+  // --- 終極暴力破解：全自動掃描所有可能的 API 組合 (含 Gemini 2.0) ---
   const generateCardsWithAI = async () => {
     if (!inputText.trim()) return;
     setIsGeneratingCards(true);
@@ -202,30 +202,33 @@ const App = () => {
 
     const isEn = /[a-zA-Z]/.test(inputText);
     const prompt = isEn 
-      ? `分析文字 """${inputText}""" 萃取重要英文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "音標", "meaning": "意思", "derivatives": "變化", "collocations": "搭配", "example_en": "英文例句", "example_zh": "翻譯"}]。請只回傳 JSON，不要廢話。`
-      : `分析文字 """${inputText}""" 萃取重要日文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "讀音", "meaning": "意思", "breakdown": "記憶法", "example_jp": "日文例句", "example_kana": "讀音", "example_zh": "翻譯"}]。請只回傳 JSON，不要廢話。`;
+      ? `分析文字 """${inputText}""" 萃取出重要英文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "音標", "meaning": "意思", "derivatives": "變化", "collocations": "搭配", "example_en": "英文例句", "example_zh": "翻譯"}]。請只回傳 JSON。`
+      : `分析文字 """${inputText}""" 萃取出重要日文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "讀音", "meaning": "意思", "breakdown": "記憶法", "example_jp": "日文例句", "example_kana": "讀音", "example_zh": "翻譯"}]。請只回傳 JSON。`;
 
-    // 🛑 核心修復：嘗試所有可能的 API 地址與模型組合 (解決 Google 遷移期的混亂)
+    // 🛑 修復：同時嘗試 v1, v1beta 以及 2.0 系列模型
     const targets = isCanvasEnvironment 
       ? [{ v: "v1beta", m: "gemini-2.5-flash-preview-09-2025" }] 
       : [
+          { v: "v1beta", m: "gemini-2.0-flash-exp" },
           { v: "v1beta", m: "gemini-1.5-flash" },
           { v: "v1", m: "gemini-1.5-flash" },
-          { v: "v1beta", m: "gemini-1.5-flash-latest" },
-          { v: "v1", m: "gemini-1.5-flash-latest" },
+          { v: "v1beta", m: "gemini-1.5-flash-8b" },
           { v: "v1beta", m: "gemini-1.5-pro" },
           { v: "v1", m: "gemini-1.5-pro" }
         ];
 
     let success = false;
-    let finalErrorDetail = "";
+    let errorLog = "";
 
     for (const target of targets) {
       try {
         const url = `https://generativelanguage.googleapis.com/${target.v}/models/${target.m}:generateContent?key=${apiKey}`;
         const response = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey // 雙重驗證標頭，解決部分伺服器不認 query param 的問題
+          },
           body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
 
@@ -252,15 +255,15 @@ const App = () => {
           }
         } else {
           const err = await response.json();
-          finalErrorDetail += `[${target.v}/${target.m}] ${err.error?.message || 'Failed'}\n`;
+          errorLog += `❌ [${target.v}/${target.m}] ${err.error?.message || '不支援'}\n`;
         }
       } catch (e) {
-        finalErrorDetail += `[${target.m}] Connection error\n`;
+        errorLog += `❌ [${target.m}] 網路連線中斷\n`;
       }
     }
 
     if (!success) {
-      setGenError(`❌ Google 伺服器拒絕所有連線方案。這代表您的 API Key 可能未啟用「Generative Language API」權限，或已達免費額度上限。\n\n詳細錯誤：\n${finalErrorDetail}`);
+      setGenError(`❌ Google 系統連線失敗。這通常是因為金鑰未啟用 "Generative Language API" 或額度已滿。\n\n詳細診斷：\n${errorLog}`);
     }
     setIsGeneratingCards(false);
   };
@@ -294,14 +297,7 @@ const App = () => {
 
   useEffect(() => { if (queue.length > 0 && !isFinished && cards.length > 0 && isFlipped) speak(getSpeakableText(cards[queue[0]])); }, [isFlipped]);
 
-  const getRating = () => {
-    const total = history.again + history.hard + history.good + history.easy;
-    if (total === 0) return { score: 0, text: "無資料", color: "text-slate-500", emoji: "🤔" };
-    const score = Math.round(((history.easy * 100) + (history.good * 100) + (history.hard * 50)) / total);
-    return { score, text: score >= 90 ? "優秀" : "穩定", color: score >= 90 ? "text-green-500" : "text-blue-500", emoji: "🌟" };
-  };
-
-  if (isLoading) return <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50"><Loader2 className="animate-spin text-indigo-600 w-12 h-12" /></div>;
+  if (isLoading) return <div className="flex items-center justify-center min-h-screen bg-slate-50"><Loader2 className="animate-spin text-indigo-600 w-12 h-12" /></div>;
 
   if (cards.length === 0) {
     return (
@@ -309,25 +305,23 @@ const App = () => {
         <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-md w-full border border-slate-100">
           <Brain className="text-indigo-600 w-12 h-12 mx-auto mb-4" />
           <h1 className="text-2xl font-black mb-2">建立你的專屬字庫</h1>
-          <p className="text-slate-400 text-sm mb-8">貼上單字，讓 AI 自動補完所有解釋</p>
-          <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} disabled={isGeneratingCards} placeholder={`在這裡輸入單字...\n例如：\n車站\n食べる\nEfficiency`} className="w-full h-40 p-5 mb-4 bg-slate-50 border-2 border-slate-100 rounded-3xl focus:border-indigo-500 transition-all outline-none font-medium resize-none text-slate-700 shadow-inner" />
-          {genError && <div className="text-red-600 bg-red-50 border border-red-200 p-4 rounded-2xl text-[11px] font-bold mb-5 whitespace-pre-wrap text-left shadow-sm flex items-start gap-2"><AlertTriangle size={14} className="shrink-0 mt-0.5" /> {genError}</div>}
-          <button onClick={generateCardsWithAI} disabled={isGeneratingCards || !inputText.trim()} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50">{isGeneratingCards ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {isGeneratingCards ? '連線破解中...' : '✨ AI 生成單字卡'}</button>
-          <div className="text-center text-slate-300 text-[10px] mt-10 font-bold uppercase tracking-[0.3em]">Vercel 終極破解版 v4.5</div>
+          <p className="text-slate-400 text-sm mb-8 font-medium">貼上單字，讓 AI 自動補完所有解釋</p>
+          <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} disabled={isGeneratingCards} placeholder={`在此輸入單字...\n例如：\n車站\n食べる\nEfficiency`} className="w-full h-40 p-5 mb-4 bg-slate-50 border-2 border-slate-100 rounded-3xl focus:border-indigo-500 transition-all outline-none font-medium resize-none text-slate-700 shadow-inner" />
+          {genError && <div className="text-red-600 bg-red-50 border border-red-200 p-4 rounded-2xl text-[10px] font-bold mb-5 whitespace-pre-wrap text-left shadow-sm flex items-start gap-2 leading-relaxed"><AlertTriangle size={14} className="shrink-0 mt-0.5" /> {genError}</div>}
+          <button onClick={generateCardsWithAI} disabled={isGeneratingCards || !inputText.trim()} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50">{isGeneratingCards ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {isGeneratingCards ? '正在暴力破譯連線中...' : '✨ AI 生成單字卡'}</button>
+          <div className="text-center text-slate-300 text-[10px] mt-10 font-black uppercase tracking-[0.3em]">Vercel 終極相容版 v4.6</div>
         </div>
       </div>
     );
   }
 
   if (isFinished) {
-    const r = getRating();
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-6 text-slate-800">
         <div className="bg-white p-12 rounded-[3rem] shadow-2xl max-w-lg w-full text-center border border-slate-100">
-          <div className="text-8xl mb-6 animate-bounce">{r.emoji}</div>
-          <h1 className="text-3xl font-black mb-1">完成本日練習！</h1>
-          <div className={`text-4xl font-black ${r.color} mb-8`}>{r.score} 分</div>
-          <button onClick={() => { setQueue(Array.from({ length: cards.length }, (_, i) => i)); setHistory({ again: 0, hard: 0, good: 0, easy: 0 }); setIsFinished(false); }} className="w-full bg-slate-900 hover:bg-black text-white font-black py-5 rounded-[2rem] flex items-center justify-center gap-3 transition-all shadow-xl"><RefreshCcw size={22} />重新開始</button>
+          <div className="text-8xl mb-6 animate-bounce">🌟</div>
+          <h1 className="text-3xl font-black mb-8">完成本日練習！</h1>
+          <button onClick={() => { setQueue(Array.from({ length: cards.length }, (_, i) => i)); setHistory({ again: 0, hard: 0, good: 0, easy: 0 }); setIsFinished(false); }} className="w-full bg-slate-900 hover:bg-black text-white font-black py-5 rounded-[2rem] flex items-center justify-center gap-3 transition-all shadow-xl"><RefreshCcw size={22} />重新開始這一輪</button>
         </div>
       </div>
     );
@@ -341,7 +335,7 @@ const App = () => {
       <div className="w-full max-w-md mb-6 space-y-4">
         <div className="flex justify-between items-center px-1">
           <div className="bg-white px-5 py-2.5 rounded-full shadow-sm border border-slate-100 text-[15px] font-black flex items-center gap-2 text-slate-700"><Brain size={18} className="text-indigo-600" />{totalInitial - queue.length} / {totalInitial}</div>
-          <button onClick={currentDeckId || shareUrl ? copyToClipboard : saveAndShare} disabled={isSaving} className={`px-5 py-2.5 rounded-full text-xs font-black shadow-md transition-all flex items-center gap-2 ${copySuccess ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>{isSaving ? <Loader2 className="animate-spin" size={14} /> : (copySuccess ? <Check size={14} /> : <Share2 size={14} />)}{copySuccess ? '已複製' : '儲存與分享'}</button>
+          <button onClick={currentDeckId || shareUrl ? copyToClipboard : saveAndShare} disabled={isSaving} className={`px-5 py-2.5 rounded-full text-xs font-black shadow-md transition-all flex items-center gap-2 ${copySuccess ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white'}`}>{isSaving ? <Loader2 className="animate-spin" size={14} /> : (copySuccess ? <Check size={14} /> : <Share2 size={14} />)}{copySuccess ? '已複製' : '雲端儲存'}</button>
         </div>
         <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden border border-slate-100 shadow-inner"><div className="bg-indigo-500 h-full transition-all duration-1000" style={{ width: `${progress}%` }} /></div>
       </div>
