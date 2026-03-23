@@ -5,17 +5,18 @@ import {
   RefreshCcw, 
   CheckCircle2, 
   Trophy,
-  Brain,
-  Zap,
-  Star,
-  Flame,
-  Share2,
-  Copy,
-  Check,
-  Loader2,
-  ChevronRight,
-  Info,
-  AlertTriangle
+  Brain, 
+  Zap, 
+  Star, 
+  Flame, 
+  Share2, 
+  Copy, 
+  Check, 
+  Loader2, 
+  ChevronRight, 
+  Info, 
+  AlertTriangle, 
+  Clock 
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
@@ -35,9 +36,9 @@ const myFirebaseConfig = {
 };
 
 // ==========================================
-// 🔴 步驟二：你的 Google AI 金鑰
+// 🔴 步驟二：你的「新」Google AI 金鑰 (已幫你填入)
 // ==========================================
-const GEMINI_API_KEY = "AIzaSyBZ5d_jU5ZJLQ9oUCLqRDi4hS3P4lfOyQQ"; 
+const GEMINI_API_KEY = "AIzaSyBPzpFcXj7FnZEMy6YGaabbknoBdvsT72k"; 
 
 const isCanvasEnvironment = typeof __firebase_config !== 'undefined';
 const activeConfig = isCanvasEnvironment ? JSON.parse(__firebase_config) : myFirebaseConfig;
@@ -193,7 +194,7 @@ const App = () => {
     }
   };
 
-  // --- 終極暴力破解：全自動掃描所有可能的 API 組合 (含 Gemini 2.0) ---
+  // --- 暴力連線：多地址 + 多驗證 確保新 KEY 運作 ---
   const generateCardsWithAI = async () => {
     if (!inputText.trim()) return;
     setIsGeneratingCards(true);
@@ -205,20 +206,18 @@ const App = () => {
       ? `分析文字 """${inputText}""" 萃取出重要英文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "音標", "meaning": "意思", "derivatives": "變化", "collocations": "搭配", "example_en": "英文例句", "example_zh": "翻譯"}]。請只回傳 JSON。`
       : `分析文字 """${inputText}""" 萃取出重要日文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "讀音", "meaning": "意思", "breakdown": "記憶法", "example_jp": "日文例句", "example_kana": "讀音", "example_zh": "翻譯"}]。請只回傳 JSON。`;
 
-    // 🛑 修復：同時嘗試 v1, v1beta 以及 2.0 系列模型
+    // 🛑 核心修復：同時嘗試最新的 2.0 模型
     const targets = isCanvasEnvironment 
       ? [{ v: "v1beta", m: "gemini-2.5-flash-preview-09-2025" }] 
       : [
-          { v: "v1beta", m: "gemini-2.0-flash-exp" },
+          { v: "v1beta", m: "gemini-2.0-flash" },
           { v: "v1beta", m: "gemini-1.5-flash" },
-          { v: "v1", m: "gemini-1.5-flash" },
-          { v: "v1beta", m: "gemini-1.5-flash-8b" },
-          { v: "v1beta", m: "gemini-1.5-pro" },
-          { v: "v1", m: "gemini-1.5-pro" }
+          { v: "v1", m: "gemini-1.5-flash" }
         ];
 
     let success = false;
     let errorLog = "";
+    let isQuotaError = false;
 
     for (const target of targets) {
       try {
@@ -227,7 +226,7 @@ const App = () => {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
-            'x-goog-api-key': apiKey // 雙重驗證標頭，解決部分伺服器不認 query param 的問題
+            'x-goog-api-key': apiKey // 標頭補強驗證
           },
           body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
@@ -254,16 +253,21 @@ const App = () => {
             break; 
           }
         } else {
+          if (response.status === 429) isQuotaError = true;
           const err = await response.json();
-          errorLog += `❌ [${target.v}/${target.m}] ${err.error?.message || '不支援'}\n`;
+          errorLog += `❌ [${target.m}] ${err.error?.message || '不支援'}\n`;
         }
       } catch (e) {
-        errorLog += `❌ [${target.m}] 網路連線中斷\n`;
+        errorLog += `❌ [${target.m}] 連線異常\n`;
       }
     }
 
     if (!success) {
-      setGenError(`❌ Google 系統連線失敗。這通常是因為金鑰未啟用 "Generative Language API" 或額度已滿。\n\n詳細診斷：\n${errorLog}`);
+      if (isQuotaError) {
+        setGenError(`⚠️ 額度用滿了！請休息 1 分鐘後再試，或換一把新鑰匙。`);
+      } else {
+        setGenError(`❌ Google 系統連線失敗。\n詳細診斷：\n${errorLog}\n\n💡 請確認 Google AI Studio 的 Generative Language API 權限。`);
+      }
     }
     setIsGeneratingCards(false);
   };
@@ -297,7 +301,7 @@ const App = () => {
 
   useEffect(() => { if (queue.length > 0 && !isFinished && cards.length > 0 && isFlipped) speak(getSpeakableText(cards[queue[0]])); }, [isFlipped]);
 
-  if (isLoading) return <div className="flex items-center justify-center min-h-screen bg-slate-50"><Loader2 className="animate-spin text-indigo-600 w-12 h-12" /></div>;
+  if (isLoading) return <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50"><Loader2 className="animate-spin text-indigo-600 w-12 h-12" /></div>;
 
   if (cards.length === 0) {
     return (
@@ -305,11 +309,18 @@ const App = () => {
         <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-md w-full border border-slate-100">
           <Brain className="text-indigo-600 w-12 h-12 mx-auto mb-4" />
           <h1 className="text-2xl font-black mb-2">建立你的專屬字庫</h1>
-          <p className="text-slate-400 text-sm mb-8 font-medium">貼上單字，讓 AI 自動補完所有解釋</p>
-          <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} disabled={isGeneratingCards} placeholder={`在此輸入單字...\n例如：\n車站\n食べる\nEfficiency`} className="w-full h-40 p-5 mb-4 bg-slate-50 border-2 border-slate-100 rounded-3xl focus:border-indigo-500 transition-all outline-none font-medium resize-none text-slate-700 shadow-inner" />
-          {genError && <div className="text-red-600 bg-red-50 border border-red-200 p-4 rounded-2xl text-[10px] font-bold mb-5 whitespace-pre-wrap text-left shadow-sm flex items-start gap-2 leading-relaxed"><AlertTriangle size={14} className="shrink-0 mt-0.5" /> {genError}</div>}
-          <button onClick={generateCardsWithAI} disabled={isGeneratingCards || !inputText.trim()} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50">{isGeneratingCards ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {isGeneratingCards ? '正在暴力破譯連線中...' : '✨ AI 生成單字卡'}</button>
-          <div className="text-center text-slate-300 text-[10px] mt-10 font-black uppercase tracking-[0.3em]">Vercel 終極相容版 v4.6</div>
+          <p className="text-slate-400 text-sm mb-8 font-medium">貼上單字，由 AI 為你補完解釋</p>
+          <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} disabled={isGeneratingCards} placeholder={`車站\n食べる\nEfficiency`} className="w-full h-40 p-5 mb-4 bg-slate-50 border-2 border-slate-100 rounded-3xl focus:border-indigo-500 transition-all outline-none font-medium resize-none text-slate-700 shadow-inner" />
+          
+          {genError && (
+            <div className={`p-4 rounded-2xl text-[11px] font-bold mb-5 whitespace-pre-wrap text-left shadow-sm flex items-start gap-2 leading-relaxed ${genError.includes('額度') ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'text-red-600 bg-red-50 border border-red-200'}`}>
+              {genError.includes('額度') ? <Clock size={14} className="shrink-0 mt-0.5" /> : <AlertTriangle size={14} className="shrink-0 mt-0.5" />}
+              {genError}
+            </div>
+          )}
+
+          <button onClick={generateCardsWithAI} disabled={isGeneratingCards || !inputText.trim()} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50">{isGeneratingCards ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {isGeneratingCards ? '金鑰破鎖中...' : '✨ AI 生成單字卡'}</button>
+          <div className="text-center text-slate-300 text-[10px] mt-10 font-black uppercase tracking-[0.3em]">Vercel 雙重保險版 v4.8</div>
         </div>
       </div>
     );
@@ -343,7 +354,7 @@ const App = () => {
       <div className="relative w-full max-w-md h-[68vh] min-h-[500px] cursor-pointer perspective-1000 group" onClick={() => !isFlipped && setIsFlipped(true)}>
         <div className={`relative w-full h-full transition-all duration-700 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
           <div className="absolute inset-0 backface-hidden bg-white rounded-[3rem] shadow-2xl flex flex-col items-center justify-center p-10 border border-slate-100">
-            <h2 className="text-[3.5rem] font-black text-slate-900 text-center mb-12 break-words w-full">{currentCard.word}</h2>
+            <h2 className="text-[3.5rem] font-black text-slate-900 text-center mb-12 break-words w-full leading-tight">{currentCard.word}</h2>
             <button onClick={(e) => { e.stopPropagation(); speak(currentCard.word); }} className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 shadow-inner border-2 border-indigo-100/50 hover:scale-110 transition-all"><Volume2 size={40} /></button>
             <div className="absolute bottom-10 flex items-center gap-2 text-slate-300 text-[11px] font-black tracking-[0.3em] uppercase animate-pulse">點擊翻面 <ChevronRight size={14} /></div>
           </div>
