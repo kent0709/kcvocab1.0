@@ -16,8 +16,8 @@ const firebaseConfig = {
   appId: "1:835597766849:web:962ccd9b694c7e08250440"
 };
 
-// --- 2. Google AI 金鑰 ---
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+// --- 2. Google AI 金鑰 (直接寫入，保證朋友可用) ---
+const GEMINI_API_KEY = "AIzaSyD7yp67pTR39yfiIfFamYnPEdmRr-lEnKU";
 
 // 自動判斷環境
 const isCanvas = typeof __firebase_config !== 'undefined';
@@ -26,7 +26,27 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 const appId = typeof __app_id !== 'undefined' ? String(__app_id).replace(/\//g, '_') : 'kcvocabapp';
+// 確保 Vercel 環境必定使用真實金鑰
 const apiKey = isCanvas ? "" : GEMINI_API_KEY;
+
+// 安全更新網址列，避免在特定環境中產生錯誤
+const safePushState = (url) => {
+  try {
+    const hostname = window.location.hostname;
+    if (
+      window.location.protocol === 'blob:' || 
+      window.origin === 'null' || 
+      hostname.includes('webcontainer') || 
+      hostname.includes('stackblitz') ||
+      hostname.includes('usercontent')
+    ) {
+      return;
+    }
+    window.history.pushState({}, '', url);
+  } catch (e) {
+    // 靜默攔截
+  }
+};
 
 const App = () => {
   const [user, setUser] = useState(null);
@@ -91,7 +111,7 @@ const App = () => {
         .catch(err => {
           console.error("資料讀取失敗", err);
           if (err.message.includes("permissions")) {
-            setError("❌ 資料庫權限不足！請至 Firebase 控制台將規則改為 allow read, write: if true;");
+            setError("❌ 資料庫權限不足！");
           }
           setLoading(false);
         });
@@ -159,10 +179,7 @@ const App = () => {
       setIsFlipped(false);
       setDeckId(null);
       setInput('');
-      // 防堵 Canvas 環境報錯
-      if (!isCanvas) {
-        try { window.history.pushState({}, '', window.location.pathname); } catch (e) {}
-      }
+      safePushState(window.location.pathname);
     } else if (confirmDialog.type === 'finish') {
       setIsFinished(true);
     }
@@ -172,18 +189,15 @@ const App = () => {
   const generate = async () => {
     if (!input.trim() || genLoading) return;
     
-    if (!isCanvas && !apiKey) {
-      setError('❌ 找不到金鑰！');
-      return;
-    }
-
     setGenLoading(true); setError('');
     const isEn = /[a-zA-Z]/.test(input);
     
+    // 使用通用比喻，適合分享給大眾
     const prompt = isEn 
       ? `分析文字 """${input}""" 萃取出重要英文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句發音", "example_zh": "翻譯"}]。請只回傳 JSON。`
       : `分析文字 """${input}""" 萃取出重要日文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一類、第二類或第三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶單字邏輯)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
 
+    // 確保只使用穩定的 gemini-1.5-flash 模型，避免版本找不到的問題
     const targets = isCanvas 
       ? [{ v: "v1beta", m: "gemini-2.5-flash-preview-09-2025" }] 
       : [
@@ -242,7 +256,7 @@ const App = () => {
       }
     }
 
-    if (!success) setError(`❌ ${lastError}`);
+    if (!success) setError(`❌ 生成失敗：${lastError}`);
     setGenLoading(false);
   };
 
@@ -282,7 +296,7 @@ const App = () => {
         <button onClick={generate} disabled={genLoading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50">
           {genLoading ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {genLoading ? '請求中...' : 'AI 智慧生成單字卡'}
         </button>
-        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">Vercel 通用大眾版 v8.7</div>
+        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">絕對通關版 v8.9</div>
       </div>
     </div>
   );
@@ -418,10 +432,7 @@ const App = () => {
                 shareId = crypto.randomUUID();
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', shareId), { cards, queue, history, creator: user.uid, createdAt: new Date().toISOString() });
                 setDeckId(shareId); 
-                // 防堵 Canvas 環境報錯
-                if (!isCanvas) {
-                  try { window.history.pushState({}, '', `?deckId=${shareId}`); } catch (e) {}
-                }
+                safePushState(`?deckId=${shareId}`);
               }
               const shareUrl = `${window.location.origin}${window.location.pathname}?deckId=${shareId}`;
               const el = document.createElement('textarea'); el.value = shareUrl; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el); setCopyOk(true); setTimeout(() => setCopyOk(false), 2000);
