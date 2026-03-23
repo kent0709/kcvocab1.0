@@ -197,11 +197,17 @@ const App = () => {
       ? `分析文字 """${input}""" 萃取出重要英文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句發音", "example_zh": "翻譯"}]。請只回傳 JSON。`
       : `分析文字 """${input}""" 萃取出重要日文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一類、第二類或第三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶單字邏輯)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
 
-    // 確保只使用穩定的 gemini-1.5-flash 模型，避免版本找不到的問題
+    // 💡 終極解法：加入多重模型備援機制 (Auto-Fallback)
+    // 只要有任何一個模型名稱過期或不支援，系統會自動往下嘗試下一個，保證一定能通！
     const targets = isCanvas 
       ? [{ v: "v1beta", m: "gemini-2.5-flash-preview-09-2025" }] 
       : [
-          { v: "v1beta", m: "gemini-1.5-flash" }
+          { v: "v1beta", m: "gemini-2.5-flash" },             // 最新的 2.5 版本
+          { v: "v1beta", m: "gemini-1.5-flash-latest" },      // 1.5 最新安全版
+          { v: "v1beta", m: "gemini-1.5-flash" },             // 1.5 基礎版
+          { v: "v1beta", m: "gemini-1.5-flash-8b" },          // 1.5 輕量版
+          { v: "v1beta", m: "gemini-pro" },                   // 穩定的 Pro 版
+          { v: "v1beta", m: "gemini-2.5-flash-preview-09-2025"} // 預覽版
         ];
 
     let success = false;
@@ -209,6 +215,7 @@ const App = () => {
 
     for (const target of targets) {
       try {
+        console.log(`正在嘗試使用模型: ${target.m}`);
         const res = await fetch(`https://generativelanguage.googleapis.com/${target.v}/models/${target.m}:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -222,12 +229,14 @@ const App = () => {
             const errMsg = data.error?.message || "";
             if (errMsg.includes("limit: 0")) {
               lastError = `模型 ${target.m} 無免費額度`;
-              continue; 
+              continue; // 沒額度，換下一個模型
             } else {
               throw new Error("⚠️ 請求太快了！Google 限制每分鐘 15 次，請等 30 秒後再試。");
             }
           }
-          throw new Error(data.error?.message || "Google 拒絕連線");
+          // 如果發生 404 Not Found 或其他錯誤，紀錄下來並在迴圈中繼續嘗試下一個模型
+          lastError = data.error?.message || "連線錯誤";
+          continue; 
         }
         
         const raw = data.candidates[0].content.parts[0].text;
@@ -249,14 +258,14 @@ const App = () => {
         setTotal(newCards.length);
         setIsFinished(false); setIsFlipped(false);
         success = true;
-        break; 
+        break; // 成功取得資料，立刻跳出迴圈！
       } catch (e) { 
         lastError = e.message; 
-        if (e.message.includes("請求太快")) break; 
+        if (e.message.includes("請求太快")) break; // 請求太快就不要再狂打了，直接停止
       }
     }
 
-    if (!success) setError(`❌ 生成失敗：${lastError}`);
+    if (!success) setError(`❌ 生成失敗，已嘗試多種模型。最後錯誤：${lastError}`);
     setGenLoading(false);
   };
 
