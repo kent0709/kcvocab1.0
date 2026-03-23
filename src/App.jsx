@@ -193,7 +193,7 @@ const App = () => {
     }
   };
 
-  // --- 終極暴力破解：嘗試所有模型組合 ---
+  // --- 終極修正：直接使用 Google v1 正式版路徑與 GA 模型 ---
   const generateCardsWithAI = async () => {
     if (!inputText.trim()) return;
     setIsGeneratingCards(true);
@@ -202,62 +202,65 @@ const App = () => {
 
     const isEn = /[a-zA-Z]/.test(inputText);
     const prompt = isEn 
-      ? `分析 """${inputText}""" 萃取出重要英文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "音標", "meaning": "意思", "derivatives": "變化", "collocations": "搭配", "example_en": "英文例句", "example_zh": "翻譯"}]。務必只回傳 JSON 格式。`
-      : `分析 """${inputText}""" 萃取出重要日文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "讀音", "meaning": "意思", "breakdown": "記憶法", "example_jp": "日文例句", "example_kana": "讀音", "example_zh": "翻譯"}]。務必只回傳 JSON 格式。`;
+      ? `分析文字 """${inputText}""" 萃取出重要英文單字，務必只回傳 JSON 陣列：[{"word": "單字", "reading": "音標", "meaning": "意思", "derivatives": "變化", "collocations": "搭配", "example_en": "英文例句", "example_zh": "翻譯"}]。`
+      : `分析文字 """${inputText}""" 萃取出重要日文單字，務必只回傳 JSON 陣列：[{"word": "單字", "reading": "讀音", "meaning": "意思", "breakdown": "拆解記憶法", "example_jp": "日文例句", "example_kana": "例句讀音", "example_zh": "翻譯"}]。`;
 
-    // 🛑 同時測試 v1beta 與 v1，涵蓋所有可能性
-    const configsToTry = isCanvasEnvironment 
-      ? [{ ver: "v1beta", model: "gemini-2.5-flash-preview-09-2025" }] 
-      : [
-          { ver: "v1beta", model: "gemini-1.5-flash" },
-          { ver: "v1", model: "gemini-1.5-flash" },
-          { ver: "v1beta", model: "gemini-1.5-pro" },
-          { ver: "v1", model: "gemini-1.5-pro" }
-        ];
+    // 🛑 核心修復：強制使用 v1 正式版路徑，這解決了「v1beta找不到模型」的矛盾
+    const config = isCanvasEnvironment 
+      ? { ver: "v1beta", model: "gemini-2.5-flash-preview-09-2025" } 
+      : { ver: "v1", model: "gemini-1.5-flash" };
 
-    let success = false;
-    let finalError = "";
+    try {
+      const url = `https://generativelanguage.googleapis.com/${config.ver}/models/${config.model}:generateContent?key=${apiKey}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      });
 
-    for (const config of configsToTry) {
-      try {
-        const url = `https://generativelanguage.googleapis.com/${config.ver}/models/${config.model}:generateContent?key=${apiKey}`;
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-        });
-
-        if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(`[${config.ver}/${config.model}] ${errData.error?.message || "無法連線"}`);
+      if (!response.ok) {
+        const errData = await response.json();
+        // 如果 v1 還是不認帳，自動切換到 v1beta 作為最後備援
+        if (config.ver === "v1") {
+          const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${apiKey}`;
+          const fallbackRes = await fetch(fallbackUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+          });
+          if (fallbackRes.ok) {
+            const data = await fallbackRes.json();
+            processAiResponse(data, isEn);
+            return;
+          }
         }
-
-        const data = await response.json();
-        if (!data.candidates?.[0]?.content?.parts?.[0]?.text) throw new Error("AI 無法生成有效內容");
-        
-        const raw = data.candidates[0].content.parts[0].text;
-        const parsed = JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim());
-
-        const newCards = parsed.map(item => {
-          if (!isEn) return { word: item.word, info: `${item.reading} ${item.meaning} 💡 [記憶] ${item.breakdown} 【例句】${item.example_jp}(${item.example_kana})${item.example_zh}` };
-          return { word: item.word, info: `${item.reading || ''} ${item.meaning} 💡 [變化] ${item.derivatives || ''} 💡 [搭配] ${item.collocations || ''} 【例句】${item.example_en}()${item.example_zh}` };
-        });
-
-        setCards(newCards);
-        setQueue(Array.from({ length: newCards.length }, (_, i) => i));
-        setTotalInitial(newCards.length);
-        setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
-        setIsFinished(false);
-        setIsFlipped(false);
-        success = true;
-        break; 
-      } catch (e) {
-        finalError += e.message + "\n";
+        throw new Error(errData.error?.message || "Google 拒絕連線");
       }
-    }
 
-    if (!success) setGenError(`❌ Google 伺服器拒絕所有連線方案：\n${finalError}`);
-    setIsGeneratingCards(false);
+      const data = await response.json();
+      processAiResponse(data, isEn);
+
+    } catch (e) {
+      setGenError(`❌ Google 系統連線失敗：\n${e.message}\n\n💡 建議：請確認在 Google AI Studio 裡是否有開啟 "Generative Language API" 權限！`);
+    } finally {
+      setIsGeneratingCards(false);
+    }
+  };
+
+  const processAiResponse = (data, isEn) => {
+    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!raw) throw new Error("AI 回傳空內容");
+    const parsed = JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim());
+    const newCards = parsed.map(item => {
+      if (!isEn) return { word: item.word, info: `${item.reading} ${item.meaning} 💡 [記憶] ${item.breakdown} 【例句】${item.example_jp}(${item.example_kana})${item.example_zh}` };
+      return { word: item.word, info: `${item.reading || ''} ${item.meaning} 💡 [變化] ${item.derivatives || ''} 💡 [搭配] ${item.collocations || ''} 【例句】${item.example_en}()${item.example_zh}` };
+    });
+    setCards(newCards);
+    setQueue(Array.from({ length: newCards.length }, (_, i) => i));
+    setTotalInitial(newCards.length);
+    setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
+    setIsFinished(false);
+    setIsFlipped(false);
   };
 
   const saveAndShare = async () => {
@@ -306,11 +309,11 @@ const App = () => {
         <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-md w-full text-center border border-slate-100">
           <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner"><Brain className="text-indigo-600 w-10 h-10" /></div>
           <h1 className="text-2xl font-black text-slate-800 mb-2">建立你的專屬字庫</h1>
-          <p className="text-slate-400 text-sm font-medium mb-8">貼上純單字，由 AI 自動補完解釋</p>
+          <p className="text-slate-400 text-sm font-medium mb-8">貼上單字，由 AI 自動補完解釋</p>
           <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} disabled={isGeneratingCards} placeholder={`在這裡輸入單字...\n例如：\n車站\n食べる\nEfficiency`} className="w-full h-40 p-5 mb-4 bg-slate-50 border-2 border-slate-100 rounded-3xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 transition-all outline-none font-medium resize-none text-slate-700 shadow-inner" />
-          {genError && <div className="text-red-600 bg-red-50 border border-red-200 p-4 rounded-2xl text-[11px] font-bold mb-5 whitespace-pre-wrap text-left shadow-sm flex items-start gap-2"><AlertTriangle size={16} className="shrink-0" /> {genError}</div>}
-          <button onClick={generateCardsWithAI} disabled={isGeneratingCards || !inputText.trim()} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 group disabled:opacity-50">{isGeneratingCards ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300 group-hover:rotate-12 transition-transform" />} {isGeneratingCards ? '正在暴力破解連線中...' : '✨ AI 智慧生成完整單字卡'}</button>
-          <div className="text-center text-slate-300 text-[10px] mt-10 font-black uppercase tracking-[0.3em]">Vercel 終極破解版 v4.2</div>
+          {genError && <div className="text-red-600 bg-red-50 border border-red-200 p-4 rounded-2xl text-[11px] font-bold mb-5 whitespace-pre-wrap text-left shadow-sm flex items-start gap-2 leading-relaxed"><AlertTriangle size={14} className="shrink-0 mt-0.5" /> {genError}</div>}
+          <button onClick={generateCardsWithAI} disabled={isGeneratingCards || !inputText.trim()} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 group disabled:opacity-50">{isGeneratingCards ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300 group-hover:rotate-12 transition-transform" />} {isGeneratingCards ? '正在嘗試連線 Google...' : '✨ AI 智慧生成完整單字卡'}</button>
+          <div className="text-center text-slate-300 text-[10px] mt-10 font-black uppercase tracking-[0.3em]">Vercel 終極直連版 v4.4</div>
         </div>
       </div>
     );
@@ -319,7 +322,7 @@ const App = () => {
   if (isFinished) {
     const r = getRating();
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-6">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-6 text-slate-800">
         <div className="bg-white p-12 rounded-[3rem] shadow-2xl max-w-lg w-full text-center border border-slate-100">
           <div className="text-8xl mb-6 animate-bounce drop-shadow-lg">{r.emoji}</div>
           <h1 className="text-3xl font-black mb-1">完成本日練習！</h1>
