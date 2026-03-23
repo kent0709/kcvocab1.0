@@ -12,7 +12,9 @@ import {
   Share2,
   Copy,
   Check,
-  Loader2
+  Loader2,
+  ChevronRight,
+  Info
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
@@ -68,7 +70,7 @@ const App = () => {
   const [showRatingModal, setShowRatingModal] = useState(false); 
   const translatingRef = useRef(new Set());
 
-  // --- Auth & Initial Data Fetch ---
+  // --- 初始化登入 ---
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -78,7 +80,7 @@ const App = () => {
           await signInAnonymously(auth);
         }
       } catch (err) {
-        setAuthError('連線失敗');
+        setAuthError('無法連線到資料庫');
         setIsLoading(false);
       }
     };
@@ -94,6 +96,7 @@ const App = () => {
     return () => unsubscribe();
   }, []);
 
+  // --- 讀取分享進度 ---
   useEffect(() => {
     if (!user) return;
     const params = new URLSearchParams(window.location.search);
@@ -117,7 +120,9 @@ const App = () => {
               setQueue(Array.from({ length: data.cards.length }, (_, i) => i));
             }
           }
-        } catch (err) {} finally {
+        } catch (err) {
+          console.error(err);
+        } finally {
           setIsLoading(false);
         }
       };
@@ -127,13 +132,14 @@ const App = () => {
     }
   }, [user]);
 
+  // --- 智慧語音系統 (TTS) ---
   const speak = (text) => {
     if (!text) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     const isEnglish = /[a-zA-Z]/.test(text);
     utterance.lang = isEnglish ? 'en-US' : 'ja-JP';
-    utterance.rate = 0.9; 
+    utterance.rate = 0.85; 
     window.speechSynthesis.speak(utterance);
   };
 
@@ -150,19 +156,20 @@ const App = () => {
     return textToSpeak;
   };
 
+  // --- 排版輔助 ---
   const formatExampleText = (exampleString) => {
     if (!exampleString) return null;
     const match = exampleString.match(/^(.*?)\((.*?)\)(.*)$/);
     if (match) {
       return (
-        <div className="space-y-0.5">
-          <div className="text-sm font-bold text-slate-800 leading-tight">{match[1].trim()}</div>
-          {match[2].trim() && <div className="text-[11px] font-medium text-indigo-500">{match[2].trim()}</div>}
-          {match[3].trim() && <div className="text-xs text-slate-600">{match[3].trim()}</div>}
+        <div className="space-y-1">
+          <div className="text-[15px] font-bold text-slate-800 leading-snug">{match[1].trim()}</div>
+          {match[2].trim() && <div className="text-[12px] font-medium text-indigo-500 bg-indigo-50/50 px-2 py-0.5 rounded inline-block">{match[2].trim()}</div>}
+          {match[3].trim() && <div className="text-[13px] text-slate-600 italic mt-1 border-l-2 border-slate-200 pl-2">{match[3].trim()}</div>}
         </div>
       );
     }
-    return <div className="text-[13px] text-slate-700">{exampleString}</div>;
+    return <div className="text-[14px] text-slate-700">{exampleString}</div>;
   };
 
   const formatBackHeader = (card) => {
@@ -179,14 +186,14 @@ const App = () => {
       meaning = headerText.substring(firstSpaceIdx).trim();
     }
     return (
-      <div className="font-bold text-slate-800 border-b border-slate-100 pb-2 mb-2">
-        <div className="flex items-baseline gap-2 mb-1">
-          <span className="text-xl font-black text-indigo-900">{card.word}</span>
-          {reading && <span className="text-xs text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0.5 rounded-md">{reading}</span>}
+      <div className="space-y-3">
+        <div className="flex items-end gap-3 flex-wrap">
+          <span className="text-3xl font-black text-slate-900 tracking-tight">{card.word}</span>
+          {reading && <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg border border-indigo-100">{reading}</span>}
         </div>
-        <div className="text-slate-700 text-sm mb-1.5 whitespace-pre-line">{meaning}</div>
+        <div className="text-lg text-slate-700 font-medium whitespace-pre-line leading-relaxed">{meaning}</div>
         {extraSections.map((sec, idx) => (
-          <div key={idx} className="mt-1.5 text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-100/50 font-medium whitespace-pre-line">
+          <div key={idx} className="bg-amber-50/70 border border-amber-100 p-3 rounded-xl text-[13px] text-amber-900 font-medium leading-relaxed shadow-sm">
             💡 {sec.replace(/\[.*?\]\s*/, '').trim()}
           </div>
         ))}
@@ -194,6 +201,7 @@ const App = () => {
     );
   };
 
+  // --- ANKI SRS 邏輯 ---
   const handleSrsAction = async (type) => {
     const currentQueueIdx = queue[0];
     let newQueue = [...queue];
@@ -222,71 +230,78 @@ const App = () => {
     }
   };
 
-  // 輔助函式：清理 AI 回傳的 Markdown 標籤並解析 JSON
-  const safeJsonParse = (text) => {
-    try {
-      const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
-      return JSON.parse(cleaned);
-    } catch (e) {
-      throw new Error("JSON 解析失敗，請再試一次");
-    }
-  };
-
+  // --- 核心修復：穩定版 AI 生成 ---
   const generateCardsWithAI = async () => {
     if (!inputText.trim()) return;
     setIsGeneratingCards(true);
     setGenError('');
+    
     if (!isCanvasEnvironment && !apiKey) {
-      setGenError('❌ 找不到金鑰！');
+      setGenError('❌ 找不到金鑰！請檢查 StackBlitz 同步狀態。');
       setIsGeneratingCards(false);
       return;
     }
-    try {
-      const isEnglishMode = /[a-zA-Z]/.test(inputText);
-      const prompt = isEnglishMode 
-        ? `你是一位專業英文教師。請從 """${inputText}""" 萃取英文單字。務必只回傳一個 JSON 陣列，格式如下：[{"word": "...", "reading": "...", "meaning": "...", "derivatives": "...", "collocations": "...", "example_en": "...", "example_zh": "..."}]`
-        : `你是一位專業日文教師。請從 """${inputText}""" 萃取日文單字。務必只回傳一個 JSON 陣列，格式如下：[{"word": "...", "reading": "...", "meaning": "...", "breakdown": "...", "example_jp": "...", "example_kana": "...", "example_zh": "..."}]`;
 
-      // 修復：正式版與測試版環境採取一致的 v1 地址與最穩定呼叫方式
-      const API_VERSION = isCanvasEnvironment ? "v1beta" : "v1";
-      const MODEL_NAME = isCanvasEnvironment ? "gemini-2.5-flash-preview-09-2025" : "gemini-1.5-flash";
-      
-      const response = await fetch(`https://generativelanguage.googleapis.com/${API_VERSION}/models/${MODEL_NAME}:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }]
-          // 移除 responseMimeType 以避免 v1 正式版報錯，改用 Prompt 強制約束
-        })
-      });
+    const isEnglishMode = /[a-zA-Z]/.test(inputText);
+    const prompt = isEnglishMode 
+      ? `你是一位專業英文教師。請分析文字 """${inputText}""" 萃取出所有重要單字，並回傳一個 JSON 陣列。
+         陣列格式：[{"word": "單字", "reading": "音標", "meaning": "詞性與中文意思", "derivatives": "詞性變化", "collocations": "搭配詞", "example_en": "英文例句", "example_zh": "中文翻譯"}]
+         注意：請只回傳 JSON，不要有其他文字。`
+      : `你是一位專業日文教師。請分析文字 """${inputText}""" 萃取出所有重要單字，並回傳一個 JSON 陣列。
+         陣列格式：[{"word": "單字", "reading": "平假名讀音", "meaning": "中文意思與詞性", "breakdown": "字句拆解與記憶法", "example_jp": "日文例句", "example_kana": "例句讀音", "example_zh": "中文翻譯"}]
+         注意：請只回傳 JSON，不要有其他文字。`;
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || response.statusText);
-      }
-      
-      const data = await response.json();
-      const parsedData = safeJsonParse(data.candidates[0].content.parts[0].text);
-      
-      const newCards = parsedData.map(item => {
-        if (!isEnglishMode) {
-          return { word: item.word, info: `${item.reading} ${item.meaning} 💡 [字句分析] ${item.breakdown} 【例句】${item.example_jp}(${item.example_kana})${item.example_zh}` };
-        } else {
-          return { word: item.word, info: `${item.reading || ''} ${item.meaning} 💡 [變化] ${item.derivatives || ''} 💡 [搭配] ${item.collocations || ''} 【例句】${item.example_en}()${item.example_zh}` };
+    const modelsToTry = isCanvasEnvironment 
+      ? ["gemini-2.5-flash-preview-09-2025"] 
+      : ["gemini-1.5-flash", "gemini-1.5-pro"];
+
+    let success = false;
+    let errorMsg = "";
+
+    for (const model of modelsToTry) {
+      try {
+        // 使用 v1beta 搭配 Flash 通常最穩定，若報錯會自動切換下一個型號
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error?.message || "引擎不認帳");
         }
-      });
 
-      setCards(newCards);
-      setQueue(Array.from({ length: newCards.length }, (_, i) => i));
-      setTotalInitial(newCards.length);
-      setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
-      setIsFinished(false);
-      setIsFlipped(false);
-    } catch (e) {
-      setGenError(`❌ Google 系統錯誤：${e.message}`);
-    } finally {
-      setIsGeneratingCards(false);
+        const data = await response.json();
+        const rawText = data.candidates[0].content.parts[0].text;
+        const jsonText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+        const parsedData = JSON.parse(jsonText);
+
+        const newCards = parsedData.map(item => {
+          if (!isEnglishMode) {
+            return { word: item.word, info: `${item.reading} ${item.meaning} 💡 [字句分析] ${item.breakdown} 【例句】${item.example_jp}(${item.example_kana})${item.example_zh}` };
+          } else {
+            return { word: item.word, info: `${item.reading || ''} ${item.meaning} 💡 [變化] ${item.derivatives || ''} 💡 [搭配] ${item.collocations || ''} 【例句】${item.example_en}()${item.example_zh}` };
+          }
+        });
+
+        setCards(newCards);
+        setQueue(Array.from({ length: newCards.length }, (_, i) => i));
+        setTotalInitial(newCards.length);
+        setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
+        setIsFinished(false);
+        setIsFlipped(false);
+        success = true;
+        break; 
+      } catch (e) {
+        errorMsg = e.message;
+        continue;
+      }
     }
+
+    if (!success) setGenError(`❌ Google 系統連線失敗：${errorMsg}`);
+    setIsGeneratingCards(false);
   };
 
   const saveAndShare = async () => {
@@ -304,17 +319,27 @@ const App = () => {
     } catch (err) {} finally { setIsSaving(false); }
   };
 
+  const copyToClipboard = () => {
+    const el = document.createElement('textarea');
+    el.value = shareUrl || `${window.location.origin}${window.location.pathname}?deckId=${currentDeckId}`;
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand('copy');
+    document.body.removeChild(el);
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2000);
+  };
+
+  // --- 自動生圖預載 ---
   useEffect(() => {
     if (cards.length === 0 || isFinished) return;
-    const loadImages = async () => {
-      const card = cards[queue[0]];
-      if (!card || imageUrls[card.word] || translatingRef.current.has(card.word)) return;
-      translatingRef.current.add(card.word);
-      setImageUrls(prev => ({ ...prev, [card.word]: `https://loremflickr.com/400/300/${encodeURIComponent(card.word)}` }));
-    };
-    loadImages();
+    const card = cards[queue[0]];
+    if (!card || imageUrls[card.word] || translatingRef.current.has(card.word)) return;
+    translatingRef.current.add(card.word);
+    setImageUrls(prev => ({ ...prev, [card.word]: `https://loremflickr.com/500/300/${encodeURIComponent(card.word)}` }));
   }, [queue, cards, isFinished, imageUrls]);
 
+  // --- 朗讀連動 ---
   useEffect(() => {
     if (queue.length > 0 && !isFinished && cards.length > 0 && isFlipped) speak(getSpeakableText(cards[queue[0]]));
   }, [isFlipped]);
@@ -323,36 +348,51 @@ const App = () => {
     const total = history.again + history.hard + history.good + history.easy;
     if (total === 0) return { score: 0, text: "尚無資料", color: "text-slate-500", emoji: "🤔" };
     const score = Math.round(((history.easy * 100) + (history.good * 100) + (history.hard * 50)) / total);
-    if (score >= 90) return { score, text: "優秀", color: "text-green-500", emoji: "🌟" };
-    if (score >= 60) return { score, text: "及格", color: "text-blue-500", emoji: "👌" };
-    return { score, text: "加油", color: "text-red-500", emoji: "💪" };
+    if (score >= 90) return { score, text: "完美發揮", color: "text-green-500", emoji: "🌟" };
+    if (score >= 60) return { score, text: "穩定成長", color: "text-blue-500", emoji: "👌" };
+    return { score, text: "再接再厲", color: "text-red-500", emoji: "💪" };
   };
 
-  if (isLoading) return <div className="flex items-center justify-center min-h-screen bg-slate-50"><Loader2 className="animate-spin text-indigo-600" /></div>;
+  // --- 畫面渲染 ---
+  if (isLoading) return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 gap-4">
+      <Loader2 className="animate-spin text-indigo-600 w-12 h-12" />
+      <span className="font-bold text-slate-400 tracking-widest uppercase text-xs">Loading字庫中...</span>
+    </div>
+  );
 
   if (cards.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-6">
-        <div className="bg-white p-8 rounded-[2rem] shadow-xl max-w-md w-full text-center">
-          <Brain className="text-indigo-600 w-12 h-12 mx-auto mb-4" />
-          <h1 className="text-xl font-black mb-2">建立專屬字庫</h1>
+        <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-md w-full text-center border border-slate-100">
+          <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner">
+            <Brain className="text-indigo-600 w-10 h-10" />
+          </div>
+          <h1 className="text-2xl font-black text-slate-800 mb-2">建立你的專屬字庫</h1>
+          <p className="text-slate-400 text-sm font-medium mb-8 leading-relaxed">貼上純單字，讓 AI 為你補齊解釋與意象化記憶法</p>
+          
           <textarea
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             disabled={isGeneratingCards}
-            placeholder="請直接輸入單字..."
-            className="w-full h-32 p-4 mb-3 bg-slate-50 border rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-medium resize-none"
+            placeholder={`在此輸入單字...\n例如：\n車站\n食べる\nEfficiency`}
+            className="w-full h-40 p-5 mb-4 bg-slate-50 border-2 border-slate-100 rounded-3xl focus:ring-4 focus:ring-indigo-50 focus:border-indigo-500 transition-all outline-none font-medium resize-none text-slate-700 shadow-inner"
           />
-          {genError && <div className="text-red-600 bg-red-50 border border-red-200 p-2 rounded-lg text-xs font-bold mb-3 whitespace-pre-wrap text-left">{genError}</div>}
+
+          {genError && <div className="text-red-600 bg-red-50 border border-red-200 p-4 rounded-2xl text-xs font-bold mb-5 whitespace-pre-wrap text-left shadow-sm flex items-start gap-2">
+            <Info size={16} className="shrink-0" /> {genError}
+          </div>}
+
           <button
             onClick={generateCardsWithAI}
             disabled={isGeneratingCards || !inputText.trim()}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2"
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 group disabled:opacity-50"
           >
-            {isGeneratingCards ? <Loader2 className="animate-spin" /> : <Star size={18} />}
-            {isGeneratingCards ? 'AI 分析中...' : '✨ AI 生成單字卡'}
+            {isGeneratingCards ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />}
+            {isGeneratingCards ? 'AI 正在全力分析中...' : '✨ AI 智慧生成完整單字卡'}
           </button>
-          <div className="text-center text-slate-300 text-[10px] mt-6 font-bold uppercase tracking-widest">Vercel 終極修復版 v3.1</div>
+          
+          <div className="text-center text-slate-300 text-[11px] mt-10 font-black uppercase tracking-[0.2em]">Vercel 終極正式版 v4.0</div>
         </div>
       </div>
     );
@@ -361,11 +401,19 @@ const App = () => {
   if (isFinished) {
     const rating = getRating();
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-6">
-        <div className="bg-white p-10 rounded-[2rem] shadow-2xl max-w-lg w-full text-center">
-          <div className="text-6xl mb-4 animate-bounce">{rating.emoji}</div>
-          <h1 className="text-2xl font-black">{rating.score} 分 - {rating.text}</h1>
-          <button onClick={() => { setQueue(Array.from({ length: cards.length }, (_, i) => i)); setHistory({ again: 0, hard: 0, good: 0, easy: 0 }); setIsFinished(false); }} className="mt-8 w-full bg-slate-800 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all hover:bg-black"><RefreshCcw size={20} />重新開始</button>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-6 text-slate-800">
+        <div className="bg-white p-12 rounded-[3rem] shadow-2xl max-w-lg w-full text-center border border-slate-100">
+          <div className="text-8xl mb-6 animate-bounce drop-shadow-lg">{rating.emoji}</div>
+          <h1 className="text-3xl font-black mb-1">完成本日練習！</h1>
+          <div className={`text-4xl font-black ${rating.color} mb-8`}>{rating.score} 分 - {rating.text}</div>
+          
+          <button 
+            onClick={() => { setQueue(Array.from({ length: cards.length }, (_, i) => i)); setHistory({ again: 0, hard: 0, good: 0, easy: 0 }); setIsFinished(false); }} 
+            className="w-full bg-slate-900 hover:bg-black text-white font-black py-5 rounded-[2rem] flex items-center justify-center gap-3 transition-all shadow-xl"
+          >
+            <RefreshCcw size={22} />
+            重新開始這一輪
+          </button>
         </div>
       </div>
     );
@@ -375,44 +423,87 @@ const App = () => {
   const progress = ((totalInitial - queue.length) / totalInitial) * 100;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center py-8 px-4 font-sans text-slate-800">
-      <div className="w-full max-w-md mb-4 space-y-3">
-        <div className="flex justify-between items-center">
-          <div className="bg-white px-4 py-1.5 rounded-full shadow-sm border text-sm font-bold flex items-center gap-2">
-            <Brain size={16} className="text-indigo-600" />
-            {totalInitial - queue.length} / {totalInitial}
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center py-10 px-4 font-sans text-slate-800 overflow-x-hidden">
+      <div className="w-full max-w-md mb-6 space-y-4">
+        <div className="flex justify-between items-center px-1">
+          <div className="bg-white px-5 py-2.5 rounded-full shadow-sm border border-slate-100 text-[15px] font-black flex items-center gap-2 text-slate-700">
+            <Brain size={18} className="text-indigo-600" />
+            {totalInitial - queue.length} <span className="text-slate-300 font-medium mx-1">/</span> {totalInitial}
           </div>
-          <button onClick={saveAndShare} disabled={isSaving} className="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold shadow-md hover:bg-indigo-700 transition-all">
-            {isSaving ? <Loader2 className="animate-spin" /> : (shareUrl ? '已儲存' : '儲存進度')}
+          <button 
+            onClick={currentDeckId || shareUrl ? copyToClipboard : saveAndShare} 
+            disabled={isSaving} 
+            className={`px-5 py-2.5 rounded-full text-xs font-black shadow-md transition-all flex items-center gap-2 ${copySuccess ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+          >
+            {isSaving ? <Loader2 className="animate-spin" size={14} /> : (copySuccess ? <Check size={14} /> : <Share2 size={14} />)}
+            {copySuccess ? '已複製網址' : (currentDeckId || shareUrl ? '複製同步連結' : '儲存至雲端')}
           </button>
         </div>
-        <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden"><div className="bg-indigo-500 h-full transition-all duration-700" style={{ width: `${progress}%` }} /></div>
+        <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden shadow-inner border border-slate-100">
+          <div className="bg-indigo-500 h-full transition-all duration-1000 ease-out" style={{ width: `${progress}%` }} />
+        </div>
       </div>
 
-      <div className="relative w-full max-w-md h-[70vh] min-h-[450px] cursor-pointer perspective-1000" onClick={() => !isFlipped && setIsFlipped(true)}>
-        <div className={`relative w-full h-full transition-all duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
-          <div className="absolute inset-0 backface-hidden bg-white rounded-[2rem] shadow-xl flex flex-col items-center justify-center p-8 border">
-            <h2 className="text-[3rem] font-black text-slate-800 text-center leading-tight mb-8 break-words w-full">{currentCard.word}</h2>
-            <button onClick={(e) => { e.stopPropagation(); speak(currentCard.word); }} className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 shadow-sm hover:bg-indigo-100 transition-all"><Volume2 size={32} /></button>
-            <div className="absolute bottom-8 text-slate-400 text-xs font-bold tracking-widest animate-pulse">點擊卡片翻面</div>
-          </div>
-          <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white rounded-[2rem] shadow-xl flex flex-col p-4 border overflow-hidden">
-            <img src={imageUrls[currentCard.word]} className="w-full h-28 object-cover rounded-xl mb-3 shadow-inner bg-slate-100" alt="" onError={(e) => e.target.src = 'https://loremflickr.com/400/300/japan'} />
-            <div className="flex-1 overflow-y-auto pr-1">
-              {formatBackHeader(currentCard)}
-              {currentCard.info.includes('【例句】') && <div className="bg-slate-50 p-2.5 rounded-xl border mt-2">{formatExampleText(currentCard.info.split('【例句】')[1])}</div>}
+      <div 
+        className="relative w-full max-w-md h-[68vh] min-h-[500px] max-h-[650px] cursor-pointer perspective-1000 group" 
+        onClick={() => !isFlipped && setIsFlipped(true)}
+      >
+        <div className={`relative w-full h-full transition-all duration-700 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
+          
+          {/* 正面 */}
+          <div className="absolute inset-0 backface-hidden bg-white rounded-[3rem] shadow-2xl flex flex-col items-center justify-center p-10 border border-slate-100">
+            <h2 className="text-[3.5rem] font-black text-slate-900 text-center leading-[1.1] mb-12 break-words w-full drop-shadow-sm">{currentCard.word}</h2>
+            <button 
+              onClick={(e) => { e.stopPropagation(); speak(currentCard.word); }} 
+              className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 shadow-inner hover:bg-indigo-100 hover:scale-110 transition-all border-2 border-indigo-100/50"
+            >
+              <Volume2 size={40} />
+            </button>
+            <div className="absolute bottom-10 flex items-center gap-2 text-slate-300 text-[11px] font-black tracking-[0.3em] uppercase animate-pulse">
+              點擊翻面 <ChevronRight size={14} />
             </div>
-            <div className="grid grid-cols-5 gap-1 mt-2 pt-2 border-t">
-              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('again'); }} className="flex flex-col items-center text-red-500 hover:scale-105 transition-transform"><div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center"><RefreshCcw size={16} /></div><span className="text-[9px] font-bold">Again</span></button>
-              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('hard'); }} className="flex flex-col items-center text-orange-500 hover:scale-105 transition-transform"><div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center"><Flame size={16} /></div><span className="text-[9px] font-bold">Hard</span></button>
-              <button onClick={(e) => { e.stopPropagation(); speak(getSpeakableText(currentCard)); }} className="flex flex-col items-center -mt-2 hover:scale-110 transition-transform"><div className="w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg"><Volume2 size={20} /></div><span className="text-[9px] font-bold text-indigo-600">Listen</span></button>
-              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('good'); }} className="flex flex-col items-center text-blue-500 hover:scale-105 transition-transform"><div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center"><Star size={16} /></div><span className="text-[9px] font-bold">Good</span></button>
-              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('easy'); }} className="flex flex-col items-center text-green-500 hover:scale-105 transition-transform"><div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center"><Zap size={16} /></div><span className="text-[9px] font-bold">Easy</span></button>
+          </div>
+
+          {/* 背面 */}
+          <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white rounded-[3rem] shadow-2xl flex flex-col p-6 border border-slate-100 overflow-hidden">
+            <div className="w-full h-36 bg-slate-100 rounded-3xl mb-5 overflow-hidden shadow-inner border border-slate-50 shrink-0">
+              <img 
+                src={imageUrls[currentCard.word]} 
+                className="w-full h-full object-cover transition-opacity duration-500 hover:scale-105 transition-transform" 
+                alt="" 
+                onError={(e) => e.target.src = 'https://loremflickr.com/500/300/japan'} 
+              />
+            </div>
+            
+            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+              {formatBackHeader(currentCard)}
+              {currentCard.info.includes('【例句】') && (
+                <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-100 mt-4 shadow-sm">
+                  {formatExampleText(currentCard.info.split('【例句】')[1])}
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-5 gap-2 mt-5 pt-5 border-t border-slate-100 shrink-0">
+              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('again'); }} className="flex flex-col items-center gap-1 hover:scale-110 transition-transform"><div className="w-11 h-11 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 shadow-sm"><RefreshCcw size={20} /></div><span className="text-[10px] font-black text-red-500/80 uppercase">Again</span></button>
+              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('hard'); }} className="flex flex-col items-center gap-1 hover:scale-110 transition-transform"><div className="w-11 h-11 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 shadow-sm"><Flame size={20} /></div><span className="text-[10px] font-black text-orange-500/80 uppercase">Hard</span></button>
+              <button onClick={(e) => { e.stopPropagation(); speak(getSpeakableText(currentCard)); }} className="flex flex-col items-center gap-1 -mt-3 hover:scale-110 transition-transform group"><div className="w-14 h-14 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-xl border-4 border-white group-hover:bg-indigo-700 transition-colors"><Volume2 size={24} /></div><span className="text-[10px] font-black text-indigo-600 uppercase">Listen</span></button>
+              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('good'); }} className="flex flex-col items-center gap-1 hover:scale-110 transition-transform"><div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shadow-sm"><Star size={20} /></div><span className="text-[10px] font-black text-blue-500/80 uppercase">Good</span></button>
+              <button onClick={(e) => { e.stopPropagation(); handleSrsAction('easy'); }} className="flex flex-col items-center gap-1 hover:scale-110 transition-transform"><div className="w-11 h-11 rounded-2xl bg-green-50 text-green-600 flex items-center justify-center border border-green-100 shadow-sm"><Zap size={20} /></div><span className="text-[10px] font-black text-green-500/80 uppercase">Easy</span></button>
             </div>
           </div>
         </div>
       </div>
-      <style dangerouslySetInnerHTML={{ __html: `.perspective-1000 { perspective: 1000px; } .backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; } .rotate-y-180 { transform: rotateY(180deg); } .transform-style-3d { transform-style: preserve-3d; }` }} />
+      
+      <style dangerouslySetInnerHTML={{ __html: `
+        .perspective-1000 { perspective: 1000px; } 
+        .backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; } 
+        .rotate-y-180 { transform: rotateY(180deg); } 
+        .transform-style-3d { transform-style: preserve-3d; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+      ` }} />
     </div>
   );
 };
