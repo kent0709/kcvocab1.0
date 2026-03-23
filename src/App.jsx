@@ -180,7 +180,6 @@ const App = () => {
     setGenLoading(true); setError('');
     const isEn = /[a-zA-Z]/.test(input);
     
-    // 🛑 核心修改：移除個人化彩蛋，改為要求「通用且生動的意象比喻」
     const prompt = isEn 
       ? `分析文字 """${input}""" 萃取出重要英文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句發音", "example_zh": "翻譯"}]。請只回傳 JSON。`
       : `分析文字 """${input}""" 萃取出重要日文單字，回傳 JSON 陣列：[{"word": "單字", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一類、第二類或第三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶單字邏輯)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
@@ -188,8 +187,7 @@ const App = () => {
     const targets = isCanvas 
       ? [{ v: "v1beta", m: "gemini-2.5-flash-preview-09-2025" }] 
       : [
-          { v: "v1beta", m: "gemini-1.5-flash" },
-          { v: "v1beta", m: "gemini-1.5-flash-8b" }
+          { v: "v1beta", m: "gemini-1.5-flash" }
         ];
 
     let success = false;
@@ -284,7 +282,7 @@ const App = () => {
         <button onClick={generate} disabled={genLoading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50">
           {genLoading ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {genLoading ? '請求中...' : 'AI 智慧生成單字卡'}
         </button>
-        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">Vercel 通用大眾版 v8.6</div>
+        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">Vercel 通用大眾版 v8.7</div>
       </div>
     </div>
   );
