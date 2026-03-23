@@ -35,7 +35,7 @@ const myFirebaseConfig = {
 // 🔴 步驟二：請在這裡貼上你的 Google AI 金鑰 
 // (拿來生成單字拆解跟生圖用的！)
 // ==========================================
-const GEMINI_API_KEY = "AIzaSyBZ5d_jU5ZJLQ9oUCLqRDi4hS3P4lfOyQQ"; // <--- 把在 Google AI Studio 複製的那串亂碼貼到引號裡面！
+const GEMINI_API_KEY = "AIzaSyBZ5d_jU5ZJLQ9oUCLqRDi4hS3P4lfOyQQ"; // <--- 把在 Google AI Studio 複製的那串亂碼重新貼回引號裡面！
 
 // --- 系統自動判斷環境邏輯 ---
 const isCanvasEnvironment = typeof __firebase_config !== 'undefined';
@@ -141,7 +141,6 @@ const App = () => {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     
-    // 判斷：包含英文字母就是英文發音，否則一律用日文發音（包含純漢字）
     const isEnglish = /[a-zA-Z]/.test(text);
     utterance.lang = isEnglish ? 'en-US' : 'ja-JP';
     utterance.rate = 0.9; 
@@ -151,7 +150,6 @@ const App = () => {
   const getSpeakableText = (card) => {
     if (!card) return "";
     let textToSpeak = card.word; 
-    
     if (card.info && card.info.includes('【例句】')) {
       const examplePart = card.info.split('【例句】')[1];
       if (examplePart) {
@@ -181,11 +179,9 @@ const App = () => {
   const formatBackHeader = (card) => {
     if (!card.info) return null;
     const mainPart = card.info.split('【例句】')[0].trim();
-    
     const parts = mainPart.split('💡').map(p => p.trim());
     const headerText = parts[0];
     const extraSections = parts.slice(1);
-
     const firstSpaceIdx = headerText.indexOf(' ');
     let reading = "";
     let meaning = headerText;
@@ -310,13 +306,12 @@ const App = () => {
     }
   };
 
-  // --- 6. AI 智慧生成單字卡內容 ---
+  // --- 6. AI 智慧生成單字卡內容 (已更換為 gemini-1.5-flash) ---
   const generateCardsWithAI = async () => {
     if (!inputText.trim()) return;
     setIsGeneratingCards(true);
     setGenError('');
     
-    // 檢查有沒有填金鑰
     if (!activeGeminiKey) {
       setGenError('請先在程式碼最上方填入 GEMINI_API_KEY 金鑰喔！');
       setIsGeneratingCards(false);
@@ -325,7 +320,6 @@ const App = () => {
 
     try {
       const apiKey = activeGeminiKey; 
-      
       const isEnglishMode = /[a-zA-Z]/.test(inputText);
       const isJapaneseMode = !isEnglishMode;
       
@@ -358,7 +352,8 @@ const App = () => {
         `;
       }
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+      // 注意：這裡改成 gemini-1.5-flash 了！
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -447,7 +442,7 @@ const App = () => {
   // --- 8. AI 意象圖預載 ---
   useEffect(() => {
     if (cards.length === 0 || isFinished) return;
-    if (!activeGeminiKey) return; // 沒有金鑰就不生圖
+    if (!activeGeminiKey) return;
 
     const loadImages = async () => {
       const nextCards = queue.slice(0, 3).map(idx => cards[idx]);
@@ -465,7 +460,8 @@ const App = () => {
             ? `Extract a highly visual, simple English phrase for generating a stock photo (max 5 words) representing the concept: ${card.word}. Return ONLY the English text.`
             : `Translate this Japanese/Chinese vocabulary meaning into a highly visual, simple English phrase for generating a stock photo (max 5 words). Return ONLY the English text. Vocabulary: ${card.word}, Meaning: ${hint}`;
 
-          const textRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+          // 注意：這裡改成 gemini-1.5-flash 了！
+          const textRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -480,23 +476,6 @@ const App = () => {
             if (text) enText = text;
           }
           
-          const imgRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              instances: { prompt: `A clear, high quality stock photo representing the concept: ${enText}. Realistic, professional lighting, clean background, no text.` },
-              parameters: { sampleCount: 1 }
-            })
-          });
-
-          if (imgRes.ok) {
-            const imgData = await imgRes.json();
-            if (imgData.predictions && imgData.predictions[0] && imgData.predictions[0].bytesBase64Encoded) {
-              const base64Url = `data:image/png;base64,${imgData.predictions[0].bytesBase64Encoded}`;
-              setImageUrls(prev => ({ ...prev, [card.word]: base64Url }));
-              continue;
-            }
-          }
           setImageUrls(prev => ({ ...prev, [card.word]: `https://loremflickr.com/400/300/${encodeURIComponent(enText)}` }));
         } catch (e) {
           setImageUrls(prev => ({ ...prev, [card.word]: `https://loremflickr.com/400/300/japan` }));
