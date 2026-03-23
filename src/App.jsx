@@ -18,16 +18,14 @@ const firebaseConfig = {
   measurementId: "G-C1SDRQR6MS"
 };
 
-// --- 2. Google AI 金鑰 (改用環境變數，絕對不要再把金鑰寫死在這裡！) ---
-// Vercel 會自動從後台的環境變數讀取這把鑰匙，Google 機器人就掃不到了！
-// 加入安全防護，避免在不支援 import.meta 的環境下引發錯誤
+// --- 2. Google AI 金鑰 ---
+// 採用相容性更高的寫法，避免在部分舊版編譯環境中出現警告
 let GEMINI_API_KEY = "";
 try {
-  if (typeof import.meta !== 'undefined' && import.meta.env) {
-    GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
-  }
+  const env = typeof import.meta !== 'undefined' ? import.meta.env : (typeof process !== 'undefined' ? process.env : {});
+  GEMINI_API_KEY = env?.VITE_GEMINI_API_KEY || "";
 } catch (e) {
-  // 環境不支援時靜默攔截
+  // 靜默攔截環境變數讀取錯誤
 }
 
 // 自動判斷環境
@@ -305,7 +303,8 @@ const App = () => {
     <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center text-center">
       <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-md w-full border border-slate-100">
         <Brain className="text-indigo-600 w-12 h-12 mx-auto mb-4" />
-        <h1 className="text-2xl font-black mb-6">建立專屬字庫</h1>
+        {/* 客製化調整：替換標題為 Killer Cards */}
+        <h1 className="text-2xl font-black mb-6 text-slate-800">Killer Cards</h1>
         <textarea value={input} onChange={e => setInput(e.target.value)} placeholder="貼上想背的單字..." className="w-full h-40 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" />
         
         {error && (
@@ -318,7 +317,8 @@ const App = () => {
         <button onClick={generate} disabled={genLoading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50">
           {genLoading ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {genLoading ? '請求中...' : 'AI 智慧生成單字卡'}
         </button>
-        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">v9.5 終極隱形金鑰版</div>
+        {/* 客製化調整：加上 byKC 簽名 */}
+        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">v9.5 終極隱形金鑰版 byKC</div>
       </div>
     </div>
   );
