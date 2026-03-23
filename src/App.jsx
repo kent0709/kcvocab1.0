@@ -7,13 +7,14 @@ import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged }
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
 // --- 1. Firebase 配置 ---
-const firebaseConfig = {
-  apiKey: "AIzaSyCfnMao6o2QCNY4ZuV40XATZv-VrZSK_Rg",
+apiKey: "AIzaSyCfnMao6o2QCNY4ZuV40XATZv-VrZSK_Rg",
   authDomain: "kcvocabapp.firebaseapp.com",
+  databaseURL: "https://kcvocabapp-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "kcvocabapp",
   storageBucket: "kcvocabapp.firebasestorage.app",
   messagingSenderId: "835597766849",
-  appId: "1:835597766849:web:962ccd9b694c7e08250440"
+  appId: "1:835597766849:web:962ccd9b694c7e08250440",
+  measurementId: "G-C1SDRQR6MS"
 };
 
 // --- 2. Google AI 金鑰 (直接寫入，保證朋友可用) ---
