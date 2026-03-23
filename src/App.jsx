@@ -72,7 +72,9 @@ const App = () => {
   const [genLoading, setGenLoading] = useState(false);
   const [error, setError] = useState('');
   
-  // 自訂彈窗狀態
+  // 新增：儲存狀態與彈窗狀態
+  const [isSaving, setIsSaving] = useState(false);
+  const [shareModal, setShareModal] = useState({ isOpen: false, url: '' });
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, type: '', message: '' });
 
   // 1. 系統登入初始化
@@ -414,6 +416,32 @@ const App = () => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center py-10 px-4 font-sans text-slate-800 overflow-x-hidden">
       
+      {/* 分享連結彈窗 */}
+      {shareModal.isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
+            <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center text-green-500 mx-auto mb-4">
+              <Share2 size={32} />
+            </div>
+            <h3 className="text-xl font-black text-slate-800 mb-2">進度已儲存！</h3>
+            <p className="text-sm text-slate-500 mb-6 font-medium">請複製下方專屬網址，傳給朋友或用手機打開就能繼續背單字囉：</p>
+            
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-6 flex items-center gap-2">
+              <input type="text" readOnly value={shareModal.url} className="w-full bg-transparent text-sm text-slate-600 font-medium outline-none" />
+            </div>
+
+            <button onClick={() => {
+                try {
+                   navigator.clipboard.writeText(shareModal.url);
+                } catch(e){}
+                setShareModal({ isOpen: false, url: '' });
+            }} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black transition-all shadow-md flex justify-center items-center gap-2">
+              <Check size={18} /> 複製並關閉
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 自訂確認彈窗 */}
       {confirmDialog.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
@@ -452,13 +480,17 @@ const App = () => {
             <Trophy size={18} />
           </button>
 
-          {/* 儲存與分享按鈕 */}
+          {/* 儲存與分享按鈕 (已加入轉圈動畫與視窗機制) */}
           <button onClick={async () => {
             if (!user) {
-              setError("❌ 系統正在連線到資料庫，請稍候再試！");
-              setTimeout(() => setError(""), 3000);
+              // 提醒使用者是否忘記開 Firebase 匿名登入
+              setError("❌ 無法連線！請確認 Firebase 裡的「Authentication -> 匿名登入」是否有開啟！");
+              setTimeout(() => setError(""), 4000);
               return;
             }
+            if (isSaving) return;
+            setIsSaving(true);
+            
             try {
               let shareId = deckId;
               if (!shareId) {
@@ -469,7 +501,7 @@ const App = () => {
               }
               const shareUrl = `${window.location.origin}${window.location.pathname}?deckId=${shareId}`;
               
-              // 💡 更強大的複製邏輯，確保各種裝置都能順利複製
+              // 背景嘗試自動複製
               try {
                 if (navigator.clipboard && window.isSecureContext) {
                   await navigator.clipboard.writeText(shareUrl);
@@ -482,16 +514,22 @@ const App = () => {
 
               setCopyOk(true); 
               setTimeout(() => setCopyOk(false), 2000);
+              
+              // 🌟 彈出保證能拿到的專屬網址視窗
+              setShareModal({ isOpen: true, url: shareUrl });
+
             } catch (err) {
               if (err.message.includes("permissions")) {
                 setError("❌ 資料庫權限不足！請至 Firebase 將規則改為 allow read, write: if true;");
               } else {
                 setError("❌ 儲存失敗：" + err.message);
               }
-              setTimeout(() => setError(""), 3000);
+              setTimeout(() => setError(""), 4000);
+            } finally {
+              setIsSaving(false);
             }
-          }} className={`w-10 h-10 flex items-center justify-center rounded-full shadow-md text-white transition-all shrink-0 ${copyOk ? 'bg-green-500 scale-110' : 'bg-indigo-600 hover:bg-indigo-700'}`} title="儲存與分享">
-            {copyOk ? <Check size={16} /> : <Share2 size={16} />}
+          }} disabled={isSaving} className={`w-10 h-10 flex items-center justify-center rounded-full shadow-md text-white transition-all shrink-0 ${copyOk ? 'bg-green-500 scale-110' : 'bg-indigo-600 hover:bg-indigo-700'}`} title="儲存與分享">
+            {isSaving ? <Loader2 size={16} className="animate-spin" /> : copyOk ? <Check size={16} /> : <Share2 size={16} />}
           </button>
         </div>
         <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden border shadow-inner"><div className="bg-indigo-500 h-full transition-all duration-1000" style={{ width: `${((total - queue.length)/total)*100}%` }} /></div>
