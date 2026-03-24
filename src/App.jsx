@@ -7,7 +7,6 @@ import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged }
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
 // --- 1. Firebase 資料庫專用配置 ---
-// 這是 Firebase 的公開配置，放在程式碼裡是安全的，因為我們已經鎖定了網域授權
 const firebaseConfig = {
   apiKey: "AIzaSyD2dxrjW68kjR66RgeFdXl2o4jW2ooGwwU",
   authDomain: "killercards.firebaseapp.com",
@@ -18,7 +17,7 @@ const firebaseConfig = {
   measurementId: "G-PVFYPMRPH2"
 };
 
-// --- 2. AI 金鑰讀取機制 (完全移除明碼與切半邏輯，只依賴環境變數與本機暫存) ---
+// --- 2. 金鑰自動讀取機制 ---
 const getEnvKey = () => {
   try {
     const env = typeof import.meta !== 'undefined' ? import.meta.env : (typeof process !== 'undefined' ? process.env : {});
@@ -96,9 +95,9 @@ const vocabHigh = [
 ];
 
 const App = () => {
-  // AI 金鑰完全只依賴 Vercel 環境變數或本地 LocalStorage
   const [activeApiKey, setActiveApiKey] = useState(() => isCanvas ? "" : (getEnvKey() || getLocalKey()));
   const [keyInput, setKeyInput] = useState('');
+  const [isValidatingKey, setIsValidatingKey] = useState(false);
 
   const [user, setUser] = useState(null);
   const [cards, setCards] = useState([]);
@@ -130,17 +129,7 @@ const App = () => {
         }
       } catch (err) {
         console.error("登入錯誤", err);
-        let errMsg = "❌ Firebase 連線失敗：";
-        if (err.code === 'auth/api-key-expired' || err.code === 'auth/invalid-api-key') {
-          errMsg += "您的 Firebase 金鑰已失效！請重新建立新專案。";
-        } else if (err.code === 'auth/configuration-not-found') {
-          errMsg += "您尚未在 Firebase 啟用驗證功能！請開啟匿名登入。";
-        } else if (err.code === 'auth/operation-not-allowed') {
-          errMsg += "請至 Firebase 後台開啟「匿名登入 (Anonymous)」！";
-        } else {
-          errMsg += err.message;
-        }
-        setError(errMsg);
+        setError("❌ Firebase 連線失敗，請檢查網路或專案設定。");
         setLoading(false);
       }
     };
@@ -256,16 +245,51 @@ const App = () => {
     setIsFlipped(false);
   };
 
+  // 💡 v11.8 核心：金鑰即時檢測系統
+  const validateAndSaveKey = async () => {
+    const tk = keyInput.trim();
+    if (!tk) return;
+
+    if (tk === firebaseConfig.apiKey) {
+      setError('❌ 致命錯誤：這把是「Firebase 資料庫」的鑰匙！您必須去 Google AI Studio 申請 AI 專屬鑰匙。');
+      return;
+    }
+
+    setIsValidatingKey(true);
+    setError('');
+
+    try {
+      // 嘗試去敲 Google AI 的大門，列出可用模型
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${tk}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 400) {
+          setError("❌ 錯誤：金鑰格式無效 (API_KEY_INVALID)。請檢查是否複製完整，或是多複製了空白鍵。");
+        } else if (res.status === 403) {
+          setError("❌ 錯誤：這把金鑰缺乏 AI 權限 (PERMISSION_DENIED)。請確保您是從「Google AI Studio」申請的！");
+        } else {
+          setError(`❌ 錯誤碼 ${res.status}：${data.error?.message}`);
+        }
+        setIsValidatingKey(false);
+        return;
+      }
+
+      // 如果成功列出模型，代表這把金鑰 100% 沒問題！
+      localStorage.setItem('my_gemini_key', tk);
+      setActiveApiKey(tk);
+    } catch (e) {
+      setError("❌ 網路連線異常，無法驗證金鑰，請檢查網路狀態。");
+    } finally {
+      setIsValidatingKey(false);
+    }
+  };
+
   const generate = async () => {
     if (!input.trim() || genLoading) return;
     const reqKey = isCanvas ? "" : activeApiKey;
     if (!reqKey && !isCanvas) {
       setError('❌ 找不到 API 金鑰！請至 Vercel 設定 VITE_GEMINI_API_KEY 環境變數。');
-      return;
-    }
-
-    if (reqKey === firebaseConfig.apiKey) {
-      setError('❌ 致命錯誤：您把「Firebase 資料庫金鑰」誤填成「AI 金鑰」了！\n請前往 Google AI Studio 申請真正的 Gemini AI 金鑰！');
       return;
     }
 
@@ -311,7 +335,7 @@ const App = () => {
                     if (res.status === 404) {
                         lastError = `模型 ${model} 不可用...`;
                         if (model === targetModels[targetModels.length - 1]) {
-                            lastError = `您輸入的 AI 金鑰權限不足，找不到可用的模型！\n請確認這把金鑰是從「Google AI Studio」申請的，而不是 Firebase。`;
+                            lastError = `您輸入的金鑰權限異常，找不到任何可用模型！\n(可能您把金鑰寫在 Vercel 環境變數了，請確認那把也是從 AI Studio 申請的喔！)`;
                         }
                         break; 
                     }
@@ -329,7 +353,7 @@ const App = () => {
                     if (res.status === 400 || res.status === 403) {
                         setActiveApiKey(''); 
                         try { localStorage.removeItem('my_gemini_key'); } catch(e){}
-                        lastError = `您的 AI 金鑰已被 Google 停權或無效！請至 Vercel 更新 VITE_GEMINI_API_KEY。`;
+                        lastError = `您的 AI 金鑰已被 Google 停權或無效！請重新輸入。`;
                         isKeyInvalid = true;
                         break; 
                     }
@@ -391,26 +415,43 @@ const App = () => {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600 w-12 h-12" /></div>;
 
+  // --- 防護：金鑰檢測輸入畫面 ---
   if (!isCanvas && !activeApiKey) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
         <div className="bg-white p-8 rounded-[2rem] shadow-2xl max-w-md w-full border border-slate-100 text-center relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-2 bg-indigo-500"></div>
-          <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-red-500 mx-auto mb-6 shadow-inner">
-             <AlertTriangle size={32} />
+          <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 mx-auto mb-6 shadow-inner">
+             <Lock size={32} />
           </div>
-          <h1 className="text-2xl font-black text-slate-800 mb-4">找不到 AI 金鑰！</h1>
-          <div className="text-[13px] text-slate-600 mb-6 font-medium text-left leading-relaxed space-y-3">
-            <p>您的專案尚未設定 AI 引擎的通關密語。</p>
-            <p>為了確保所有親朋好友都能順暢使用，且**不再被 Google 防盜機器人封鎖**，請務必按照以下步驟設定：</p>
-            <ol className="list-decimal pl-5 space-y-1">
-              <li>前往 <b>Vercel 後台</b> 的專案設定 (Settings)</li>
-              <li>點選 <b>Environment Variables</b></li>
-              <li>新增變數：<br/><span className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600 font-bold">VITE_GEMINI_API_KEY</span></li>
-              <li>貼上您 <a href="https://aistudio.google.com/" target="_blank" className="text-blue-500 underline">Google AI Studio</a> 申請的全新金鑰並儲存</li>
-              <li>至 Deployments 點擊 <b>Redeploy</b> 重新發布</li>
-            </ol>
-          </div>
+          <h1 className="text-2xl font-black text-slate-800 mb-4">系統安全鎖</h1>
+          
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-xl text-[13px] font-bold border border-red-100 whitespace-pre-wrap">
+              {error}
+            </div>
+          )}
+
+          <p className="text-[13px] text-slate-500 mb-6 font-medium text-left leading-relaxed">
+            請前往 <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-blue-500 underline font-bold">Google AI Studio</a> 點擊「Create API key」申請一把全新的金鑰。<br/><br/>
+            <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded">系統會自動驗證金鑰是否有效，通過後即可使用！</span>
+          </p>
+          <input
+            type="password"
+            value={keyInput}
+            onChange={e => setKeyInput(e.target.value)}
+            disabled={isValidatingKey}
+            placeholder="請貼上 AIzaSy 開頭的 AI 金鑰..."
+            className="w-full p-4 mb-4 bg-slate-50 border-2 border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-medium transition-colors disabled:opacity-50"
+          />
+          <button
+            onClick={validateAndSaveKey}
+            disabled={!keyInput.trim() || isValidatingKey}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black py-4 rounded-xl shadow-md transition-all flex justify-center items-center gap-2"
+          >
+            {isValidatingKey ? <Loader2 size={18} className="animate-spin" /> : null}
+            {isValidatingKey ? '正在連線驗證中...' : '驗證金鑰並進入 App'} <ChevronRight size={18} />
+          </button>
         </div>
       </div>
     );
@@ -490,7 +531,7 @@ const App = () => {
         <textarea value={input} onChange={e => setInput(e.target.value)} placeholder="貼上想背的單字..." className="w-full h-32 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" />
         
         {error && (
-          <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed whitespace-pre-wrap ${error.includes('連線失敗') || error.includes('發生錯誤') || error.includes('致命錯誤') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+          <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed whitespace-pre-wrap ${error.includes('連線失敗') || error.includes('發生錯誤') || error.includes('致命錯誤') || error.includes('無效') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
             {error.includes('請求太快') ? <Clock size={18} className="shrink-0 mt-0.5" /> : <AlertTriangle size={18} className="shrink-0 mt-0.5" />}
             {error}
           </div>
@@ -501,7 +542,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v11.7 純淨無金鑰版 byKC</span>
+          <span>v11.8 終極金鑰檢測版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-indigo-400 transition-colors flex items-center gap-1">
                <Trash2 size={10} /> 刪除本地舊鑰匙
