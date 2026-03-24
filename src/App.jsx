@@ -89,6 +89,9 @@ const App = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [shareModal, setShareModal] = useState({ isOpen: false, url: '' });
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, type: '', message: '' });
+  
+  // 新增：工程師密碼解鎖彈窗狀態
+  const [pwdModal, setPwdModal] = useState({ isOpen: false, value: '', error: '' });
 
   // 1. 系統登入初始化
   useEffect(() => {
@@ -359,6 +362,44 @@ const App = () => {
 
   if (cards.length === 0) return (
     <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center text-center">
+      
+      {/* 密碼驗證彈窗 */}
+      {pwdModal.isOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
+            <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center text-amber-500 mx-auto mb-4">
+              <Lock size={24} />
+            </div>
+            <h3 className="text-xl font-black text-slate-800 mb-2">工程師權限驗證</h3>
+            <p className="text-xs text-slate-500 mb-6">請輸入管理者密碼以重置金鑰</p>
+            
+            <input 
+              type="password" 
+              placeholder="請輸入密碼..."
+              value={pwdModal.value}
+              onChange={e => setPwdModal({ ...pwdModal, value: e.target.value, error: '' })}
+              className="w-full p-3 mb-2 bg-slate-50 border border-slate-200 rounded-xl text-center tracking-[0.3em] font-bold outline-none focus:border-indigo-500 transition-colors"
+              maxLength={10}
+            />
+            
+            {pwdModal.error && <p className="text-red-500 text-xs font-bold mb-2 animate-pulse">{pwdModal.error}</p>}
+            
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setPwdModal({ isOpen: false, value: '', error: '' })} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-all">取消</button>
+              <button onClick={() => {
+                if (pwdModal.value === '564335') {
+                  setActiveApiKey('');
+                  try { localStorage.removeItem('my_gemini_key'); } catch(e){}
+                  setPwdModal({ isOpen: false, value: '', error: '' });
+                } else {
+                  setPwdModal({ ...pwdModal, error: '密碼錯誤，拒絕存取！' });
+                }
+              }} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-md">驗證解鎖</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-md w-full border border-slate-100">
         <Brain className="text-indigo-600 w-12 h-12 mx-auto mb-4" />
         
@@ -379,12 +420,11 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v10.2 親友共享版 byKC</span>
+          <span>v10.3 工程師密碼防護版 byKC</span>
           {!isCanvas && (
-             <button onClick={() => {
-                setActiveApiKey('');
-                try { localStorage.removeItem('my_gemini_key'); } catch(e){}
-             }} className="hover:text-indigo-400 transition-colors">清除快取金鑰</button>
+             <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-indigo-400 transition-colors flex items-center gap-1">
+               <Lock size={10} /> 重新設定金鑰
+             </button>
           )}
         </div>
       </div>
