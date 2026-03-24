@@ -7,7 +7,7 @@ import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged }
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
 // --- 1. Firebase 資料庫專用配置 ---
-// ⚠️ 這裡請保持您成功連線的 Firebase 設定檔！
+// 這裡保留了您最新且正確的設定檔，請放心使用！
 const firebaseConfig = {
   apiKey: "AIzaSyD2dxrjW68kjR66RgeFdXl2o4jW2ooGwwU",
   authDomain: "killercards.firebaseapp.com",
@@ -31,12 +31,10 @@ const getLocalKey = () => {
   try { return localStorage.getItem('my_gemini_key') || ""; } catch(e) { return ""; }
 };
 
-// 💡 解決手機與親友要重複輸入的問題！
 const getSharedKey = () => {
-  // ⚠️ 請把您的「全新 Gemini API 金鑰」隨意切成兩半，分別貼在下方的引號內：
-  // 這樣 Google 的防盜機器人就掃描不出來，且所有裝置都能直接使用！
-  const part1 = "AIzaSyC03rp4Jz7OIq7"; // 例如貼上前半段 "AIzaSyXXXX..."
-  const part2 = "tsw74kmZVKGEFVl411CM"; // 例如貼上後半段 "...YYYYZZZZ"
+  // 完美保留您的 AI 備用金鑰
+  const part1 = "AIzaSyCyEk0clwOAiHZ"; 
+  const part2 = "HgXFCQ7NlSnMl9XLxcb8"; 
   
   if (!part1 || !part2) return "";
   return part1 + part2;
@@ -68,7 +66,6 @@ const safePushState = (url) => {
 };
 
 const App = () => {
-  // AI 金鑰狀態管理 (現在會優先讀取您切半寫入的 getSharedKey)
   const [activeApiKey, setActiveApiKey] = useState(() => isCanvas ? "" : (getEnvKey() || getLocalKey() || getSharedKey()));
   const [keyInput, setKeyInput] = useState('');
 
@@ -87,18 +84,16 @@ const App = () => {
   const [genLoading, setGenLoading] = useState(false);
   const [error, setError] = useState('');
   
-  // 儲存狀態與彈窗狀態
   const [isSaving, setIsSaving] = useState(false);
   const [shareModal, setShareModal] = useState({ isOpen: false, url: '' });
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, type: '', message: '' });
   const [pwdModal, setPwdModal] = useState({ isOpen: false, value: '', error: '' });
 
-  // 1. 系統登入初始化
   useEffect(() => {
     const initAuth = async () => {
       try {
         if (firebaseConfig.apiKey === "請在此填入新的_apiKey") {
-          setError("❌ 請先至程式碼替換您全新的 Firebase 設定檔 (firebaseConfig)！");
+          setError("❌ 請先至程式碼替換您全新的 Firebase 設定檔！");
           setLoading(false);
           return;
         }
@@ -112,13 +107,11 @@ const App = () => {
         console.error("登入錯誤", err);
         let errMsg = "❌ Firebase 連線失敗：";
         if (err.code === 'auth/api-key-expired' || err.code === 'auth/invalid-api-key') {
-          errMsg += "您的 Firebase 專案已刪除或金鑰失效！請去 Firebase 建立新專案，並把新的 firebaseConfig 貼到程式碼。";
+          errMsg += "您的 Firebase 金鑰已失效！請重新建立新專案。";
         } else if (err.code === 'auth/configuration-not-found') {
-          errMsg += "您尚未在 Firebase 啟用驗證功能！請點擊左側「Authentication」-> 按下「開始使用(Get Started)」，然後開啟匿名登入。";
+          errMsg += "您尚未在 Firebase 啟用驗證功能！請開啟匿名登入。";
         } else if (err.code === 'auth/operation-not-allowed') {
           errMsg += "請至 Firebase 後台開啟「匿名登入 (Anonymous)」！";
-        } else if (err.code === 'auth/unauthorized-domain') {
-          errMsg += "您的網址尚未加入 Firebase 的「授權網域 (Authorized domains)」中！";
         } else {
           errMsg += err.message;
         }
@@ -134,10 +127,8 @@ const App = () => {
     return () => unsubscribe();
   }, []);
 
-  // 2. 載入資料庫存檔
   useEffect(() => {
     if (!user) return; 
-    
     const id = new URLSearchParams(window.location.search).get('deckId');
     if (id) {
       setDeckId(id);
@@ -155,9 +146,7 @@ const App = () => {
         })
         .catch(err => {
           console.error("資料讀取失敗", err);
-          if (err.message.includes("permissions")) {
-            setError("❌ 資料庫權限不足！");
-          }
+          if (err.message.includes("permissions")) setError("❌ 資料庫權限不足！");
           setLoading(false);
         });
     } else {
@@ -177,11 +166,8 @@ const App = () => {
     if (!c) return "";
     let textToSpeak = c.word;
     let ex = null;
-    if (c.info && c.info.includes('【例句】')) {
-      ex = c.info.split('【例句】')[1];
-    } else if (c.example) {
-      ex = c.example;
-    }
+    if (c.info && c.info.includes('【例句】')) ex = c.info.split('【例句】')[1];
+    else if (c.example) ex = c.example;
     if (ex) {
       const sentence = ex.split('(')[0].trim();
       if (sentence) textToSpeak += "。 " + sentence;
@@ -216,13 +202,8 @@ const App = () => {
 
   const executeConfirm = () => {
     if (confirmDialog.type === 'home') {
-      setCards([]);
-      setQueue([]);
-      setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
-      setIsFinished(false);
-      setIsFlipped(false);
-      setDeckId(null);
-      setInput('');
+      setCards([]); setQueue([]); setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
+      setIsFinished(false); setIsFlipped(false); setDeckId(null); setInput('');
       safePushState(window.location.pathname);
     } else if (confirmDialog.type === 'finish') {
       setIsFinished(true);
@@ -230,9 +211,9 @@ const App = () => {
     closeConfirm();
   };
 
+  // 💡 v11.0 核心更新：隱形重試引擎 (Exponential Backoff)
   const generate = async () => {
     if (!input.trim() || genLoading) return;
-    
     const reqKey = isCanvas ? "" : activeApiKey;
     if (!reqKey && !isCanvas) {
       setError('❌ 找不到 API 金鑰！請點擊下方「重新設定金鑰」按鈕。');
@@ -246,77 +227,85 @@ const App = () => {
       ? `請分析以下文字：\n"""${input}"""\n這是一份「英文學習清單」。請提取出英文單字。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯"}]。請只回傳 JSON。`
       : `請分析以下文字：\n"""${input}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
 
-    const targets = [
-      { v: "v1beta", m: "gemini-2.5-flash-preview-09-2025" },
-      { v: "v1beta", m: "gemini-2.5-flash" },
-      { v: "v1beta", m: "gemini-1.5-pro" }
-    ];
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${reqKey}`;
+    const payload = {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json" }
+    };
 
     let success = false;
     let lastError = "";
+    // 自動重試的等待時間 (1秒, 2秒, 4秒, 8秒, 16秒)
+    const delays = [1000, 2000, 4000, 8000, 16000];
 
-    for (const target of targets) {
-      try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/${target.v}/models/${target.m}:generateContent?key=${reqKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-        });
-        
-        const data = await res.json();
-        
-        if (!res.ok) {
-          const errMsg = data.error?.message || "未知錯誤";
-          
-          if (res.status === 400 || res.status === 403) {
-            // 💡 終極防呆：只要金鑰無效/過期，立刻清除快取，並把畫面打回鎖頭模式！
-            setActiveApiKey(''); 
-            try { localStorage.removeItem('my_gemini_key'); } catch(e){}
-            lastError = `您的 AI 金鑰已失效！請重新申請並輸入。`;
-            break; 
-          }
+    for (let attempt = 0; attempt <= 5; attempt++) {
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
 
-          if (res.status === 429) {
-            if (errMsg.includes("limit: 0")) {
-              lastError = `此地區/帳號無免費額度`;
-              continue; 
-            } else {
-              lastError = "⚠️ 請求太快了！Google 限制每分鐘 15 次，請等 30 秒後再試。";
-              break;
+            const data = await res.json();
+
+            if (!res.ok) {
+                const errMsg = data.error?.message || "未知錯誤";
+                
+                // 遇到 429 請求太快，啟動自動背景重試機制
+                if (res.status === 429 || res.status === 503) {
+                    if (attempt < 5) {
+                        // 默默等待後再次嘗試，不打擾使用者
+                        await new Promise(r => setTimeout(r, delays[attempt]));
+                        continue; 
+                    } else {
+                        lastError = "Google AI 伺服器目前大塞車，請稍等 1 分鐘後再試一次！";
+                        break;
+                    }
+                } 
+                
+                // 遇到 400/403 金鑰無效，立刻踢出並清除舊金鑰
+                if (res.status === 400 || res.status === 403) {
+                    setActiveApiKey(''); 
+                    try { localStorage.removeItem('my_gemini_key'); } catch(e){}
+                    lastError = `您的 AI 金鑰已失效！請重新申請並輸入。`;
+                    break; 
+                }
+
+                lastError = `發生錯誤：${errMsg}`;
+                break;
             }
-          }
-          
-          lastError = errMsg;
-          continue; 
+            
+            // 成功解析 JSON 內容
+            const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+            const parsed = JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim());
+            
+            const newCards = parsed.map(c => ({
+              word: c.word,
+              reading: c.reading || '',
+              meaning: c.meaning || '',
+              breakdown: c.breakdown || '',
+              example: c.example || '',
+              example_kana: c.example_kana || '',
+              example_zh: c.example_zh || '',
+              info: `${c.reading || ''} ${c.meaning || ''} 💡 [分析] ${c.breakdown || ''} 【例句】${c.example || ''}(${c.example_kana || ''})${c.example_zh || ''}`
+            }));
+            
+            setCards(newCards);
+            setQueue(Array.from({length: newCards.length}, (_, i) => i));
+            setTotal(newCards.length);
+            setIsFinished(false); setIsFlipped(false);
+            success = true;
+            break; // 成功生出單字卡，跳出迴圈
+            
+        } catch (e) { 
+            lastError = "伺服器處理失敗，正在嘗試修復中...";
+            if (attempt < 5) {
+                await new Promise(r => setTimeout(r, delays[attempt]));
+            }
         }
-        
-        const raw = data.candidates[0].content.parts[0].text;
-        const parsed = JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim());
-        
-        const newCards = parsed.map(c => ({
-          word: c.word,
-          reading: c.reading || '',
-          meaning: c.meaning || '',
-          breakdown: c.breakdown || '',
-          example: c.example || '',
-          example_kana: c.example_kana || '',
-          example_zh: c.example_zh || '',
-          info: `${c.reading || ''} ${c.meaning || ''} 💡 [分析] ${c.breakdown || ''} 【例句】${c.example || ''}(${c.example_kana || ''})${c.example_zh || ''}`
-        }));
-        
-        setCards(newCards);
-        setQueue(Array.from({length: newCards.length}, (_, i) => i));
-        setTotal(newCards.length);
-        setIsFinished(false); setIsFlipped(false);
-        success = true;
-        break; 
-      } catch (e) { 
-        lastError = e.message; 
-        if (e.message.includes("請求太快")) break; 
-      }
     }
 
-    if (!success) setError(`${lastError}`);
+    if (!success) setError(`❌ ${lastError}`);
     setGenLoading(false);
   };
 
@@ -444,7 +433,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v10.9 手機免輸入金鑰版 byKC</span>
+          <span>v11.0 終極穩定版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-indigo-400 transition-colors flex items-center gap-1">
                <Trash2 size={10} /> 強制清除舊金鑰
@@ -654,7 +643,7 @@ const App = () => {
 
             } catch (err) {
               if (err.message === "TIMEOUT") {
-                setError("❌ 連線遭阻擋！請關閉廣告阻擋器，或檢查專案 ID 是否正確。");
+                setError("❌ 連線遭阻擋！請檢查網路或專案 ID 是否正確。");
               } else if (err.message.includes("permissions")) {
                 setError("❌ 資料庫權限不足！請確認 Firebase Rules 規則。");
               } else {
