@@ -6,9 +6,9 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
-// --- 1. Firebase 配置 ---
+// --- 1. Firebase 資料庫專用配置 (請勿將 AI 金鑰貼到這裡！) ---
 const firebaseConfig = {
-  apiKey: "AIzaSyBTcPWX29sXFY0dqzOpJn8We6uoJLwHv9U",
+  apiKey: "AIzaSyCfnMao6o2QCNY4ZuV40XATZv-VrZSK_Rg", // 👈 這是 Firebase 專用的鑰匙，請保持原樣
   authDomain: "kcvocabapp.firebaseapp.com",
   databaseURL: "https://kcvocabapp-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "kcvocabapp",
@@ -18,7 +18,7 @@ const firebaseConfig = {
   measurementId: "G-C1SDRQR6MS"
 };
 
-// --- 2. Google AI 金鑰 ---
+// --- 2. Google AI 金鑰 (Gemini 專用) ---
 // 使用字串拼接的方式隱藏金鑰，避免被 GitHub 機器人直接掃描到而停權
 const keyPart1 = "AIzaSyBTcPWX29sXF";
 const keyPart2 = "Y0dqzOpJn8We6uoJLwHv9U";
@@ -78,7 +78,7 @@ const App = () => {
   const [genLoading, setGenLoading] = useState(false);
   const [error, setError] = useState('');
   
-  // 新增：儲存狀態與彈窗狀態
+  // 儲存狀態與彈窗狀態
   const [isSaving, setIsSaving] = useState(false);
   const [shareModal, setShareModal] = useState({ isOpen: false, url: '' });
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, type: '', message: '' });
@@ -314,8 +314,10 @@ const App = () => {
     <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center text-center">
       <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-md w-full border border-slate-100">
         <Brain className="text-indigo-600 w-12 h-12 mx-auto mb-4" />
-        {/* 客製化調整：替換標題為 Killer Cards */}
+        
+        {/* 客製化標題 */}
         <h1 className="text-2xl font-black mb-6 text-slate-800">Killer Cards</h1>
+        
         <textarea value={input} onChange={e => setInput(e.target.value)} placeholder="貼上想背的單字..." className="w-full h-40 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" />
         
         {error && (
@@ -328,8 +330,9 @@ const App = () => {
         <button onClick={generate} disabled={genLoading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50">
           {genLoading ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {genLoading ? '請求中...' : 'AI 智慧生成單字卡'}
         </button>
-        {/* 客製化調整：加上 byKC 簽名 */}
-        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">v9.6 連線防卡死版 byKC</div>
+        
+        {/* 客製化署名 */}
+        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">v9.8 終極解謎版 byKC</div>
       </div>
     </div>
   );
@@ -535,7 +538,7 @@ const App = () => {
 
             } catch (err) {
               if (err.message === "TIMEOUT") {
-                setError("❌ 連線逾時！請確認 Firebase 裡的 Firestore Database 是否已『建立』！");
+                setError("❌ 連線遭阻擋！請關閉廣告阻擋器，或檢查專案 ID 是否正確。");
               } else if (err.message.includes("permissions")) {
                 setError("❌ 資料庫權限不足！請確認 Firebase Rules 規則。");
               } else {
