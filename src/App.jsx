@@ -18,7 +18,7 @@ const firebaseConfig = {
   measurementId: "G-PVFYPMRPH2"
 };
 
-// --- 2. 金鑰自動讀取與親友共享機制 ---
+// --- 2. 金鑰自動讀取機制 (完全移除寫死在程式碼的風險) ---
 const getEnvKey = () => {
   try {
     const env = typeof import.meta !== 'undefined' ? import.meta.env : (typeof process !== 'undefined' ? process.env : {});
@@ -29,18 +29,6 @@ const getEnvKey = () => {
 
 const getLocalKey = () => {
   try { return localStorage.getItem('my_gemini_key') || ""; } catch(e) { return ""; }
-};
-
-const getSharedKey = () => {
-  // ⚠️ 致命錯誤通常發生在這裡！
-  // 請把您「剛剛去 AI Studio 新申請、絕對沒外洩過」的全新金鑰切成兩半貼在這裡。
-  // 千萬不要用舊的，也不要留著下方的中文！
-  
-  const part1 = "AIzaSyC03rp4Jz7OI"; // 例如 "AIzaSyXXXX..."
-  const part2 = "q7tsw74kmZVKGEFVl411CM"; // 例如 "...YYYYZZZZ"
-  
-  if (!part1 || !part2 || part1.includes("貼上前段")) return "";
-  return part1 + part2;
 };
 
 // 自動判斷環境
@@ -69,7 +57,8 @@ const safePushState = (url) => {
 };
 
 const App = () => {
-  const [activeApiKey, setActiveApiKey] = useState(() => isCanvas ? "" : (getEnvKey() || getLocalKey() || getSharedKey()));
+  // 只依賴 Vercel 環境變數或本地快取，絕對不從程式碼讀取，避免 GitHub 外洩！
+  const [activeApiKey, setActiveApiKey] = useState(() => isCanvas ? "" : (getEnvKey() || getLocalKey()));
   const [keyInput, setKeyInput] = useState('');
 
   const [user, setUser] = useState(null);
@@ -95,12 +84,6 @@ const App = () => {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        if (firebaseConfig.apiKey === "請在此填入新的_apiKey") {
-          setError("❌ 請先至程式碼替換您全新的 Firebase 設定檔！");
-          setLoading(false);
-          return;
-        }
-
         if (isCanvas && typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           await signInWithCustomToken(auth, __initial_auth_token);
         } else {
@@ -218,7 +201,7 @@ const App = () => {
     if (!input.trim() || genLoading) return;
     const reqKey = isCanvas ? "" : activeApiKey;
     if (!reqKey && !isCanvas) {
-      setError('❌ 找不到 API 金鑰！請點擊下方「重新設定金鑰」按鈕。');
+      setError('❌ 找不到 API 金鑰！請至 Vercel 設定 VITE_GEMINI_API_KEY 環境變數。');
       return;
     }
 
@@ -229,7 +212,6 @@ const App = () => {
       ? `請分析以下文字：\n"""${input}"""\n這是一份「英文學習清單」。請提取出英文單字。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯"}]。請只回傳 JSON。`
       : `請分析以下文字：\n"""${input}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
 
-    // 💡 v11.1 模型自適應修復：Canvas 環境用內部模型，外部 Vercel 用公開的 1.5-flash 模型，避免 404 找不到模型的報錯
     const modelName = isCanvas ? "gemini-2.5-flash-preview-09-2025" : "gemini-1.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${reqKey}`;
     
@@ -240,7 +222,6 @@ const App = () => {
 
     let success = false;
     let lastError = "";
-    // 自動重試的等待時間 (1秒, 2秒, 4秒, 8秒, 16秒)
     const delays = [1000, 2000, 4000, 8000, 16000];
 
     for (let attempt = 0; attempt <= 5; attempt++) {
@@ -256,7 +237,6 @@ const App = () => {
             if (!res.ok) {
                 const errMsg = data.error?.message || "未知錯誤";
                 
-                // 遇到 429 請求太快，啟動自動背景重試機制
                 if (res.status === 429 || res.status === 503) {
                     if (attempt < 5) {
                         await new Promise(r => setTimeout(r, delays[attempt]));
@@ -267,11 +247,10 @@ const App = () => {
                     }
                 } 
                 
-                // 遇到 400/403 金鑰無效，立刻踢出並清除舊金鑰
                 if (res.status === 400 || res.status === 403) {
                     setActiveApiKey(''); 
                     try { localStorage.removeItem('my_gemini_key'); } catch(e){}
-                    lastError = `您的 AI 金鑰已失效！請重新申請並輸入。`;
+                    lastError = `您的 AI 金鑰已被 Google 停權！請至 Vercel 更新 VITE_GEMINI_API_KEY。`;
                     break; 
                 }
 
@@ -279,7 +258,6 @@ const App = () => {
                 break;
             }
             
-            // 成功解析 JSON 內容
             const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
             const parsed = JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim());
             
@@ -299,7 +277,7 @@ const App = () => {
             setTotal(newCards.length);
             setIsFinished(false); setIsFlipped(false);
             success = true;
-            break; // 成功生出單字卡，跳出迴圈
+            break; 
             
         } catch (e) { 
             lastError = "伺服器處理失敗，正在嘗試修復中...";
@@ -332,47 +310,27 @@ const App = () => {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600 w-12 h-12" /></div>;
 
-  // --- 防護：金鑰輸入畫面 ---
+  // --- 確保用戶明確知道要去 Vercel 設定，而不是從 UI 填寫容易被洗掉的金鑰 ---
   if (!isCanvas && !activeApiKey) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
         <div className="bg-white p-8 rounded-[2rem] shadow-2xl max-w-md w-full border border-slate-100 text-center relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-2 bg-indigo-500"></div>
-          <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 mx-auto mb-6 shadow-inner">
-             <Lock size={32} />
+          <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-red-500 mx-auto mb-6 shadow-inner">
+             <AlertTriangle size={32} />
           </div>
-          <h1 className="text-2xl font-black text-slate-800 mb-4">AI 金鑰驗證</h1>
-          
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-xl text-[13px] font-bold border border-red-100">
-              {error}
-            </div>
-          )}
-
-          <p className="text-[13px] text-slate-500 mb-6 font-medium text-left leading-relaxed">
-            為了您的帳號安全，請去申請一把<b>全新的 Gemini API 金鑰</b>，並直接貼在下方。<br/>
-            <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded">這把金鑰只會保存在您的瀏覽器中，絕對安全！</span>
-          </p>
-          <input
-            type="password"
-            value={keyInput}
-            onChange={e => setKeyInput(e.target.value)}
-            placeholder="請貼上 AIzaSy 開頭的全新金鑰..."
-            className="w-full p-4 mb-4 bg-slate-50 border-2 border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-medium transition-colors"
-          />
-          <button
-            onClick={() => {
-              if (keyInput.trim()) {
-                try { localStorage.setItem('my_gemini_key', keyInput.trim()); } catch(e) {}
-                setActiveApiKey(keyInput.trim());
-                setError('');
-              }
-            }}
-            disabled={!keyInput.trim()}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black py-4 rounded-xl shadow-md transition-all flex justify-center items-center gap-2"
-          >
-            儲存並進入 App <ChevronRight size={18} />
-          </button>
+          <h1 className="text-2xl font-black text-slate-800 mb-4">找不到 AI 金鑰！</h1>
+          <div className="text-[13px] text-slate-600 mb-6 font-medium text-left leading-relaxed space-y-3">
+            <p>您的專案尚未設定 AI 引擎的通關密語。</p>
+            <p>為了確保所有親朋好友都能順暢使用，且**不再被 Google 防盜機器人封鎖**，請務必按照以下步驟設定：</p>
+            <ol className="list-decimal pl-5 space-y-1">
+              <li>前往 <b>Vercel 後台</b> 的專案設定 (Settings)</li>
+              <li>點選 <b>Environment Variables</b></li>
+              <li>新增變數：<br/><span className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600 font-bold">VITE_GEMINI_API_KEY</span></li>
+              <li>貼上您全新申請的 API 金鑰並儲存</li>
+              <li>至 Deployments 點擊 <b>Redeploy</b> 重新發布</li>
+            </ol>
+          </div>
         </div>
       </div>
     );
@@ -437,10 +395,10 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v11.1 模型自適應版 byKC</span>
+          <span>v11.2 徹底斷絕明碼版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-indigo-400 transition-colors flex items-center gap-1">
-               <Trash2 size={10} /> 強制清除舊金鑰
+               <Trash2 size={10} /> 刪除本地舊鑰匙
              </button>
           )}
         </div>
