@@ -170,7 +170,9 @@ const App = () => {
   const speak = (t) => {
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(t);
-    u.lang = /[a-zA-Z]/.test(t) ? 'en-US' : 'ja-JP';
+    // 💡 修正發音語系判斷：如果有英文且「沒有日文假名」，才是英文發音；否則一律用日文
+    const isEnglish = /[a-zA-Z]/.test(t) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(t);
+    u.lang = isEnglish ? 'en-US' : 'ja-JP';
     u.rate = 0.85;
     window.speechSynthesis.speak(u);
   };
@@ -304,7 +306,14 @@ const App = () => {
     setGenLoading(true); 
     setError('🔍 正在連線 Google 總部...');
     
-    const isEn = /[a-zA-Z]/.test(input);
+    // 💡 v13.2 語系精準判斷邏輯：
+    // 1. 有出現日文(平假名/片假名) -> 絕對是日文
+    // 2. 有英文且「沒有」日文 -> 英文
+    // 3. 只有中文 (沒英文沒日文) -> 日文
+    const hasKana = /[\u3040-\u309F\u30A0-\u30FF]/.test(input);
+    const hasEnglish = /[a-zA-Z]/.test(input);
+    const isEn = hasEnglish && !hasKana;
+    
     // 💡 v13.1 核心：在生單字時，直接請 AI 順便產出 image_keyword！省下後續所有 API 呼叫！
     const prompt = isEn 
       ? `請分析以下文字：\n"""${input}"""\n這是一份「英文學習清單」。請提取出英文單字。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`
@@ -503,10 +512,11 @@ const App = () => {
     if (!exampleString) return null;
     const match = exampleString.match(/^(.*?)\((.*?)\)(.*)$/);
     if (match) {
+      const isEnglishCard = /[a-zA-Z]/.test(card.word) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(card.word);
       return (
         <div className="space-y-0.5">
           <div className="text-sm font-bold text-slate-800 leading-tight tracking-wide">{match[1].trim()}</div>
-          {match[2].trim() && !/[a-zA-Z]/.test(card.word) && <div className="text-[11px] font-medium text-indigo-500 leading-tight">{match[2].trim()}</div>}
+          {match[2].trim() && !isEnglishCard && <div className="text-[11px] font-medium text-indigo-500 leading-tight">{match[2].trim()}</div>}
           {match[3].trim() && <div className="text-xs text-slate-600 leading-tight">{match[3].trim()}</div>}
         </div>
       );
@@ -623,7 +633,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v13.1 終極API優化版 byKC</span>
+          <span>v13.2 語系精準判斷版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-red-400 text-slate-400 transition-colors flex items-center gap-1">
                <Trash2 size={10} /> 刪除本地記憶金鑰
