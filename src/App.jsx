@@ -212,8 +212,11 @@ const App = () => {
       ? `請分析以下文字：\n"""${input}"""\n這是一份「英文學習清單」。請提取出英文單字。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯"}]。請只回傳 JSON。`
       : `請分析以下文字：\n"""${input}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
 
-    const modelName = isCanvas ? "gemini-2.5-flash-preview-09-2025" : "gemini-1.5-flash";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${reqKey}`;
+    // 💡 v11.3 核心更新：模型無敵備援陣列！
+    // 只要某個名字過期或報 404 鳥蛋錯誤，它會立刻嘗試陣列中的下一個，直到成功為止！
+    const targetModels = isCanvas 
+      ? ["gemini-2.5-flash-preview-09-2025"] 
+      : ["gemini-2.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-1.5-pro-latest"];
     
     const payload = {
         contents: [{ parts: [{ text: prompt }] }],
@@ -222,67 +225,83 @@ const App = () => {
 
     let success = false;
     let lastError = "";
-    const delays = [1000, 2000, 4000, 8000, 16000];
+    let isKeyInvalid = false;
 
-    for (let attempt = 0; attempt <= 5; attempt++) {
-        try {
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+    // 外層迴圈：嘗試不同的模型名稱
+    for (const model of targetModels) {
+        if (success || isKeyInvalid) break;
+        
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${reqKey}`;
+        const delays = [1000, 2000, 4000];
 
-            const data = await res.json();
+        // 內層迴圈：遇到伺服器擁擠時的自動重試機制
+        for (let attempt = 0; attempt <= 3; attempt++) {
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
 
-            if (!res.ok) {
-                const errMsg = data.error?.message || "未知錯誤";
-                
-                if (res.status === 429 || res.status === 503) {
-                    if (attempt < 5) {
-                        await new Promise(r => setTimeout(r, delays[attempt]));
-                        continue; 
-                    } else {
-                        lastError = "Google AI 伺服器目前大塞車，請稍等 1 分鐘後再試一次！";
-                        break;
+                const data = await res.json();
+
+                if (!res.ok) {
+                    const errMsg = data.error?.message || "未知錯誤";
+                    
+                    // 💡 遇到 404 (找不到模型)：直接跳出內層迴圈，換下一個模型名字嘗試！
+                    if (res.status === 404) {
+                        lastError = `模型 ${model} 不可用，自動切換備用模型中...`;
+                        break; 
                     }
-                } 
-                
-                if (res.status === 400 || res.status === 403) {
-                    setActiveApiKey(''); 
-                    try { localStorage.removeItem('my_gemini_key'); } catch(e){}
-                    lastError = `您的 AI 金鑰已被 Google 停權！請至 Vercel 更新 VITE_GEMINI_API_KEY。`;
-                    break; 
-                }
+                    
+                    if (res.status === 429 || res.status === 503) {
+                        if (attempt < 3) {
+                            await new Promise(r => setTimeout(r, delays[attempt]));
+                            continue; 
+                        } else {
+                            lastError = "Google AI 伺服器目前大塞車，請稍等 1 分鐘後再試一次！";
+                            break;
+                        }
+                    } 
+                    
+                    if (res.status === 400 || res.status === 403) {
+                        setActiveApiKey(''); 
+                        try { localStorage.removeItem('my_gemini_key'); } catch(e){}
+                        lastError = `您的 AI 金鑰已被 Google 停權！請至 Vercel 更新 VITE_GEMINI_API_KEY。`;
+                        isKeyInvalid = true;
+                        break; 
+                    }
 
-                lastError = `發生錯誤：${errMsg}`;
-                break;
-            }
-            
-            const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
-            const parsed = JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim());
-            
-            const newCards = parsed.map(c => ({
-              word: c.word,
-              reading: c.reading || '',
-              meaning: c.meaning || '',
-              breakdown: c.breakdown || '',
-              example: c.example || '',
-              example_kana: c.example_kana || '',
-              example_zh: c.example_zh || '',
-              info: `${c.reading || ''} ${c.meaning || ''} 💡 [分析] ${c.breakdown || ''} 【例句】${c.example || ''}(${c.example_kana || ''})${c.example_zh || ''}`
-            }));
-            
-            setCards(newCards);
-            setQueue(Array.from({length: newCards.length}, (_, i) => i));
-            setTotal(newCards.length);
-            setIsFinished(false); setIsFlipped(false);
-            success = true;
-            break; 
-            
-        } catch (e) { 
-            lastError = "伺服器處理失敗，正在嘗試修復中...";
-            if (attempt < 5) {
-                await new Promise(r => setTimeout(r, delays[attempt]));
+                    lastError = `發生錯誤：${errMsg}`;
+                    break;
+                }
+                
+                const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+                const parsed = JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim());
+                
+                const newCards = parsed.map(c => ({
+                  word: c.word,
+                  reading: c.reading || '',
+                  meaning: c.meaning || '',
+                  breakdown: c.breakdown || '',
+                  example: c.example || '',
+                  example_kana: c.example_kana || '',
+                  example_zh: c.example_zh || '',
+                  info: `${c.reading || ''} ${c.meaning || ''} 💡 [分析] ${c.breakdown || ''} 【例句】${c.example || ''}(${c.example_kana || ''})${c.example_zh || ''}`
+                }));
+                
+                setCards(newCards);
+                setQueue(Array.from({length: newCards.length}, (_, i) => i));
+                setTotal(newCards.length);
+                setIsFinished(false); setIsFlipped(false);
+                success = true;
+                break; // 成功生出單字卡，跳出內外所有迴圈
+                
+            } catch (e) { 
+                lastError = "伺服器處理失敗，正在嘗試修復中...";
+                if (attempt < 3) {
+                    await new Promise(r => setTimeout(r, delays[attempt]));
+                }
             }
         }
     }
@@ -395,7 +414,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v11.2 徹底斷絕明碼版 byKC</span>
+          <span>v11.3 模型無敵備援版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-indigo-400 transition-colors flex items-center gap-1">
                <Trash2 size={10} /> 刪除本地舊鑰匙
