@@ -17,7 +17,7 @@ const firebaseConfig = {
   measurementId: "G-PVFYPMRPH2"
 };
 
-// --- 2. 金鑰自動讀取 (完全移除愚蠢的攔截機制，信任 Vercel 設定) ---
+// --- 2. 金鑰自動讀取 ---
 const getEnvKey = () => {
   try {
     const env = typeof import.meta !== 'undefined' ? import.meta.env : (typeof process !== 'undefined' ? process.env : {});
@@ -116,6 +116,7 @@ const App = () => {
   const [pwdModal, setPwdModal] = useState({ isOpen: false, value: '', error: '' });
 
   const translatingRef = useRef(new Set());
+  const resolvedModelRef = useRef(isCanvas ? "gemini-2.5-flash-preview-09-2025" : ""); // 💡 動態模型記憶體
 
   useEffect(() => {
     const initAuth = async () => {
@@ -261,7 +262,33 @@ const App = () => {
     }
   };
 
-  // 💡 v12.2 純淨生成邏輯：只用最穩定模型，失敗時直接去問 Google 可用模型
+  // 💡 v12.3 核心：動態尋找可用模型雷達 (專門對付 Google 舊專案限制)
+  const getBestModel = async (reqKey) => {
+    if (resolvedModelRef.current) return resolvedModelRef.current;
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${reqKey}`);
+      if (res.ok) {
+        const data = await res.json();
+        const names = (data.models || [])
+          .filter(m => m.supportedGenerationMethods?.includes("generateContent"))
+          .map(m => m.name.replace("models/", ""));
+        
+        // 依照可用性排列優先順序，如果舊專案沒有 flash，它就會自動拿 pro！
+        if (names.includes("gemini-1.5-flash")) resolvedModelRef.current = "gemini-1.5-flash";
+        else if (names.includes("gemini-2.5-flash")) resolvedModelRef.current = "gemini-2.5-flash";
+        else if (names.includes("gemini-1.5-pro")) resolvedModelRef.current = "gemini-1.5-pro";
+        else if (names.includes("gemini-pro")) resolvedModelRef.current = "gemini-pro"; // 舊專案通常都有這個
+        else if (names.length > 0) resolvedModelRef.current = names[0]; // 隨便抓一個能用的
+        else resolvedModelRef.current = "gemini-1.5-flash"; // 備底
+      } else {
+        resolvedModelRef.current = "gemini-1.5-flash";
+      }
+    } catch(e) {
+      resolvedModelRef.current = "gemini-1.5-flash";
+    }
+    return resolvedModelRef.current;
+  };
+
   const generate = async () => {
     if (!input.trim() || genLoading) return;
     const reqKey = isCanvas ? "" : activeApiKey;
@@ -277,67 +304,67 @@ const App = () => {
       ? `請分析以下文字：\n"""${input}"""\n這是一份「英文學習清單」。請提取出英文單字。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯"}]。請只回傳 JSON。`
       : `請分析以下文字：\n"""${input}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
 
-    // 專注呼叫最標準通用的 1.5-flash 模型
-    const model = isCanvas ? "gemini-2.5-flash-preview-09-2025" : "gemini-1.5-flash";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${reqKey}`;
-    
-    const payload = {
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json" }
-    };
-
     try {
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
+        // 呼叫雷達尋找最適合這個 Google 專案的模型
+        const modelToUse = await getBestModel(reqKey);
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${reqKey}`;
+        
+        const payload = {
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: "application/json" }
+        };
 
-        const data = await res.json();
+        let success = false;
+        let lastError = "";
 
-        // 💡 發生錯誤時，印出「未經加工」的真實 Google 錯誤訊息
-        if (!res.ok) {
-            let errMsg = `❌ API 錯誤 (${res.status}): ${data.error?.message || "未知錯誤"}`;
-            
-            // 如果遇到找不到模型，啟動雷達：去問 Google 這把鑰匙到底能用什麼
-            if (res.status === 404) {
-                try {
-                    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${reqKey}`);
-                    const listData = await listRes.json();
-                    if (listData.models) {
-                        const availableModels = listData.models.map(m => m.name.replace('models/', '')).join(', ');
-                        errMsg += `\n\n🔍 系統幫您查了，這把金鑰可以使用的模型有：\n[ ${availableModels} ]\n👉 如果裡面沒有 gemini-1.5-flash，代表這把鑰匙權限被 Google 限制了。`;
-                    }
-                } catch(e) {}
+        // 遇到 Google 塞車就等 2 秒再試
+        for (let attempt = 0; attempt < 3; attempt++) {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                if (res.status === 429 || res.status === 503) {
+                    await new Promise(r => setTimeout(r, 2000));
+                    lastError = "Google 伺服器忙碌中，請稍後重試。";
+                    continue; 
+                } 
+                lastError = `發生錯誤：${data.error?.message}`;
+                break;
             }
-
-            setError(errMsg);
-            setGenLoading(false);
-            return;
+            
+            const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+            const parsed = JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim());
+            
+            const newCards = parsed.map(c => ({
+              word: c.word,
+              reading: c.reading || '',
+              meaning: c.meaning || '',
+              breakdown: c.breakdown || '',
+              example: c.example || '',
+              example_kana: c.example_kana || '',
+              example_zh: c.example_zh || '',
+              info: `${c.reading || ''} ${c.meaning || ''} 💡 [分析] ${c.breakdown || ''} 【例句】${c.example || ''}(${c.example_kana || ''})${c.example_zh || ''}`
+            }));
+            
+            setCards(newCards);
+            setQueue(Array.from({length: newCards.length}, (_, i) => i));
+            setTotal(newCards.length);
+            setIsFinished(false); setIsFlipped(false);
+            success = true;
+            break; 
         }
-        
-        const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
-        const parsed = JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim());
-        
-        const newCards = parsed.map(c => ({
-          word: c.word,
-          reading: c.reading || '',
-          meaning: c.meaning || '',
-          breakdown: c.breakdown || '',
-          example: c.example || '',
-          example_kana: c.example_kana || '',
-          example_zh: c.example_zh || '',
-          info: `${c.reading || ''} ${c.meaning || ''} 💡 [分析] ${c.breakdown || ''} 【例句】${c.example || ''}(${c.example_kana || ''})${c.example_zh || ''}`
-        }));
-        
-        setCards(newCards);
-        setQueue(Array.from({length: newCards.length}, (_, i) => i));
-        setTotal(newCards.length);
-        setIsFinished(false); setIsFlipped(false);
-        
+
+        if (!success) setError(`❌ 系統錯誤：${lastError}`);
+
     } catch (e) { 
         setError(`❌ 系統連線異常：${e.message}`);
     }
+    
     setGenLoading(false);
   };
 
@@ -359,8 +386,9 @@ const App = () => {
             ? `Extract a highly visual, simple English phrase for generating a stock photo (max 5 words) representing the concept: ${card.word}. Return ONLY the English text.`
             : `Translate this Japanese/Chinese vocabulary meaning into a highly visual, simple English phrase for generating a stock photo (max 5 words). Return ONLY the English text. Vocabulary: ${card.word}, Meaning: ${hint}`;
 
-          const modelName = isCanvas ? "gemini-2.5-flash-preview-09-2025" : "gemini-1.5-flash";
-          const textRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${reqKey}`, {
+          // 圖片翻譯一樣使用動態雷達
+          const modelToUse = await getBestModel(reqKey);
+          const textRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${reqKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [{ text: translationPrompt }] }] })
@@ -545,7 +573,7 @@ const App = () => {
         <textarea value={input} onChange={e => setInput(e.target.value)} placeholder="貼上想背的單字..." className="w-full h-32 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" />
         
         {error && (
-          <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed whitespace-pre-wrap ${error.includes('連線失敗') || error.includes('發生錯誤') || error.includes('錯誤') || error.includes('致命錯誤') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+          <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed whitespace-pre-wrap ${error.includes('連線失敗') || error.includes('發生錯誤') || error.includes('錯誤') || error.includes('系統錯誤') || error.includes('致命錯誤') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
             {error.includes('請求太快') ? <Clock size={18} className="shrink-0 mt-0.5" /> : <AlertTriangle size={18} className="shrink-0 mt-0.5" />}
             {error}
           </div>
@@ -556,7 +584,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v12.2 純淨除錯版 byKC</span>
+          <span>v12.3 全自動雷達適配版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-red-400 text-slate-400 transition-colors flex items-center gap-1">
                <Trash2 size={10} /> 刪除本地記憶金鑰
