@@ -6,9 +6,12 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
-// --- 1. Firebase 資料庫專用配置 (保持原樣，這是安全的) ---
+// --- 1. Firebase 資料庫專用配置 ---
+// ⚠️ 剛剛的錯誤 (auth/api-key-expired) 是因為原本預設的 Firebase 鑰匙已過期失效！
+// 👉 請回到 [Firebase 控制台] -> 點擊左上角齒輪 [專案設定 Project settings] -> 捲到最下方 [您的應用程式 Your apps]
+// 找到您的 firebaseConfig，把裡面真正的 apiKey 複製並「替換掉」下方這串中文：
 const firebaseConfig = {
-  apiKey: "AIzaSyBTcPWX29sXFY0dqzOpJn8We6uoJLwHv9U",
+  apiKey: "請貼上您Firebase後台真正的_API_Key", // <--- 就是這裡要換！(開頭通常也是 AIzaSy...)
   authDomain: "kcvocabapp.firebaseapp.com",
   databaseURL: "https://kcvocabapp-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "kcvocabapp",
@@ -106,7 +109,9 @@ const App = () => {
         console.error("登入錯誤", err);
         // 💡 加入更精準的錯誤判斷，直接告訴使用者哪裡沒設定好
         let errMsg = "❌ Firebase 連線失敗：";
-        if (err.code === 'auth/operation-not-allowed') {
+        if (err.code === 'auth/api-key-expired') {
+          errMsg += "您的 Firebase API 金鑰已過期，請至 Firebase 後台更新 firebaseConfig！";
+        } else if (err.code === 'auth/operation-not-allowed') {
           errMsg += "請至 Firebase 後台開啟「匿名登入 (Anonymous)」！";
         } else if (err.code === 'auth/unauthorized-domain') {
           errMsg += "您的網址尚未加入 Firebase 的「授權網域 (Authorized domains)」中！";
@@ -430,7 +435,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v10.3 工程師密碼防護版 byKC</span>
+          <span>v10.4 修正 Firebase 憑證版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-indigo-400 transition-colors flex items-center gap-1">
                <Lock size={10} /> 重新設定金鑰
