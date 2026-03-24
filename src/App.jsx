@@ -9,14 +9,13 @@ import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore
 // --- 1. Firebase 資料庫專用配置 ---
 // ⚠️ 請確保這裡填入的是您全新的 Firebase 專案設定檔
 const firebaseConfig = {
-  apiKey: "請在此填入新的_apiKey",
-  authDomain: "請在此填入新的_authDomain",
-  databaseURL: "請在此填入新的_databaseURL",
-  projectId: "請在此填入新的_projectId",
-  storageBucket: "請在此填入新的_storageBucket",
-  messagingSenderId: "請在此填入新的_messagingSenderId",
-  appId: "請在此填入新的_appId",
-  measurementId: "請在此填入新的_measurementId"
+  apiKey: "AIzaSyD2dxrjW68kjR66RgeFdXl2o4jW2ooGwwU",
+  authDomain: "killercards.firebaseapp.com",
+  projectId: "killercards",
+  storageBucket: "killercards.firebasestorage.app",
+  messagingSenderId: "281065379733",
+  appId: "1:281065379733:web:06fc2160b85fae7579c89c",
+  measurementId: "G-PVFYPMRPH2
 };
 
 // --- 2. 金鑰自動讀取 ---
