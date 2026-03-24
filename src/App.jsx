@@ -117,8 +117,6 @@ const App = () => {
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, type: '', message: '' });
   const [pwdModal, setPwdModal] = useState({ isOpen: false, value: '', error: '' });
 
-  const translatingRef = useRef(new Set());
-  
   // 💡 記憶真實抓取到的模型
   const workingModelRef = useRef(isCanvas ? "gemini-2.5-flash-preview-09-2025" : "");
 
@@ -250,6 +248,7 @@ const App = () => {
       example: '',
       example_kana: '',
       example_zh: '',
+      image_keyword: item.word, // 💡 使用單字本身找圖
       info: `${item.meaning} 💡 [單字分類] 教育部國小必備單字`
     }));
     
@@ -294,7 +293,6 @@ const App = () => {
     }
   };
 
-  // 💡 v13.0 終極透視眼機制
   const generate = async () => {
     if (!input.trim() || genLoading) return;
     const reqKey = isCanvas ? "" : activeApiKey;
@@ -304,16 +302,16 @@ const App = () => {
     }
 
     setGenLoading(true); 
-    setError('🔍 正在連線 Google 總部，查詢您金鑰的可用權限...');
+    setError('🔍 正在連線 Google 總部...');
     
     const isEn = /[a-zA-Z]/.test(input);
+    // 💡 v13.1 核心：在生單字時，直接請 AI 順便產出 image_keyword！省下後續所有 API 呼叫！
     const prompt = isEn 
-      ? `請分析以下文字：\n"""${input}"""\n這是一份「英文學習清單」。請提取出英文單字。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯"}]。請只回傳 JSON。`
-      : `請分析以下文字：\n"""${input}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
+      ? `請分析以下文字：\n"""${input}"""\n這是一份「英文學習清單」。請提取出英文單字。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`
+      : `請分析以下文字：\n"""${input}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`;
 
     let modelToUse = isCanvas ? "gemini-2.5-flash-preview-09-2025" : workingModelRef.current;
 
-    // 如果沒有記憶模型，直接查清單！
     if (!modelToUse) {
         try {
             const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${reqKey}`);
@@ -354,7 +352,7 @@ const App = () => {
         }
     }
 
-    setError(''); // 掃描成功，清空提示開始生成
+    setError(''); 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${reqKey}`;
     const payload = {
         contents: [{ parts: [{ text: prompt }] }],
@@ -388,7 +386,7 @@ const App = () => {
                     break;
                 }
                 if (res.status === 404) {
-                    workingModelRef.current = ""; // 逼它下次重查
+                    workingModelRef.current = ""; 
                     lastError = `🚨 模型 ${modelToUse} 突然失效，請再點擊一次重新掃描。`;
                     break;
                 }
@@ -408,6 +406,7 @@ const App = () => {
               example: c.example || '',
               example_kana: c.example_kana || '',
               example_zh: c.example_zh || '',
+              image_keyword: c.image_keyword || 'study', // 💡 直接使用 AI 生出來的關鍵字
               info: `${c.reading || ''} ${c.meaning || ''} 💡 [分析] ${c.breakdown || ''} 【例句】${c.example || ''}(${c.example_kana || ''})${c.example_zh || ''}`
             }));
             
@@ -434,24 +433,16 @@ const App = () => {
   useEffect(() => {
     if (cards.length === 0 || isFinished) return;
 
+    // 💡 v13.1：徹底消除背景 API 呼叫，完全解決 429 請求過多問題！
     const loadImages = async () => {
       const nextCards = queue.slice(0, 2).map(idx => cards[idx]);
       for (const card of nextCards) {
-        if (!card || imageUrls[card.word] || translatingRef.current.has(card.word)) continue;
-        translatingRef.current.add(card.word);
+        if (!card || imageUrls[card.word]) continue;
         
-        try {
-          let imgQuery = "study,japan";
-          if (/[a-zA-Z]/.test(card.word)) {
-              imgQuery = card.word;
-          } else if (card.meaning) {
-              const engMatch = card.meaning.match(/[a-zA-Z]+/);
-              if (engMatch) imgQuery = engMatch[0];
-          }
-          setImageUrls(prev => ({ ...prev, [card.word]: `https://loremflickr.com/400/300/${encodeURIComponent(imgQuery)}` }));
-        } catch (e) {
-          setImageUrls(prev => ({ ...prev, [card.word]: `https://loremflickr.com/400/300/study` }));
-        }
+        let imgQuery = card.image_keyword || "study,japan";
+        if (!/[a-zA-Z]/.test(imgQuery)) imgQuery = "study,japan"; // 確保關鍵字是英文
+        
+        setImageUrls(prev => ({ ...prev, [card.word]: `https://loremflickr.com/400/300/${encodeURIComponent(imgQuery)}` }));
       }
     };
     loadImages();
@@ -632,7 +623,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v13.0 終極透視版 byKC</span>
+          <span>v13.1 終極API優化版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-red-400 text-slate-400 transition-colors flex items-center gap-1">
                <Trash2 size={10} /> 刪除本地記憶金鑰
