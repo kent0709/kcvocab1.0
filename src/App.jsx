@@ -56,6 +56,45 @@ const safePushState = (url) => {
   } catch (e) {}
 };
 
+// --- 新增：國小必備 300 單字庫 (依難易度分三級) ---
+const vocabLow = [
+  { word: "zero", meaning: "零" }, { word: "one", meaning: "一" }, { word: "two", meaning: "二" }, { word: "three", meaning: "三" },
+  { word: "four", meaning: "四" }, { word: "five", meaning: "五" }, { word: "six", meaning: "六" }, { word: "seven", meaning: "七" },
+  { word: "eight", meaning: "八" }, { word: "nine", meaning: "九" }, { word: "ten", meaning: "十" }, { word: "I", meaning: "我" },
+  { word: "you", meaning: "你" }, { word: "he", meaning: "他" }, { word: "she", meaning: "她" }, { word: "it", meaning: "牠/它" },
+  { word: "we", meaning: "我們" }, { word: "they", meaning: "他們" }, { word: "mother", meaning: "媽媽" }, { word: "father", meaning: "爸爸" },
+  { word: "brother", meaning: "兄弟" }, { word: "sister", meaning: "姊妹" }, { word: "head", meaning: "頭" }, { word: "hair", meaning: "頭髮" },
+  { word: "eye", meaning: "眼睛" }, { word: "nose", meaning: "鼻子" }, { word: "mouth", meaning: "嘴巴" }, { word: "ear", meaning: "耳朵" },
+  { word: "hand", meaning: "手" }, { word: "leg", meaning: "腿" }, { word: "foot", meaning: "腳" }, { word: "dog", meaning: "狗" },
+  { word: "cat", meaning: "貓" }, { word: "bird", meaning: "鳥" }, { word: "fish", meaning: "魚" }, { word: "pig", meaning: "豬" },
+  { word: "lion", meaning: "獅子" }, { word: "tiger", meaning: "老虎" }, { word: "elephant", meaning: "大象" }, { word: "monkey", meaning: "猴子" }
+];
+
+const vocabMid = [
+  { word: "teacher", meaning: "老師" }, { word: "student", meaning: "學生" }, { word: "doctor", meaning: "醫生" }, { word: "nurse", meaning: "護理師" },
+  { word: "hat", meaning: "帽子" }, { word: "shirt", meaning: "襯衫" }, { word: "pants", meaning: "長褲" }, { word: "shoes", meaning: "鞋子" },
+  { word: "pen", meaning: "原子筆" }, { word: "pencil", meaning: "鉛筆" }, { word: "eraser", meaning: "橡皮擦" }, { word: "ruler", meaning: "尺" },
+  { word: "book", meaning: "書" }, { word: "bag", meaning: "袋子" }, { word: "desk", meaning: "書桌" }, { word: "chair", meaning: "椅子" },
+  { word: "door", meaning: "門" }, { word: "window", meaning: "窗戶" }, { word: "computer", meaning: "電腦" }, { word: "phone", meaning: "手機" },
+  { word: "water", meaning: "水" }, { word: "milk", meaning: "牛奶" }, { word: "juice", meaning: "果汁" }, { word: "apple", meaning: "蘋果" },
+  { word: "banana", meaning: "香蕉" }, { word: "bread", meaning: "麵包" }, { word: "egg", meaning: "蛋" }, { word: "cake", meaning: "蛋糕" },
+  { word: "home", meaning: "家" }, { word: "school", meaning: "學校" }, { word: "park", meaning: "公園" }, { word: "store", meaning: "商店" },
+  { word: "car", meaning: "車" }, { word: "bus", meaning: "公車" }, { word: "train", meaning: "火車" }, { word: "bike", meaning: "腳踏車" }
+];
+
+const vocabHigh = [
+  { word: "morning", meaning: "早上" }, { word: "afternoon", meaning: "下午" }, { word: "evening", meaning: "傍晚" }, { word: "night", meaning: "晚上" },
+  { word: "today", meaning: "今天" }, { word: "run", meaning: "跑" }, { word: "walk", meaning: "走路" }, { word: "swim", meaning: "游泳" },
+  { word: "jump", meaning: "跳" }, { word: "read", meaning: "閱讀" }, { word: "write", meaning: "寫" }, { word: "eat", meaning: "吃" },
+  { word: "drink", meaning: "喝" }, { word: "look", meaning: "看" }, { word: "listen", meaning: "聽" }, { word: "say", meaning: "說" },
+  { word: "good", meaning: "好的" }, { word: "bad", meaning: "壞的" }, { word: "big", meaning: "大的" }, { word: "small", meaning: "小的" },
+  { word: "tall", meaning: "高的" }, { word: "short", meaning: "短的" }, { word: "fast", meaning: "快的" }, { word: "slow", meaning: "慢的" },
+  { word: "happy", meaning: "開心的" }, { word: "sad", meaning: "傷心的" }, { word: "angry", meaning: "生氣的" }, { word: "tired", meaning: "累的" },
+  { word: "hot", meaning: "熱的" }, { word: "cold", meaning: "冷的" }, { word: "in", meaning: "在...裡面" }, { word: "on", meaning: "在...上面" },
+  { word: "under", meaning: "在...下面" }, { word: "what", meaning: "什麼" }, { word: "where", meaning: "哪裡" }, { word: "when", meaning: "何時" },
+  { word: "who", 分: "誰" }, { word: "why", meaning: "為什麼" }, { word: "how", meaning: "如何" }
+];
+
 const App = () => {
   // 只依賴 Vercel 環境變數或本地快取，絕對不從程式碼讀取，避免 GitHub 外洩！
   const [activeApiKey, setActiveApiKey] = useState(() => isCanvas ? "" : (getEnvKey() || getLocalKey()));
@@ -195,6 +234,27 @@ const App = () => {
       setIsFinished(true);
     }
     closeConfirm();
+  };
+
+  // 💡 新增：載入內建單字庫的專用函數
+  const loadPresetCards = (vocabList) => {
+    const newCards = vocabList.map(item => ({
+      word: item.word,
+      reading: '',
+      meaning: item.meaning,
+      breakdown: '',
+      example: '',
+      example_kana: '',
+      example_zh: '',
+      info: `${item.meaning} 💡 [單字分類] 教育部國小必備 300 單字表`
+    }));
+    
+    setCards(newCards);
+    setQueue(Array.from({length: newCards.length}, (_, i) => i));
+    setTotal(newCards.length);
+    setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
+    setIsFinished(false); 
+    setIsFlipped(false);
   };
 
   const generate = async () => {
@@ -400,7 +460,35 @@ const App = () => {
         
         <h1 className="text-2xl font-black mb-6 text-slate-800">Killer Cards</h1>
         
-        <textarea value={input} onChange={e => setInput(e.target.value)} placeholder="貼上想背的單字..." className="w-full h-40 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" />
+        {/* 💡 新增：國小必備單字內建按鈕區 */}
+        <div className="bg-indigo-50/50 p-4 rounded-2xl mb-5 border border-indigo-100">
+          <div className="text-[13px] font-black text-indigo-800 mb-3 text-left flex items-center gap-2">
+            <Zap size={16} className="text-amber-500" />
+            免輸入！點擊直接開始練習
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <button onClick={() => loadPresetCards(vocabLow)} className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-3 px-2 rounded-xl text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1.5 active:scale-95">
+              <span className="text-2xl drop-shadow-sm">👶</span>
+              <span>國小(低)</span>
+            </button>
+            <button onClick={() => loadPresetCards(vocabMid)} className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-3 px-2 rounded-xl text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1.5 active:scale-95">
+              <span className="text-2xl drop-shadow-sm">🧒</span>
+              <span>國小(中)</span>
+            </button>
+            <button onClick={() => loadPresetCards(vocabHigh)} className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-3 px-2 rounded-xl text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1.5 active:scale-95">
+              <span className="text-2xl drop-shadow-sm">👦</span>
+              <span>國小(高)</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="relative flex py-2 items-center mb-4">
+          <div className="flex-grow border-t border-slate-200"></div>
+          <span className="flex-shrink-0 mx-4 text-slate-400 text-xs font-bold tracking-wider">或輸入自訂單字</span>
+          <div className="flex-grow border-t border-slate-200"></div>
+        </div>
+
+        <textarea value={input} onChange={e => setInput(e.target.value)} placeholder="貼上想背的單字..." className="w-full h-32 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" />
         
         {error && (
           <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed whitespace-pre-wrap ${error.includes('連線失敗') || error.includes('發生錯誤') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
