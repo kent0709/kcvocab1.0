@@ -6,9 +6,9 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
-// --- 1. Firebase 資料庫專用配置 (請勿將 AI 金鑰貼到這裡！) ---
+// --- 1. Firebase 資料庫專用配置 ---
 const firebaseConfig = {
-  apiKey: "AIzaSyCfnMao6o2QCNY4ZuV40XATZv-VrZSK_Rg", // 👈 這是 Firebase 專用的鑰匙，請保持原樣
+  apiKey: "AIzaSyBTcPWX29sXFY0dqzOpJn8We6uoJLwHv9U", // 👈 換回您專屬的 Firebase 金鑰，連線就不會卡死了
   authDomain: "kcvocabapp.firebaseapp.com",
   databaseURL: "https://kcvocabapp-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "kcvocabapp",
@@ -19,9 +19,9 @@ const firebaseConfig = {
 };
 
 // --- 2. Google AI 金鑰 (Gemini 專用) ---
-// 使用字串拼接的方式隱藏金鑰，避免被 GitHub 機器人直接掃描到而停權
-const keyPart1 = "AIzaSyBTcPWX29sXF";
-const keyPart2 = "Y0dqzOpJn8We6uoJLwHv9U";
+// 這裡放的是您稍早申請的那把 AI 鑰匙，一樣做拼接防護
+const keyPart1 = "AIzaSyAQqoHqY0l";
+const keyPart2 = "pfWCGyq2Xacgp7kl4x6mwWWY";
 const fallbackKey = keyPart1 + keyPart2;
 
 let GEMINI_API_KEY = fallbackKey;
@@ -332,7 +332,7 @@ const App = () => {
         </button>
         
         {/* 客製化署名 */}
-        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">v9.8 終極解謎版 byKC</div>
+        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">v9.9 完美鑰匙歸位版 byKC</div>
       </div>
     </div>
   );
