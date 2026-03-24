@@ -117,8 +117,11 @@ const App = () => {
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, type: '', message: '' });
   const [pwdModal, setPwdModal] = useState({ isOpen: false, value: '', error: '' });
 
-  // 💡 記憶真實抓取到的模型
+  const translatingRef = useRef(new Set());
   const workingModelRef = useRef(isCanvas ? "gemini-2.5-flash-preview-09-2025" : "");
+  
+  // 💡 用來記錄語音暫停的 Timeout，翻面或切換時可清除
+  const speechTimeoutRef = useRef(null);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -167,27 +170,59 @@ const App = () => {
     }
   }, [user]);
 
-  const speak = (t) => {
+  // 💡 單純唸一段文字 (用於正面單字)
+  const playSimpleText = (text) => {
+    if (!text) return;
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(t);
-    // 💡 修正發音語系判斷：如果有英文且「沒有日文假名」，才是英文發音；否則一律用日文
-    const isEnglish = /[a-zA-Z]/.test(t) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(t);
+    if (speechTimeoutRef.current) clearTimeout(speechTimeoutRef.current);
+    
+    const isEnglish = /[a-zA-Z]/.test(text) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(text);
+    const u = new SpeechSynthesisUtterance(text);
     u.lang = isEnglish ? 'en-US' : 'ja-JP';
     u.rate = 0.85;
     window.speechSynthesis.speak(u);
   };
 
-  const getSpeakableText = (c) => {
-    if (!c) return "";
-    let textToSpeak = c.word;
-    let ex = null;
-    if (c.info && c.info.includes('【例句】')) ex = c.info.split('【例句】')[1];
-    else if (c.example) ex = c.example;
-    if (ex) {
-      const sentence = ex.split('(')[0].trim();
-      if (sentence) textToSpeak += "。 " + sentence;
+  // 💡 節奏朗讀：單字 -> 停頓 1 秒 -> 例句 (用於背面翻開或按 Listen)
+  const playCardSequence = (c) => {
+    if (!c) return;
+    window.speechSynthesis.cancel();
+    if (speechTimeoutRef.current) clearTimeout(speechTimeoutRef.current);
+
+    const isEnglishCard = /[a-zA-Z]/.test(c.word) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(c.word);
+    const lang = isEnglishCard ? 'en-US' : 'ja-JP';
+
+    let wordText = c.word;
+    let exampleText = "";
+
+    // 擷取乾淨的例句 (不含中文翻譯)
+    if (c.info && c.info.includes('【例句】')) {
+      const examplePart = c.info.split('【例句】')[1];
+      if (examplePart) exampleText = examplePart.split('(')[0].trim();
+    } else if (c.example) {
+      exampleText = c.example.split('(')[0].trim();
     }
-    return textToSpeak;
+
+    const speakPart = (text, onEndCallback) => {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = lang;
+      u.rate = 0.85;
+      if (onEndCallback) {
+        u.onend = onEndCallback;
+      }
+      window.speechSynthesis.speak(u);
+    };
+
+    if (exampleText) {
+      speakPart(wordText, () => {
+        // 單字唸完後，精準停頓 1000ms (1秒) 再唸例句
+        speechTimeoutRef.current = setTimeout(() => {
+          speakPart(exampleText);
+        }, 1000);
+      });
+    } else {
+      speakPart(wordText);
+    }
   };
 
   const handleAction = async (type) => {
@@ -250,7 +285,7 @@ const App = () => {
       example: '',
       example_kana: '',
       example_zh: '',
-      image_keyword: item.word, // 💡 使用單字本身找圖
+      image_keyword: item.word, 
       info: `${item.meaning} 💡 [單字分類] 教育部國小必備單字`
     }));
     
@@ -306,15 +341,10 @@ const App = () => {
     setGenLoading(true); 
     setError('🔍 正在連線 Google 總部...');
     
-    // 💡 v13.2 語系精準判斷邏輯：
-    // 1. 有出現日文(平假名/片假名) -> 絕對是日文
-    // 2. 有英文且「沒有」日文 -> 英文
-    // 3. 只有中文 (沒英文沒日文) -> 日文
     const hasKana = /[\u3040-\u309F\u30A0-\u30FF]/.test(input);
     const hasEnglish = /[a-zA-Z]/.test(input);
     const isEn = hasEnglish && !hasKana;
     
-    // 💡 v13.1 核心：在生單字時，直接請 AI 順便產出 image_keyword！省下後續所有 API 呼叫！
     const prompt = isEn 
       ? `請分析以下文字：\n"""${input}"""\n這是一份「英文學習清單」。請提取出英文單字。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`
       : `請分析以下文字：\n"""${input}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`;
@@ -415,7 +445,7 @@ const App = () => {
               example: c.example || '',
               example_kana: c.example_kana || '',
               example_zh: c.example_zh || '',
-              image_keyword: c.image_keyword || 'study', // 💡 直接使用 AI 生出來的關鍵字
+              image_keyword: c.image_keyword || 'study',
               info: `${c.reading || ''} ${c.meaning || ''} 💡 [分析] ${c.breakdown || ''} 【例句】${c.example || ''}(${c.example_kana || ''})${c.example_zh || ''}`
             }));
             
@@ -442,14 +472,14 @@ const App = () => {
   useEffect(() => {
     if (cards.length === 0 || isFinished) return;
 
-    // 💡 v13.1：徹底消除背景 API 呼叫，完全解決 429 請求過多問題！
     const loadImages = async () => {
+      // 💡 節約額度，只預先加載後面 2 張的圖片
       const nextCards = queue.slice(0, 2).map(idx => cards[idx]);
       for (const card of nextCards) {
         if (!card || imageUrls[card.word]) continue;
         
         let imgQuery = card.image_keyword || "study,japan";
-        if (!/[a-zA-Z]/.test(imgQuery)) imgQuery = "study,japan"; // 確保關鍵字是英文
+        if (!/[a-zA-Z]/.test(imgQuery)) imgQuery = "study,japan";
         
         setImageUrls(prev => ({ ...prev, [card.word]: `https://loremflickr.com/400/300/${encodeURIComponent(imgQuery)}` }));
       }
@@ -457,11 +487,21 @@ const App = () => {
     loadImages();
   }, [queue, cards, isFinished, imageUrls]);
 
+  // 💡 自動翻轉朗讀監聽器
+  useEffect(() => {
+    if (queue.length > 0 && !isFinished && cards.length > 0) {
+      if (isFlipped) {
+        // 翻開背面時，自動執行「節奏朗讀」 (單字->停1秒->例句)
+        playCardSequence(cards[queue[0]]);
+      }
+    }
+  }, [queue, isFlipped, isFinished, cards]);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Enter' && cards.length > 0 && !isFinished) {
         if (!isFlipped) setIsFlipped(true);
-        else speak(getSpeakableText(cards[queue[0]]));
+        else playCardSequence(cards[queue[0]]);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -477,6 +517,7 @@ const App = () => {
     return { score, text: "加油", color: "text-orange-500", emoji: "💪" };
   };
 
+  // 💡 放大優化版面：背面標題區
   const formatBackHeader = (card) => {
     if (!card.info) return null;
     const mainPart = card.info.split('【例句】')[0].trim();
@@ -493,14 +534,14 @@ const App = () => {
     }
     
     return (
-      <div className="font-bold text-slate-800 border-b border-slate-100 pb-2 mb-2 leading-tight">
-        <div className="flex items-baseline gap-2 mb-1">
-          <span className="text-xl font-black text-indigo-900 tracking-wide">{card.word}</span>
-          {reading && <span className="text-xs text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0.5 rounded-md">{reading}</span>}
+      <div className="font-bold text-slate-800 border-b border-slate-100 pb-3 mb-3 leading-tight">
+        <div className="flex items-baseline gap-2 mb-2">
+          <span className="text-3xl font-black text-indigo-900 tracking-wide">{card.word}</span>
+          {reading && <span className="text-sm text-indigo-600 font-bold bg-indigo-50 px-2 py-1 rounded-md">{reading}</span>}
         </div>
-        <div className="text-slate-700 text-sm mb-1.5 whitespace-pre-line leading-snug">{meaning}</div>
+        <div className="text-slate-700 text-lg mb-2 whitespace-pre-line leading-snug font-bold">{meaning}</div>
         {extraSections.map((sec, idx) => (
-          <div key={idx} className="mt-1.5 text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-100/50 leading-snug font-medium shadow-sm whitespace-pre-line">
+          <div key={idx} className="mt-2 text-sm text-amber-800 bg-amber-50 p-3 rounded-xl border border-amber-100/50 leading-relaxed font-bold shadow-sm whitespace-pre-line">
             💡 {sec.replace(/\[.*?\]\s*/, '').trim()}
           </div>
         ))}
@@ -508,20 +549,21 @@ const App = () => {
     );
   };
 
-  const formatExampleText = (exampleString) => {
+  // 💡 放大優化版面：例句區
+  const formatExampleText = (exampleString, cardWord) => {
     if (!exampleString) return null;
     const match = exampleString.match(/^(.*?)\((.*?)\)(.*)$/);
     if (match) {
-      const isEnglishCard = /[a-zA-Z]/.test(card.word) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(card.word);
+      const isEnglishCard = /[a-zA-Z]/.test(cardWord) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(cardWord);
       return (
-        <div className="space-y-0.5">
-          <div className="text-sm font-bold text-slate-800 leading-tight tracking-wide">{match[1].trim()}</div>
-          {match[2].trim() && !isEnglishCard && <div className="text-[11px] font-medium text-indigo-500 leading-tight">{match[2].trim()}</div>}
-          {match[3].trim() && <div className="text-xs text-slate-600 leading-tight">{match[3].trim()}</div>}
+        <div className="space-y-1.5">
+          <div className="text-base sm:text-lg font-black text-slate-800 leading-tight tracking-wide">{match[1].trim()}</div>
+          {match[2].trim() && !isEnglishCard && <div className="text-[13px] font-bold text-indigo-500 leading-tight">{match[2].trim()}</div>}
+          {match[3].trim() && <div className="text-sm font-bold text-slate-600 leading-tight">{match[3].trim()}</div>}
         </div>
       );
     }
-    return <div className="text-[13px] text-slate-700 leading-tight">{exampleString}</div>;
+    return <div className="text-base font-bold text-slate-700 leading-relaxed">{exampleString}</div>;
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600 w-12 h-12" /></div>;
@@ -581,7 +623,7 @@ const App = () => {
               <button onClick={() => setPwdModal({ isOpen: false, value: '', error: '' })} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-all">取消</button>
               <button onClick={() => {
                   setActiveApiKey('');
-                  workingModelRef.current = ""; // 清除記憶體
+                  workingModelRef.current = ""; 
                   try { localStorage.removeItem('my_gemini_key'); } catch(e){}
                   setPwdModal({ isOpen: false, value: '', error: '' });
                   setError("已清除舊金鑰！");
@@ -633,7 +675,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v13.2 語系精準判斷版 byKC</span>
+          <span>v13.3 尊榮閱讀與朗讀版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-red-400 text-slate-400 transition-colors flex items-center gap-1">
                <Trash2 size={10} /> 刪除本地記憶金鑰
@@ -693,17 +735,9 @@ const App = () => {
 
   const card = cards[queue[0]];
   const progress = total === 0 ? 0 : ((total - queue.length) / total) * 100;
-  
-  const btnConfig = [
-    { id: 'again', label: 'Again', color: 'red', icon: <RefreshCcw size={18} /> },
-    { id: 'hard', label: 'Hard', color: 'orange', icon: <Flame size={18} /> },
-    { id: 'listen', label: 'Listen', color: 'indigo', icon: <Volume2 size={24} />, special: true },
-    { id: 'good', label: 'Good', color: 'blue', icon: <Star size={18} /> },
-    { id: 'easy', label: 'Easy', color: 'green', icon: <Zap size={18} /> }
-  ];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center py-8 px-4 font-sans text-slate-800">
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center py-4 px-4 font-sans text-slate-800 h-[100dvh]">
       
       {shareModal.isOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
@@ -756,15 +790,15 @@ const App = () => {
         </div>
       )}
 
-      <div className="w-full max-w-md mb-4 space-y-3">
+      <div className="w-full max-w-md mb-3 space-y-3 shrink-0">
         <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2 text-slate-700 font-black text-lg bg-white px-4 py-1.5 rounded-full shadow-sm border border-slate-100">
-            <button onClick={() => openConfirm('home', '確定放棄進度回首頁？')} className="text-slate-400 hover:text-red-500"><Home size={16}/></button>
+          <div className="flex items-center gap-2 text-slate-700 font-black text-lg bg-white px-4 py-2 rounded-full shadow-sm border border-slate-100">
+            <button onClick={() => openConfirm('home', '確定放棄進度回首頁？')} className="text-slate-400 hover:text-red-500"><Home size={18}/></button>
             <div className="w-px h-4 bg-slate-200 mx-0.5"></div>
-            <Brain size={18} className="text-indigo-600" />
+            <Brain size={20} className="text-indigo-600" />
             <span>{total - queue.length} <span className="text-slate-400 text-sm font-medium">/ {total}</span></span>
             <div className="w-px h-4 bg-slate-200 mx-0.5"></div>
-            <button onClick={handleShuffle} className="text-indigo-400 hover:text-indigo-600 transition-colors" title="隨機洗牌"><Shuffle size={16}/></button>
+            <button onClick={handleShuffle} className="text-indigo-400 hover:text-indigo-600 transition-colors" title="隨機洗牌"><Shuffle size={18}/></button>
             <div className="w-px h-4 bg-slate-200 mx-0.5"></div>
             <button onClick={() => setShowRatingModal(true)} className="flex items-center gap-1 text-[13px] text-amber-600 hover:text-amber-700 transition-colors font-bold">📊 評分</button>
           </div>
@@ -783,27 +817,33 @@ const App = () => {
               setShareModal({ isOpen: true, url });
             } catch (err) { setError("儲存失敗"); } 
             finally { setIsSaving(false); }
-          }} disabled={isSaving} className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all shadow-sm ${copyOk ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
+          }} disabled={isSaving} className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${copyOk ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
             {isSaving ? <Loader2 size={16} className="animate-spin" /> : copyOk ? <Check size={16} /> : <Share2 size={16} />}
             {copyOk ? '已複製連結' : '儲存與分享'}
           </button>
         </div>
-        <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden shadow-inner">
+        <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden shadow-inner">
           <div className="bg-indigo-500 h-full transition-all duration-700 ease-out" style={{ width: `${progress}%` }} />
         </div>
       </div>
 
-      <div className="relative w-full max-w-md h-[70vh] min-h-[450px] max-h-[600px] cursor-pointer perspective-1000 group" onClick={() => !isFlipped && setIsFlipped(true)}>
+      {/* 💡 放大優化：卡片容器佔滿剩餘畫面，不再受限於 max-h */}
+      <div className="relative w-full max-w-md flex-1 min-h-[450px] cursor-pointer perspective-1000 group mb-2" onClick={() => !isFlipped && setIsFlipped(true)}>
         <div className={`relative w-full h-full transition-all duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
           
+          {/* 正面 */}
           <div className="absolute inset-0 backface-hidden bg-white rounded-[2rem] shadow-xl flex flex-col items-center justify-center p-8 border border-slate-100">
-            <h2 className="text-[3.5rem] font-black text-slate-800 text-center leading-tight mb-8 break-words w-full">{card.word}</h2>
-            <button onClick={e => { e.stopPropagation(); speak(card.word); }} className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 hover:scale-105 transition-all shadow-sm"><Volume2 size={32} /></button>
+            <h2 className="text-[4rem] font-black text-slate-800 text-center leading-tight mb-10 break-words w-full">{card.word}</h2>
+            {/* 💡 正面發音按鈕：僅唸單字 */}
+            <button onClick={e => { e.stopPropagation(); playSimpleText(card.word); }} className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 hover:scale-105 transition-all shadow-md"><Volume2 size={40} /></button>
             <div className="absolute bottom-8 text-slate-400 text-sm font-bold tracking-widest animate-pulse">點擊翻面</div>
           </div>
           
+          {/* 背面 */}
           <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white rounded-[2rem] shadow-xl flex flex-col p-4 sm:p-5 overflow-hidden border border-slate-100">
-            <div className="w-full h-[100px] sm:h-28 bg-slate-100 rounded-xl mb-3 overflow-hidden relative flex items-center justify-center shadow-inner shrink-0">
+            
+            {/* 縮小圖片佔比，留給文字 */}
+            <div className="w-full h-24 sm:h-28 bg-slate-100 rounded-xl mb-3 overflow-hidden relative flex items-center justify-center shadow-inner shrink-0">
               {imageUrls[card.word] ? (
                 <img src={imageUrls[card.word]} className="w-full h-full object-cover z-10" alt="" onError={e => e.target.src='https://loremflickr.com/400/300/japan'} />
               ) : (
@@ -811,19 +851,47 @@ const App = () => {
               )}
             </div>
 
-            <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
+            {/* 中間文字區塊：全面放大字體與留白 */}
+            <div className="flex-1 overflow-y-auto pr-1 pb-2 custom-scrollbar flex flex-col">
               {formatBackHeader(card)}
-              {card.info.includes('【例句】') && <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 mt-2">{formatExampleText(card.info.split('【例句】')[1])}</div>}
+              {card.info.includes('【例句】') && <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 mt-2">{formatExampleText(card.info.split('【例句】')[1], card.word)}</div>}
             </div>
 
-            <div className="grid grid-cols-5 gap-1 sm:gap-2 mt-2 pt-2 border-t border-slate-100 shrink-0">
-              {btnConfig.map(btn => (
-                <button key={btn.id} onClick={e => { e.stopPropagation(); btn.id==='listen' ? speak(getSpeakableText(card)) : handleAction(btn.id); }} className={`flex flex-col items-center gap-1 ${btn.special?'-mt-2 hover:scale-110':'hover:scale-105'} transition-all`}>
-                  <div className={`${btn.special?'w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-indigo-600 text-white shadow-md border-2 border-indigo-100':`w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-${btn.color}-50 text-${btn.color}-600 border border-${btn.color}-100 shadow-sm`} flex items-center justify-center`}>{btn.icon}</div>
-                  <span className={`text-[9px] sm:text-[10px] font-black uppercase tracking-wider ${btn.special?'text-indigo-600':`text-${btn.color}-500`}`}>{btn.label}</span>
-                </button>
-              ))}
+            {/* 💡 底部按鈕區：排版往下推、按鈕全部放大 */}
+            <div className="grid grid-cols-5 gap-2 mt-auto pt-3 border-t border-slate-100 shrink-0 items-end pb-1">
+              {/* Again */}
+              <button onClick={(e) => { e.stopPropagation(); handleAction('again'); }} className="flex flex-col items-center gap-1.5 hover:scale-105 active:scale-95 transition-all">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center shadow-sm bg-red-50 text-red-600 border border-red-100"><RefreshCcw size={24} /></div>
+                <span className="text-xs font-black uppercase tracking-wider text-red-500">Again</span>
+              </button>
+
+              {/* Hard */}
+              <button onClick={(e) => { e.stopPropagation(); handleAction('hard'); }} className="flex flex-col items-center gap-1.5 hover:scale-105 active:scale-95 transition-all">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center shadow-sm bg-orange-50 text-orange-600 border border-orange-100"><Flame size={24} /></div>
+                <span className="text-xs font-black uppercase tracking-wider text-orange-500">Hard</span>
+              </button>
+
+              {/* 💡 朗讀 (置中主按鈕)：唸單字->停1秒->唸例句 */}
+              <button onClick={(e) => { e.stopPropagation(); playCardSequence(card); }} className="flex flex-col items-center justify-start gap-1.5 hover:scale-105 active:scale-95 transition-all -mt-3 group">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center shadow-lg bg-indigo-600 text-white border-4 border-indigo-100 group-hover:bg-indigo-700">
+                  <Volume2 size={32} />
+                </div>
+                <span className="text-xs font-black uppercase tracking-wider text-indigo-600">Listen</span>
+              </button>
+
+              {/* Good */}
+              <button onClick={(e) => { e.stopPropagation(); handleAction('good'); }} className="flex flex-col items-center gap-1.5 hover:scale-105 active:scale-95 transition-all">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center shadow-sm bg-blue-50 text-blue-600 border border-blue-100"><Star size={24} /></div>
+                <span className="text-xs font-black uppercase tracking-wider text-blue-500">Good</span>
+              </button>
+
+              {/* Easy */}
+              <button onClick={(e) => { e.stopPropagation(); handleAction('easy'); }} className="flex flex-col items-center gap-1.5 hover:scale-105 active:scale-95 transition-all">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center shadow-sm bg-green-50 text-green-600 border border-green-100"><Zap size={24} /></div>
+                <span className="text-xs font-black uppercase tracking-wider text-green-500">Easy</span>
+              </button>
             </div>
+
           </div>
         </div>
       </div>
