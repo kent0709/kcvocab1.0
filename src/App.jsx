@@ -7,18 +7,19 @@ import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged }
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
 // --- 1. Firebase 資料庫專用配置 ---
-// ⚠️ 因為您刪除了舊專案，請將下方整段替換成您「全新 Firebase 專案」的設定檔！
+// ⚠️ 請確保這裡填入的是您全新的 Firebase 專案設定檔
 const firebaseConfig = {
-  apiKey: "AIzaSyD2dxrjW68kjR66RgeFdXl2o4jW2ooGwwU",
-  authDomain: "killercards.firebaseapp.com",
-  projectId: "killercards",
-  storageBucket: "killercards.firebasestorage.app",
-  messagingSenderId: "281065379733",
-  appId: "1:281065379733:web:06fc2160b85fae7579c89c",
-  measurementId: "G-PVFYPMRPH2"
+  apiKey: "請在此填入新的_apiKey",
+  authDomain: "請在此填入新的_authDomain",
+  databaseURL: "請在此填入新的_databaseURL",
+  projectId: "請在此填入新的_projectId",
+  storageBucket: "請在此填入新的_storageBucket",
+  messagingSenderId: "請在此填入新的_messagingSenderId",
+  appId: "請在此填入新的_appId",
+  measurementId: "請在此填入新的_measurementId"
 };
 
-// --- 2. 金鑰自動讀取與親友共享機制 ---
+// --- 2. 金鑰自動讀取 ---
 const getEnvKey = () => {
   try {
     const env = typeof import.meta !== 'undefined' ? import.meta.env : (typeof process !== 'undefined' ? process.env : {});
@@ -29,13 +30,6 @@ const getEnvKey = () => {
 
 const getLocalKey = () => {
   try { return localStorage.getItem('my_gemini_key') || ""; } catch(e) { return ""; }
-};
-
-// 將金鑰切半拼接，避免被 GitHub 機器人直接掃描封鎖，並讓親友直接使用
-const getSharedKey = () => {
-  const part1 = "AIzaSyAQqoHqY0l";
-  const part2 = "pfWCGyq2Xacgp7kl4x6mwWWY";
-  return part1 + part2;
 };
 
 // 自動判斷環境
@@ -66,8 +60,8 @@ const safePushState = (url) => {
 };
 
 const App = () => {
-  // AI 金鑰狀態管理 (優先順序：環境變數 > 本地儲存 > 親友共享金鑰)
-  const [activeApiKey, setActiveApiKey] = useState(() => isCanvas ? "" : (getEnvKey() || getLocalKey() || getSharedKey()));
+  // AI 金鑰狀態管理 (優先順序：環境變數 > 本地儲存，已移除容易失效的內建金鑰)
+  const [activeApiKey, setActiveApiKey] = useState(() => isCanvas ? "" : (getEnvKey() || getLocalKey()));
   const [keyInput, setKeyInput] = useState('');
 
   const [user, setUser] = useState(null);
@@ -98,7 +92,7 @@ const App = () => {
     const initAuth = async () => {
       try {
         if (firebaseConfig.apiKey === "請在此填入新的_apiKey") {
-          setError("❌ 請先至程式碼第 11 行替換您全新的 Firebase 設定檔 (firebaseConfig)！");
+          setError("❌ 請先至程式碼第 12 行替換您全新的 Firebase 設定檔 (firebaseConfig)！");
           setLoading(false);
           return;
         }
@@ -110,10 +104,11 @@ const App = () => {
         }
       } catch (err) {
         console.error("登入錯誤", err);
-        // 💡 加入更精準的錯誤判斷，直接告訴使用者哪裡沒設定好
         let errMsg = "❌ Firebase 連線失敗：";
         if (err.code === 'auth/api-key-expired' || err.code === 'auth/invalid-api-key') {
           errMsg += "您的 Firebase 專案已刪除或金鑰失效！請去 Firebase 建立新專案，並把新的 firebaseConfig 貼到程式碼。";
+        } else if (err.code === 'auth/configuration-not-found') {
+          errMsg += "您尚未在 Firebase 啟用驗證功能！請點擊左側「Authentication」-> 按下「開始使用(Get Started)」，然後開啟匿名登入。";
         } else if (err.code === 'auth/operation-not-allowed') {
           errMsg += "請至 Firebase 後台開啟「匿名登入 (Anonymous)」！";
         } else if (err.code === 'auth/unauthorized-domain') {
@@ -207,7 +202,7 @@ const App = () => {
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 5000));
         await Promise.race([updatePromise, timeoutPromise]);
       } catch(err) {
-        console.error("背景進度更新失敗 (可能是網路或資料庫未啟用)", err);
+        console.error("背景進度更新失敗", err);
       }
     }
   };
@@ -236,7 +231,7 @@ const App = () => {
     
     const reqKey = isCanvas ? "" : activeApiKey;
     if (!reqKey && !isCanvas) {
-      setError('❌ 找不到 API 金鑰！');
+      setError('❌ 找不到 API 金鑰！請點擊下方「重新設定金鑰」按鈕。');
       return;
     }
 
@@ -267,12 +262,11 @@ const App = () => {
         const data = await res.json();
         
         if (!res.ok) {
-          const errMsg = data.error?.message || "";
+          const errMsg = data.error?.message || "未知錯誤";
           
           if (res.status === 400 || res.status === 403) {
-            lastError = `API 金鑰無效或已被 Google 停權。請點擊首頁重新設定金鑰！`;
-            setActiveApiKey(''); // 清除失效的金鑰
-            try { localStorage.removeItem('my_gemini_key'); } catch(e){}
+            // 💡 不再自動清除金鑰，而是明確顯示 Google 回傳的錯誤，讓使用者知道發生什麼事
+            lastError = `API 拒絕連線 (錯誤碼 ${res.status})：${errMsg}。\n⚠️ 如果您是在 Vercel 設定的，請務必點擊 Redeploy 重新發布！`;
             break; 
           }
 
@@ -339,7 +333,7 @@ const App = () => {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600 w-12 h-12" /></div>;
 
-  // --- 防護：如果金鑰全部失效才會顯示的輸入畫面 ---
+  // --- 防護：如果金鑰失效顯示輸入畫面 ---
   if (!isCanvas && !activeApiKey) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
@@ -427,7 +421,7 @@ const App = () => {
         <textarea value={input} onChange={e => setInput(e.target.value)} placeholder="貼上想背的單字..." className="w-full h-40 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" />
         
         {error && (
-          <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed ${error.includes('連線失敗') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+          <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed whitespace-pre-wrap ${error.includes('連線失敗') || error.includes('拒絕連線') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
             {error.includes('請求太快') ? <Clock size={18} className="shrink-0 mt-0.5" /> : <AlertTriangle size={18} className="shrink-0 mt-0.5" />}
             {error}
           </div>
@@ -438,7 +432,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v10.6 全新資料庫準備版 byKC</span>
+          <span>v10.7 終極除錯版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-indigo-400 transition-colors flex items-center gap-1">
                <Lock size={10} /> 重新設定金鑰
@@ -604,7 +598,7 @@ const App = () => {
             <Trophy size={18} />
           </button>
 
-          {/* 儲存與分享按鈕 (加入超時偵測防卡死) */}
+          {/* 儲存與分享按鈕 */}
           <button onClick={async () => {
             if (!user) {
               setError("❌ 尚未成功連線至資料庫，請檢查上方是否有紅色的連線錯誤提示！");
@@ -618,12 +612,10 @@ const App = () => {
             try {
               let shareId = deckId;
               if (!shareId) {
-                // 安全防護：避免舊版瀏覽器不支援 crypto 導致壞掉
                 shareId = (typeof crypto !== 'undefined' && crypto.randomUUID) 
                   ? crypto.randomUUID() 
                   : 'deck-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
                 
-                // 設定 8 秒超時保護機制，避免轉圈圈轉到天荒地老
                 const savePromise = setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', shareId), { cards, queue, history, creator: user.uid, createdAt: new Date().toISOString() });
                 const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 8000));
                 
@@ -699,7 +691,6 @@ const App = () => {
                        const m = s.match(/^(.*?)\((.*?)\)(.*)$/);
                        if (!m) return <div className="text-[14px] text-slate-700 leading-relaxed">{s}</div>;
                        
-                       // 💡 判斷是否為英文單字：如果是英文，強制不顯示中間的括號列！
                        const isEnglish = /[a-zA-Z]/.test(card.word);
                        
                        return <>
