@@ -118,8 +118,6 @@ const App = () => {
   const [pwdModal, setPwdModal] = useState({ isOpen: false, value: '', error: '' });
 
   const translatingRef = useRef(new Set());
-  
-  const resolvedModelRef = useRef(isCanvas ? "gemini-2.5-flash-preview-09-2025" : "");
 
   useEffect(() => {
     const initAuth = async () => {
@@ -209,7 +207,7 @@ const App = () => {
     }
   };
 
-  // 💡 洗牌功能實作
+  // 洗牌功能
   const handleShuffle = async () => {
     if (queue.length <= 1) return;
     const newQueue = [...queue];
@@ -288,30 +286,7 @@ const App = () => {
     }
   };
 
-  const getBestModel = async (reqKey) => {
-    if (resolvedModelRef.current) return resolvedModelRef.current;
-    try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${reqKey}`);
-      if (res.ok) {
-        const data = await res.json();
-        const names = (data.models || [])
-          .filter(m => m.supportedGenerationMethods?.includes("generateContent"))
-          .map(m => m.name.replace("models/", ""));
-        
-        if (names.includes("gemini-1.5-flash")) resolvedModelRef.current = "gemini-1.5-flash";
-        else if (names.includes("gemini-1.5-pro")) resolvedModelRef.current = "gemini-1.5-pro";
-        else if (names.includes("gemini-pro")) resolvedModelRef.current = "gemini-pro"; 
-        else if (names.length > 0) resolvedModelRef.current = names[0];
-        else resolvedModelRef.current = "gemini-1.5-flash";
-      } else {
-        resolvedModelRef.current = "gemini-pro"; 
-      }
-    } catch(e) {
-      resolvedModelRef.current = "gemini-pro";
-    }
-    return resolvedModelRef.current;
-  };
-
+  // 💡 v12.8 尊榮重試版：徹底拔除免費版字眼，並導入自動隱形排隊機制
   const generate = async () => {
     if (!input.trim() || genLoading) return;
     const reqKey = isCanvas ? "" : activeApiKey;
@@ -327,7 +302,7 @@ const App = () => {
       ? `請分析以下文字：\n"""${input}"""\n這是一份「英文學習清單」。請提取出英文單字。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯"}]。請只回傳 JSON。`
       : `請分析以下文字：\n"""${input}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
 
-    const modelToUse = await getBestModel(reqKey);
+    const modelToUse = isCanvas ? "gemini-2.5-flash-preview-09-2025" : "gemini-1.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${reqKey}`;
     
     const payload = {
@@ -335,58 +310,77 @@ const App = () => {
         generationConfig: { responseMimeType: "application/json" }
     };
 
-    try {
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
+    let success = false;
+    let lastError = "";
 
-        const data = await res.json();
+    // 💡 隱形排隊：如果伺服器忙碌，會默默在背景等 2秒、4秒、6秒、8秒，嘗試高達 4 次！
+    for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
 
-        if (!res.ok) {
-            if (res.status === 429 || res.status === 503) {
-                setError("⏳ Google AI 免費版限制每分鐘 15 次，您剛剛按太快了！\n👉 請喝口水，等待足足 1 分鐘讓配額重置，然後再點擊一次即可！");
-                setGenLoading(false);
-                return; 
-            } 
-            
-            if (res.status === 400 || res.status === 403) {
-                setActiveApiKey(''); 
-                try { localStorage.removeItem('my_gemini_key'); } catch(e){}
-                setError(`🚨 您的 API 金鑰無效或被停權，請重新設定！`);
-                setGenLoading(false);
-                return;
+            const data = await res.json();
+
+            if (!res.ok) {
+                // 遇到 429 忙碌錯誤，不跳紅字，直接進入等待重試迴圈
+                if (res.status === 429 || res.status === 503) {
+                    if (attempt < 3) {
+                        const waitTime = (attempt + 1) * 2000; // 逐漸拉長等待時間
+                        await new Promise(r => setTimeout(r, waitTime));
+                        continue; 
+                    } else {
+                        lastError = "⏳ 伺服器目前接收到太多請求 (429)，請稍等幾秒後再點擊一次即可！";
+                        break;
+                    }
+                } 
+                
+                // 如果是金鑰本身失效才直接踢出
+                if (res.status === 400 || res.status === 403) {
+                    setActiveApiKey(''); 
+                    try { localStorage.removeItem('my_gemini_key'); } catch(e){}
+                    lastError = `🚨 您的 API 金鑰無效或被停權，請重新設定！`;
+                    break;
+                }
+                
+                lastError = `發生錯誤：${data.error?.message || "未知錯誤"}`;
+                break;
             }
             
-            setError(`❌ 發生錯誤：${data.error?.message || "未知錯誤"}`);
-            setGenLoading(false);
-            return;
+            // 成功取得資料
+            const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+            const parsed = JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim());
+            
+            const newCards = parsed.map(c => ({
+              word: c.word,
+              reading: c.reading || '',
+              meaning: c.meaning || '',
+              breakdown: c.breakdown || '',
+              example: c.example || '',
+              example_kana: c.example_kana || '',
+              example_zh: c.example_zh || '',
+              info: `${c.reading || ''} ${c.meaning || ''} 💡 [分析] ${c.breakdown || ''} 【例句】${c.example || ''}(${c.example_kana || ''})${c.example_zh || ''}`
+            }));
+            
+            setCards(newCards);
+            setQueue(Array.from({length: newCards.length}, (_, i) => i));
+            setTotal(newCards.length);
+            setIsFinished(false); setIsFlipped(false);
+            success = true;
+            break; 
+            
+        } catch (e) { 
+            if (attempt < 3) {
+                await new Promise(r => setTimeout(r, 2000));
+            } else {
+                lastError = `系統連線異常：請稍後再試。`;
+            }
         }
-        
-        const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
-        const parsed = JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim());
-        
-        const newCards = parsed.map(c => ({
-          word: c.word,
-          reading: c.reading || '',
-          meaning: c.meaning || '',
-          breakdown: c.breakdown || '',
-          example: c.example || '',
-          example_kana: c.example_kana || '',
-          example_zh: c.example_zh || '',
-          info: `${c.reading || ''} ${c.meaning || ''} 💡 [分析] ${c.breakdown || ''} 【例句】${c.example || ''}(${c.example_kana || ''})${c.example_zh || ''}`
-        }));
-        
-        setCards(newCards);
-        setQueue(Array.from({length: newCards.length}, (_, i) => i));
-        setTotal(newCards.length);
-        setIsFinished(false); setIsFlipped(false);
-        
-    } catch (e) { 
-        setError(`❌ 系統連線異常：請稍後再試。`);
     }
-    
+
+    if (!success) setError(`❌ ${lastError}`);
     setGenLoading(false);
   };
 
@@ -591,7 +585,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v12.7 隨機洗牌版 byKC</span>
+          <span>v12.8 尊榮自動重試版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-red-400 text-slate-400 transition-colors flex items-center gap-1">
                <Trash2 size={10} /> 刪除本地記憶金鑰
