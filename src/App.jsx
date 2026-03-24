@@ -32,11 +32,14 @@ const getLocalKey = () => {
 };
 
 const getSharedKey = () => {
-  // 完美保留您的 AI 備用金鑰
-  const part1 = "AIzaSyCyEk0clwOAiHZ"; 
-  const part2 = "HgXFCQ7NlSnMl9XLxcb8"; 
+  // ⚠️ 致命錯誤通常發生在這裡！
+  // 請把您「剛剛去 AI Studio 新申請、絕對沒外洩過」的全新金鑰切成兩半貼在這裡。
+  // 千萬不要用舊的，也不要留著下方的中文！
   
-  if (!part1 || !part2) return "";
+  const part1 = "AIzaSyC03rp4Jz7OI"; // 例如 "AIzaSyXXXX..."
+  const part2 = "q7tsw74kmZVKGEFVl411CM"; // 例如 "...YYYYZZZZ"
+  
+  if (!part1 || !part2 || part1.includes("貼上前段")) return "";
   return part1 + part2;
 };
 
