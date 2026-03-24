@@ -92,7 +92,7 @@ const vocabHigh = [
   { word: "happy", meaning: "開心的" }, { word: "sad", meaning: "傷心的" }, { word: "angry", meaning: "生氣的" }, { word: "tired", meaning: "累的" },
   { word: "hot", meaning: "熱的" }, { word: "cold", meaning: "冷的" }, { word: "in", meaning: "在...裡面" }, { word: "on", meaning: "在...上面" },
   { word: "under", meaning: "在...下面" }, { word: "what", meaning: "什麼" }, { word: "where", meaning: "哪裡" }, { word: "when", meaning: "何時" },
-  { word: "who", 分: "誰" }, { word: "why", meaning: "為什麼" }, { word: "how", meaning: "如何" }
+  { word: "who", meaning: "誰" }, { word: "why", meaning: "為什麼" }, { word: "how", meaning: "如何" }
 ];
 
 const App = () => {
@@ -272,11 +272,10 @@ const App = () => {
       ? `請分析以下文字：\n"""${input}"""\n這是一份「英文學習清單」。請提取出英文單字。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯"}]。請只回傳 JSON。`
       : `請分析以下文字：\n"""${input}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
 
-    // 💡 v11.3 核心更新：模型無敵備援陣列！
-    // 只要某個名字過期或報 404 鳥蛋錯誤，它會立刻嘗試陣列中的下一個，直到成功為止！
+    // 💡 v11.5 核心修復：移除了會報錯的不穩定模型，僅保留最穩定、權限最開的標準模型名稱。
     const targetModels = isCanvas 
       ? ["gemini-2.5-flash-preview-09-2025"] 
-      : ["gemini-2.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-1.5-pro-latest"];
+      : ["gemini-1.5-flash", "gemini-1.5-pro"];
     
     const payload = {
         contents: [{ parts: [{ text: prompt }] }],
@@ -308,7 +307,7 @@ const App = () => {
                 if (!res.ok) {
                     const errMsg = data.error?.message || "未知錯誤";
                     
-                    // 💡 遇到 404 (找不到模型)：直接跳出內層迴圈，換下一個模型名字嘗試！
+                    // 遇到 404 (找不到模型)：直接跳出內層迴圈，換下一個模型名字嘗試
                     if (res.status === 404) {
                         lastError = `模型 ${model} 不可用，自動切換備用模型中...`;
                         break; 
@@ -502,7 +501,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v11.3 模型無敵備援版 byKC</span>
+          <span>v11.5 終極穩固模型版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-indigo-400 transition-colors flex items-center gap-1">
                <Trash2 size={10} /> 刪除本地舊鑰匙
