@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Volume2, RefreshCcw, Brain, Zap, Star, Flame, Share2, Check, Loader2, AlertTriangle, ChevronRight, Clock, Home, Trophy, Lock, Trash2
+  Volume2, RefreshCcw, Brain, Zap, Star, Flame, Share2, Check, Loader2, AlertTriangle, ChevronRight, Clock, Home, Trophy, Lock, Trash2, Upload, CheckCircle2
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
@@ -17,15 +17,12 @@ const firebaseConfig = {
   measurementId: "G-PVFYPMRPH2"
 };
 
-// --- 2. 智慧金鑰讀取機制 (阻斷 Firebase 錯誤金鑰) ---
+// --- 2. 金鑰自動讀取 ---
 const getEnvKey = () => {
   try {
     const env = typeof import.meta !== 'undefined' ? import.meta.env : (typeof process !== 'undefined' ? process.env : {});
     const k = env?.VITE_GEMINI_API_KEY;
-    // 🚨 終極防護：如果 Vercel 裡面存的是 Firebase 的資料庫金鑰，直接無視它，打破死迴圈！
-    if (k && (k === firebaseConfig.apiKey || k === "AIzaSyBTcPWX29sXFY0dqzOpJn8We6uoJLwHv9U")) {
-      return ""; 
-    }
+    if (k && (k === firebaseConfig.apiKey || k === "AIzaSyBTcPWX29sXFY0dqzOpJn8We6uoJLwHv9U")) return ""; 
     return k;
   } catch(e) {}
   return "";
@@ -35,7 +32,6 @@ const getLocalKey = () => {
   try { return localStorage.getItem('my_gemini_key') || ""; } catch(e) { return ""; }
 };
 
-// 自動判斷環境
 const isCanvas = typeof __firebase_config !== 'undefined';
 const app = initializeApp(isCanvas ? JSON.parse(__firebase_config) : firebaseConfig);
 const auth = getAuth(app);
@@ -43,7 +39,6 @@ const db = getFirestore(app);
 
 const appId = typeof __app_id !== 'undefined' ? String(__app_id).replace(/\//g, '_') : (firebaseConfig.projectId !== '請在此填入新的_projectId' ? firebaseConfig.projectId : 'kcvocabapp');
 
-// 安全更新網址列
 const safePushState = (url) => {
   try {
     const hostname = window.location.hostname;
@@ -53,14 +48,11 @@ const safePushState = (url) => {
       hostname.includes('webcontainer') || 
       hostname.includes('stackblitz') ||
       hostname.includes('usercontent')
-    ) {
-      return;
-    }
+    ) return;
     window.history.pushState({}, '', url);
   } catch (e) {}
 };
 
-// --- 國小必備 300 單字庫 (依難易度分三級) ---
 const vocabLow = [
   { word: "zero", meaning: "零" }, { word: "one", meaning: "一" }, { word: "two", meaning: "二" }, { word: "three", meaning: "三" },
   { word: "four", meaning: "四" }, { word: "five", meaning: "五" }, { word: "six", meaning: "六" }, { word: "seven", meaning: "七" },
@@ -100,7 +92,7 @@ const vocabHigh = [
 ];
 
 const App = () => {
-  const [activeApiKey, setActiveApiKey] = useState(() => isCanvas ? "" : (getLocalKey() || getEnvKey()));
+  const [activeApiKey, setActiveApiKey] = useState(() => isCanvas ? "" : (getEnvKey() || getLocalKey()));
   const [keyInput, setKeyInput] = useState('');
   const [isValidatingKey, setIsValidatingKey] = useState(false);
 
@@ -118,11 +110,14 @@ const App = () => {
   const [input, setInput] = useState('');
   const [genLoading, setGenLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showRatingModal, setShowRatingModal] = useState(false);
   
   const [isSaving, setIsSaving] = useState(false);
   const [shareModal, setShareModal] = useState({ isOpen: false, url: '' });
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, type: '', message: '' });
   const [pwdModal, setPwdModal] = useState({ isOpen: false, value: '', error: '' });
+
+  const translatingRef = useRef(new Set());
 
   useEffect(() => {
     const initAuth = async () => {
@@ -140,9 +135,7 @@ const App = () => {
     };
     initAuth();
 
-    const unsubscribe = onAuthStateChanged(auth, u => {
-      setUser(u);
-    });
+    const unsubscribe = onAuthStateChanged(auth, u => setUser(u));
     return () => unsubscribe();
   }, []);
 
@@ -209,9 +202,7 @@ const App = () => {
     
     if (deckId && user) {
       try {
-        const updatePromise = updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', deckId), { queue: nextQ, history: nextH });
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 5000));
-        await Promise.race([updatePromise, timeoutPromise]);
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', deckId), { queue: nextQ, history: nextH });
       } catch(err) {}
     }
   };
@@ -250,39 +241,29 @@ const App = () => {
     setIsFlipped(false);
   };
 
-  // 💡 v11.9 核心：金鑰即時檢測系統 (嚴格排除 Firebase 金鑰)
   const validateAndSaveKey = async () => {
     const tk = keyInput.trim();
     if (!tk) return;
 
     if (tk === firebaseConfig.apiKey || tk === "AIzaSyBTcPWX29sXFY0dqzOpJn8We6uoJLwHv9U") {
-      setError('🚨 抓到元凶了！您貼到的是「Firebase 資料庫」的鑰匙！\n請打開新分頁前往 Google AI Studio (aistudio.google.com) 申請真正的 AI 鑰匙！');
+      setError('🚨 這把是「Firebase 資料庫」的鑰匙！請前往 Google AI Studio 申請真正的 AI 鑰匙！');
       return;
     }
 
-    setIsValidatingKey(true);
-    setError('');
-
+    setIsValidatingKey(true); setError('');
     try {
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${tk}`);
-      const data = await res.json();
-
       if (!res.ok) {
-        if (res.status === 400) {
-          setError("❌ 錯誤：金鑰格式無效。請檢查是否複製完整，或是多複製了空白鍵。");
-        } else if (res.status === 403) {
-          setError("❌ 錯誤：這把金鑰缺乏 AI 權限。請確保您是從「Google AI Studio」申請的！");
-        } else {
-          setError(`❌ 錯誤碼 ${res.status}：${data.error?.message}`);
-        }
+        if (res.status === 400) setError("❌ 金鑰格式無效。");
+        else if (res.status === 403) setError("❌ 這把金鑰缺乏 AI 權限。請確保是從 Google AI Studio 申請！");
+        else setError(`❌ 驗證失敗 (${res.status})`);
         setIsValidatingKey(false);
         return;
       }
-
       localStorage.setItem('my_gemini_key', tk);
       setActiveApiKey(tk);
     } catch (e) {
-      setError("❌ 網路連線異常，無法驗證金鑰，請檢查網路狀態。");
+      setError("❌ 網路異常，無法驗證金鑰。");
     } finally {
       setIsValidatingKey(false);
     }
@@ -292,7 +273,7 @@ const App = () => {
     if (!input.trim() || genLoading) return;
     const reqKey = isCanvas ? "" : activeApiKey;
     if (!reqKey && !isCanvas) {
-      setError('❌ 找不到 API 金鑰！請重新輸入。');
+      setError('❌ 找不到 API 金鑰！請確認 Vercel 環境變數 VITE_GEMINI_API_KEY。');
       return;
     }
 
@@ -303,9 +284,8 @@ const App = () => {
       ? `請分析以下文字：\n"""${input}"""\n這是一份「英文學習清單」。請提取出英文單字。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯"}]。請只回傳 JSON。`
       : `請分析以下文字：\n"""${input}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
 
-    const targetModels = isCanvas 
-      ? ["gemini-2.5-flash-preview-09-2025"] 
-      : ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"];
+    // 💡 修正：使用最穩定版本的模型，移除不穩定的前綴測試版
+    const targetModels = isCanvas ? ["gemini-2.5-flash-preview-09-2025"] : ["gemini-1.5-flash", "gemini-1.5-pro"];
     
     const payload = {
         contents: [{ parts: [{ text: prompt }] }],
@@ -314,15 +294,12 @@ const App = () => {
 
     let success = false;
     let lastError = "";
-    let isKeyInvalid = false;
 
     for (const model of targetModels) {
-        if (success || isKeyInvalid) break;
-        
+        if (success) break;
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${reqKey}`;
-        const delays = [1000, 2000, 4000];
 
-        for (let attempt = 0; attempt <= 3; attempt++) {
+        for (let attempt = 0; attempt < 3; attempt++) {
             try {
                 const res = await fetch(url, {
                     method: 'POST',
@@ -333,28 +310,26 @@ const App = () => {
                 const data = await res.json();
 
                 if (!res.ok) {
-                    const errMsg = data.error?.message || "未知錯誤";
-                    
-                    // 💡 如果在生成時遭遇 404/403，強制跳回解鎖畫面！
-                    if (res.status === 404 || res.status === 403 || res.status === 400) {
-                        setActiveApiKey(''); // 強制清空，打破死迴圈
-                        try { localStorage.removeItem('my_gemini_key'); } catch(e){}
-                        lastError = `🚨 您的金鑰權限錯誤！您可能拿到「資料庫」的鑰匙了！請重新輸入 Google AI Studio 的金鑰。`;
-                        isKeyInvalid = true;
+                    // 💡 修復盲點：遇到 404 找不到模型，不要清空金鑰，換下一個模型名字試試！
+                    if (res.status === 404) {
+                        lastError = `模型 ${model} 不可用...`;
                         break; 
                     }
-                    
                     if (res.status === 429 || res.status === 503) {
-                        if (attempt < 3) {
-                            await new Promise(r => setTimeout(r, delays[attempt]));
-                            continue; 
-                        } else {
-                            lastError = "Google AI 伺服器目前大塞車，請稍等 1 分鐘後再試一次！";
-                            break;
-                        }
+                        await new Promise(r => setTimeout(r, 2000));
+                        lastError = "Google 伺服器忙碌中，請稍後重試。";
+                        continue; 
                     } 
-
-                    lastError = `發生錯誤：${errMsg}`;
+                    // 只有真正的 400/403 才是金鑰無效
+                    if (res.status === 400 || res.status === 403) {
+                        setActiveApiKey(''); 
+                        try { localStorage.removeItem('my_gemini_key'); } catch(e){}
+                        lastError = `🚨 您的 API 金鑰無效或被停權，請重新設定！`;
+                        setGenLoading(false);
+                        setError(lastError);
+                        return; // 直接中斷
+                    }
+                    lastError = `發生錯誤：${data.error?.message}`;
                     break;
                 }
                 
@@ -378,29 +353,68 @@ const App = () => {
                 setIsFinished(false); setIsFlipped(false);
                 success = true;
                 break; 
-                
             } catch (e) { 
-                lastError = "伺服器處理失敗，正在嘗試修復中...";
-                if (attempt < 3) {
-                    await new Promise(r => setTimeout(r, delays[attempt]));
-                }
+                lastError = "伺服器處理失敗，請稍後再試...";
+                await new Promise(r => setTimeout(r, 2000));
             }
         }
     }
 
-    // 💡 確保錯誤發生時，如果已經清空金鑰，就不會停在原畫面
-    if (!success && !isKeyInvalid) setError(`❌ ${lastError}`);
-    if (isKeyInvalid) setError(lastError);
+    if (!success) setError(`❌ ${lastError}`);
     setGenLoading(false);
   };
 
   useEffect(() => {
-    if (cards.length > 0 && !isFinished) {
-      const word = cards[queue[0]].word;
-      if (!imageUrls[word]) setImageUrls(p => ({ ...p, [word]: `https://loremflickr.com/500/300/${encodeURIComponent(word)}` }));
-    }
-    if (isFlipped && queue.length > 0) speak(getSpeakableText(cards[queue[0]]));
-  }, [queue, isFlipped]);
+    if (cards.length === 0 || isFinished) return;
+
+    const loadImages = async () => {
+      const nextCards = queue.slice(0, 3).map(idx => cards[idx]);
+      for (const card of nextCards) {
+        if (!card || imageUrls[card.word] || translatingRef.current.has(card.word)) continue;
+        translatingRef.current.add(card.word);
+        
+        try {
+          const reqKey = isCanvas ? "" : activeApiKey;
+          const isEnglish = /[a-zA-Z]/.test(card.word);
+          const hint = card.info ? card.info.split('【例句】')[0].replace(/[()]/g, ' ').trim() : '';
+          
+          const translationPrompt = isEnglish 
+            ? `Extract a highly visual, simple English phrase for generating a stock photo (max 5 words) representing the concept: ${card.word}. Return ONLY the English text.`
+            : `Translate this Japanese/Chinese vocabulary meaning into a highly visual, simple English phrase for generating a stock photo (max 5 words). Return ONLY the English text. Vocabulary: ${card.word}, Meaning: ${hint}`;
+
+          const modelName = isCanvas ? "gemini-2.5-flash-preview-09-2025" : "gemini-1.5-flash";
+          const textRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${reqKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: translationPrompt }] }] })
+          });
+          
+          let enText = card.word;
+          if (textRes.ok) {
+            const data = await textRes.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+            if (text) enText = text;
+          }
+          
+          setImageUrls(prev => ({ ...prev, [card.word]: `https://loremflickr.com/400/300/${encodeURIComponent(enText)}` }));
+        } catch (e) {
+          setImageUrls(prev => ({ ...prev, [card.word]: `https://loremflickr.com/400/300/study` }));
+        }
+      }
+    };
+    loadImages();
+  }, [queue, cards, isFinished, imageUrls, activeApiKey]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter' && cards.length > 0 && !isFinished) {
+        if (!isFlipped) setIsFlipped(true);
+        else speak(getSpeakableText(cards[queue[0]]));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFlipped, cards, queue, isFinished]);
 
   const getRating = () => {
     const t = history.again + history.hard + history.good + history.easy;
@@ -411,9 +425,54 @@ const App = () => {
     return { score, text: "加油", color: "text-orange-500", emoji: "💪" };
   };
 
+  const formatBackHeader = (card) => {
+    if (!card.info) return null;
+    const mainPart = card.info.split('【例句】')[0].trim();
+    const parts = mainPart.split('💡').map(p => p.trim());
+    const headerText = parts[0];
+    const extraSections = parts.slice(1);
+    const firstSpaceIdx = headerText.indexOf(' ');
+    
+    let reading = "";
+    let meaning = headerText;
+    if (firstSpaceIdx !== -1) {
+      reading = headerText.substring(0, firstSpaceIdx).trim();
+      meaning = headerText.substring(firstSpaceIdx).trim();
+    }
+    
+    return (
+      <div className="font-bold text-slate-800 border-b border-slate-100 pb-2 mb-2 leading-tight">
+        <div className="flex items-baseline gap-2 mb-1">
+          <span className="text-xl font-black text-indigo-900 tracking-wide">{card.word}</span>
+          {reading && <span className="text-xs text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0.5 rounded-md">{reading}</span>}
+        </div>
+        <div className="text-slate-700 text-sm mb-1.5 whitespace-pre-line leading-snug">{meaning}</div>
+        {extraSections.map((sec, idx) => (
+          <div key={idx} className="mt-1.5 text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-100/50 leading-snug font-medium shadow-sm whitespace-pre-line">
+            💡 {sec.replace(/\[.*?\]\s*/, '').trim()}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const formatExampleText = (exampleString) => {
+    if (!exampleString) return null;
+    const match = exampleString.match(/^(.*?)\((.*?)\)(.*)$/);
+    if (match) {
+      return (
+        <div className="space-y-0.5">
+          <div className="text-sm font-bold text-slate-800 leading-tight tracking-wide">{match[1].trim()}</div>
+          {match[2].trim() && !/[a-zA-Z]/.test(card.word) && <div className="text-[11px] font-medium text-indigo-500 leading-tight">{match[2].trim()}</div>}
+          {match[3].trim() && <div className="text-xs text-slate-600 leading-tight">{match[3].trim()}</div>}
+        </div>
+      );
+    }
+    return <div className="text-[13px] text-slate-700 leading-tight">{exampleString}</div>;
+  };
+
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600 w-12 h-12" /></div>;
 
-  // --- 防護：金鑰檢測輸入畫面 ---
   if (!isCanvas && !activeApiKey) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
@@ -431,15 +490,15 @@ const App = () => {
           )}
 
           <p className="text-[13px] text-slate-500 mb-6 font-medium text-left leading-relaxed">
-            請前往 <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-blue-500 underline font-bold">Google AI Studio</a> 點擊「Create API key」申請一把全新的金鑰。<br/><br/>
-            <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded">系統會自動驗證金鑰是否有效，通過後即可使用！</span>
+            請前往 <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-blue-500 underline font-bold">Google AI Studio</a> 申請金鑰。<br/><br/>
+            <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded">系統會自動驗證金鑰是否有效！</span>
           </p>
           <input
             type="password"
             value={keyInput}
             onChange={e => setKeyInput(e.target.value)}
             disabled={isValidatingKey}
-            placeholder="請貼上 AIzaSy 開頭的「真正 AI 金鑰」..."
+            placeholder="請貼上 AIzaSy 開頭的 AI 金鑰..."
             className="w-full p-4 mb-4 bg-slate-50 border-2 border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-medium transition-colors disabled:opacity-50"
           />
           <button
@@ -448,7 +507,7 @@ const App = () => {
             className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black py-4 rounded-xl shadow-md transition-all flex justify-center items-center gap-2"
           >
             {isValidatingKey ? <Loader2 size={18} className="animate-spin" /> : null}
-            {isValidatingKey ? '正在連線驗證中...' : '驗證金鑰並進入 App'} <ChevronRight size={18} />
+            {isValidatingKey ? '驗證中...' : '驗證進入 App'} <ChevronRight size={18} />
           </button>
         </div>
       </div>
@@ -457,7 +516,6 @@ const App = () => {
 
   if (cards.length === 0) return (
     <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center text-center">
-      
       {pwdModal.isOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
@@ -465,15 +523,14 @@ const App = () => {
               <Lock size={24} />
             </div>
             <h3 className="text-xl font-black text-slate-800 mb-2">清除系統快取</h3>
-            <p className="text-xs text-slate-500 mb-6">這會清除手機/電腦上記憶的舊金鑰</p>
-            
+            <p className="text-xs text-slate-500 mb-6">清除本地舊金鑰</p>
             <div className="flex gap-2 mt-4">
               <button onClick={() => setPwdModal({ isOpen: false, value: '', error: '' })} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-all">取消</button>
               <button onClick={() => {
                   setActiveApiKey('');
                   try { localStorage.removeItem('my_gemini_key'); } catch(e){}
                   setPwdModal({ isOpen: false, value: '', error: '' });
-                  setError("已清除舊金鑰，請貼上新的！");
+                  setError("已清除舊金鑰！");
               }} className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold transition-all shadow-md">確認清除</button>
             </div>
           </div>
@@ -482,7 +539,6 @@ const App = () => {
 
       <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-md w-full border border-slate-100">
         <Brain className="text-indigo-600 w-12 h-12 mx-auto mb-4" />
-        
         <h1 className="text-2xl font-black mb-6 text-slate-800">Killer Cards</h1>
         
         <div className="bg-indigo-50/50 p-4 rounded-2xl mb-5 border border-indigo-100">
@@ -492,16 +548,13 @@ const App = () => {
           </div>
           <div className="grid grid-cols-3 gap-2">
             <button onClick={() => loadPresetCards(vocabLow)} className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-3 px-2 rounded-xl text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1.5 active:scale-95">
-              <span className="text-2xl drop-shadow-sm">👶</span>
-              <span>國小(低)</span>
+              <span className="text-2xl drop-shadow-sm">👶</span><span>國小(低)</span>
             </button>
             <button onClick={() => loadPresetCards(vocabMid)} className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-3 px-2 rounded-xl text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1.5 active:scale-95">
-              <span className="text-2xl drop-shadow-sm">🧒</span>
-              <span>國小(中)</span>
+              <span className="text-2xl drop-shadow-sm">🧒</span><span>國小(中)</span>
             </button>
             <button onClick={() => loadPresetCards(vocabHigh)} className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-3 px-2 rounded-xl text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1.5 active:scale-95">
-              <span className="text-2xl drop-shadow-sm">👦</span>
-              <span>國小(高)</span>
+              <span className="text-2xl drop-shadow-sm">👦</span><span>國小(高)</span>
             </button>
           </div>
         </div>
@@ -526,7 +579,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v11.9 終極除錯大絕版 byKC</span>
+          <span>v12.0 終極修復版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-red-400 text-slate-400 transition-colors flex items-center gap-1">
                <Trash2 size={10} /> 刪除本地舊鑰匙
@@ -544,11 +597,7 @@ const App = () => {
         <div className="bg-white p-10 rounded-[3rem] shadow-2xl border border-slate-100 max-w-md w-full">
           <div className="text-7xl mb-4 animate-bounce drop-shadow-md">{r.emoji}</div>
           <h1 className="text-2xl font-black mb-2 text-slate-800">完成本日練習！</h1>
-          
-          <div className={`text-5xl font-black ${r.color} mb-6`}>
-            {r.score} <span className="text-xl text-slate-400 font-bold ml-1">分 - {r.text}</span>
-          </div>
-
+          <div className={`text-5xl font-black ${r.color} mb-6`}>{r.score} <span className="text-xl text-slate-400 font-bold ml-1">分 - {r.text}</span></div>
           <div className="grid grid-cols-4 gap-2 mb-8">
             <div className="bg-red-50 p-3 rounded-2xl border border-red-100 flex flex-col items-center justify-center">
               <p className="text-red-600 font-black text-xl mb-1">{history.again}</p>
@@ -567,7 +616,6 @@ const App = () => {
               <p className="text-green-500 text-[9px] font-bold uppercase tracking-widest">Easy</p>
             </div>
           </div>
-
           <button onClick={() => { setQueue(Array.from({length: cards.length}, (_, i) => i)); setHistory({again:0, hard:0, good:0, easy:0}); setIsFinished(false); }} className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl hover:bg-black transition-all">
             <RefreshCcw size={18} />重新開始
           </button>
@@ -577,45 +625,7 @@ const App = () => {
   }
 
   const card = cards[queue[0]];
-  
-  let d_word = card.word;
-  let d_reading = card.reading;
-  let d_meaning = card.meaning;
-  let d_breakdowns = [];
-  let d_example = card.example ? `${card.example}(${card.example_kana || ''})${card.example_zh}` : null;
-
-  if (card.info) {
-    const splitByLight = card.info.split('💡');
-    if (!d_reading && !d_meaning) {
-       const firstPart = splitByLight[0].trim();
-       const spaceIdx = firstPart.indexOf(' ');
-       if (spaceIdx !== -1) {
-           d_reading = firstPart.substring(0, spaceIdx).trim();
-           d_meaning = firstPart.substring(spaceIdx).trim();
-       } else {
-           d_reading = "";
-           d_meaning = firstPart;
-       }
-    }
-    
-    splitByLight.slice(1).forEach(part => {
-        if(part.includes('【例句】')) {
-            const b = part.split('【例句】')[0].replace(/\[.*?\]/, '').trim();
-            if(b) d_breakdowns.push(b);
-            if(!d_example) d_example = part.split('【例句】')[1].trim();
-        } else {
-            if(part.trim()) d_breakdowns.push(part.replace(/\[.*?\]/, '').trim());
-        }
-    });
-    
-    if (splitByLight[0].includes('【例句】') && !d_example) {
-        d_example = splitByLight[0].split('【例句】')[1].trim();
-    }
-  }
-
-  if (d_reading && d_reading.startsWith('(') && d_reading.endsWith(')')) {
-      d_reading = d_reading.slice(1, -1);
-  }
+  const progress = total === 0 ? 0 : ((total - queue.length) / total) * 100;
   
   const btnConfig = [
     { id: 'again', label: 'Again', color: 'red', icon: <RefreshCcw size={18} /> },
@@ -626,35 +636,24 @@ const App = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center py-10 px-4 font-sans text-slate-800 overflow-x-hidden">
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center py-8 px-4 font-sans text-slate-800">
       
-      {/* 分享連結彈窗 */}
       {shareModal.isOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
-            <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center text-green-500 mx-auto mb-4">
-              <Share2 size={32} />
-            </div>
+            <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center text-green-500 mx-auto mb-4"><Share2 size={32} /></div>
             <h3 className="text-xl font-black text-slate-800 mb-2">進度已儲存！</h3>
             <p className="text-sm text-slate-500 mb-6 font-medium">請複製下方專屬網址，傳給朋友或用手機打開就能繼續背單字囉：</p>
-            
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-6 flex items-center gap-2">
               <input type="text" readOnly value={shareModal.url} className="w-full bg-transparent text-sm text-slate-600 font-medium outline-none" />
             </div>
-
-            <button onClick={() => {
-                try {
-                   navigator.clipboard.writeText(shareModal.url);
-                } catch(e){}
-                setShareModal({ isOpen: false, url: '' });
-            }} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black transition-all shadow-md flex justify-center items-center gap-2">
+            <button onClick={() => { try { navigator.clipboard.writeText(shareModal.url); } catch(e){} setShareModal({ isOpen: false, url: '' }); }} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black transition-all shadow-md flex justify-center items-center gap-2">
               <Check size={18} /> 複製並關閉
             </button>
           </div>
         </div>
       )}
 
-      {/* 自訂確認彈窗 */}
       {confirmDialog.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
@@ -667,149 +666,92 @@ const App = () => {
         </div>
       )}
 
-      {/* 畫面頂部提示區 */}
+      {showRatingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onClick={() => setShowRatingModal(false)}>
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setShowRatingModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 font-bold text-xl">&times;</button>
+            <h3 className="text-xl font-black text-slate-800 mb-2">目前學習表現</h3>
+            <div className="text-6xl my-4 drop-shadow-md">{getRating().emoji}</div>
+            <div className={`text-4xl font-black ${getRating().color} mb-1 drop-shadow-sm`}>{getRating().score} 分</div>
+            <div className="text-lg font-bold text-slate-600 mb-6">{getRating().text}</div>
+            <div className="bg-slate-50 p-4 rounded-2xl mb-6 border border-slate-100">
+              <div className="text-sm font-bold text-slate-500 mb-1 tracking-wide">目前完成率</div>
+              <div className="text-2xl font-black text-indigo-600">{Math.round(progress)}%</div>
+            </div>
+            <button onClick={() => setShowRatingModal(false)} className="w-full py-3.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold transition-all shadow-lg">繼續練習</button>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-xl text-xs font-bold shadow-lg flex items-center gap-2">
           <AlertTriangle size={14} /> {error}
         </div>
       )}
 
-      <div className="w-full max-w-md mb-6 space-y-4">
-        <div className="flex justify-between items-center gap-2">
-          {/* 回到首頁按鈕 */}
-          <button onClick={() => openConfirm('home', '確定要放棄目前的進度，回到首頁嗎？')} className="w-10 h-10 flex items-center justify-center bg-white rounded-full shadow-sm border border-slate-200 text-slate-500 hover:text-red-500 transition-all shrink-0" title="回到首頁換單字">
-            <Home size={18} />
-          </button>
-
-          {/* 進度顯示 */}
-          <div className="flex-1 bg-white h-10 rounded-full shadow-sm border border-slate-200 flex items-center justify-center gap-2 text-slate-600 font-black text-[15px]">
+      <div className="w-full max-w-md mb-4 space-y-3">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2 text-slate-700 font-black text-lg bg-white px-4 py-1.5 rounded-full shadow-sm border border-slate-100">
+            <button onClick={() => openConfirm('home', '確定放棄進度回首頁？')} className="text-slate-400 hover:text-red-500"><Home size={16}/></button>
+            <div className="w-px h-4 bg-slate-200 mx-0.5"></div>
             <Brain size={18} className="text-indigo-600" />
-            {total-queue.length} / {total}
+            <span>{total - queue.length} <span className="text-slate-400 text-sm font-medium">/ {total}</span></span>
+            <div className="w-px h-4 bg-slate-200 mx-0.5"></div>
+            <button onClick={() => setShowRatingModal(true)} className="flex items-center gap-1 text-[13px] text-amber-600 hover:text-amber-700 transition-colors font-bold">📊 評分</button>
           </div>
-
-          {/* 提前結算按鈕 */}
-          <button onClick={() => openConfirm('finish', '確定要提前結束，查看目前的結算分數嗎？')} className="w-10 h-10 flex items-center justify-center bg-white rounded-full shadow-sm border border-slate-200 text-slate-500 hover:text-amber-500 transition-all shrink-0" title="提前結算看分數">
-            <Trophy size={18} />
-          </button>
-
-          {/* 儲存與分享按鈕 */}
+          
           <button onClick={async () => {
-            if (!user) {
-              setError("❌ 尚未成功連線至資料庫，請檢查上方是否有紅色的連線錯誤提示！");
-              setTimeout(() => setError(""), 4000);
-              return;
-            }
+            if (!user) return setError("尚未連線資料庫");
             if (isSaving) return;
             setIsSaving(true);
-            setError("");
-            
             try {
-              let shareId = deckId;
-              if (!shareId) {
-                shareId = (typeof crypto !== 'undefined' && crypto.randomUUID) 
-                  ? crypto.randomUUID() 
-                  : 'deck-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
-                
-                const savePromise = setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', shareId), { cards, queue, history, creator: user.uid, createdAt: new Date().toISOString() });
-                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 8000));
-                
-                await Promise.race([savePromise, timeoutPromise]);
-                
-                setDeckId(shareId); 
-                safePushState(`?deckId=${shareId}`);
-              }
-              const shareUrl = `${window.location.origin}${window.location.pathname}?deckId=${shareId}`;
-              
-              try {
-                if (navigator.clipboard && window.isSecureContext) {
-                  await navigator.clipboard.writeText(shareUrl);
-                } else {
-                  const el = document.createElement('textarea'); el.value = shareUrl; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el);
-                }
-              } catch (copyErr) {
-                console.warn("剪貼簿自動複製被阻擋");
-              }
-
-              setCopyOk(true); 
-              setTimeout(() => setCopyOk(false), 2000);
-              setShareModal({ isOpen: true, url: shareUrl });
-
-            } catch (err) {
-              if (err.message === "TIMEOUT") {
-                setError("❌ 連線遭阻擋！請檢查網路或專案 ID 是否正確。");
-              } else if (err.message.includes("permissions")) {
-                setError("❌ 資料庫權限不足！請確認 Firebase Rules 規則。");
-              } else {
-                setError("❌ 儲存失敗：" + err.message);
-              }
-              setTimeout(() => setError(""), 5000);
-            } finally {
-              setIsSaving(false);
-            }
-          }} disabled={isSaving} className={`w-10 h-10 flex items-center justify-center rounded-full shadow-md text-white transition-all shrink-0 ${copyOk ? 'bg-green-500 scale-110' : 'bg-indigo-600 hover:bg-indigo-700'}`} title="儲存與分享">
+              let shareId = deckId || crypto.randomUUID();
+              await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', shareId), { cards, queue, history, creator: user.uid, createdAt: new Date().toISOString() });
+              setDeckId(shareId); safePushState(`?deckId=${shareId}`);
+              const url = `${window.location.origin}${window.location.pathname}?deckId=${shareId}`;
+              try { await navigator.clipboard.writeText(url); } catch(e) {}
+              setCopyOk(true); setTimeout(() => setCopyOk(false), 2000);
+              setShareModal({ isOpen: true, url });
+            } catch (err) { setError("儲存失敗"); } 
+            finally { setIsSaving(false); }
+          }} disabled={isSaving} className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all shadow-sm ${copyOk ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
             {isSaving ? <Loader2 size={16} className="animate-spin" /> : copyOk ? <Check size={16} /> : <Share2 size={16} />}
+            {copyOk ? '已複製連結' : '儲存與分享'}
           </button>
         </div>
-        <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden border shadow-inner"><div className="bg-indigo-500 h-full transition-all duration-1000" style={{ width: `${((total - queue.length)/total)*100}%` }} /></div>
+        <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden shadow-inner">
+          <div className="bg-indigo-500 h-full transition-all duration-700 ease-out" style={{ width: `${progress}%` }} />
+        </div>
       </div>
 
-      <div className="relative w-full max-w-md h-[68vh] min-h-[520px] perspective-1000 group" onClick={() => !isFlipped && setIsFlipped(true)}>
-        <div className={`relative w-full h-full transition-all duration-700 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
+      <div className="relative w-full max-w-md h-[70vh] min-h-[450px] max-h-[600px] cursor-pointer perspective-1000 group" onClick={() => !isFlipped && setIsFlipped(true)}>
+        <div className={`relative w-full h-full transition-all duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
           
-          <div className="absolute inset-0 backface-hidden bg-white rounded-[3rem] shadow-2xl flex flex-col items-center justify-center p-10 border text-center">
-            <h2 className="text-[3.5rem] font-black mb-12 leading-tight break-words w-full text-slate-800">{card.word}</h2>
-            <button onClick={e => { e.stopPropagation(); speak(card.word); }} className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 shadow-inner hover:scale-110 transition-transform"><Volume2 size={40} /></button>
-            <div className="absolute bottom-10 text-slate-300 text-[11px] font-black tracking-widest uppercase animate-pulse">點擊翻面</div>
+          <div className="absolute inset-0 backface-hidden bg-white rounded-[2rem] shadow-xl flex flex-col items-center justify-center p-8 border border-slate-100">
+            <h2 className="text-[3.5rem] font-black text-slate-800 text-center leading-tight mb-8 break-words w-full">{card.word}</h2>
+            <button onClick={e => { e.stopPropagation(); speak(card.word); }} className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 hover:scale-105 transition-all shadow-sm"><Volume2 size={32} /></button>
+            <div className="absolute bottom-8 text-slate-400 text-sm font-bold tracking-widest animate-pulse">點擊翻面</div>
           </div>
           
-          <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white rounded-[3rem] shadow-2xl flex flex-col p-6 border overflow-hidden">
-            {imageUrls[card.word] && (
-              <img src={imageUrls[card.word]} className="w-full h-28 object-cover rounded-2xl mb-4 shadow-inner border border-slate-50 shrink-0" alt="" onError={e => e.target.src='https://loremflickr.com/500/300/japan'} />
-            )}
-
-            <div className="flex-1 overflow-y-auto px-1 custom-scrollbar text-center flex flex-col">
-              <div className="mb-4 pb-4 border-b border-slate-100 shrink-0">
-                <div className="text-[28px] font-black text-slate-800 leading-tight mb-2">{d_word}</div>
-                {d_reading && <div className="text-[13px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full inline-block mb-3 border border-indigo-100/50">({d_reading})</div>}
-                <div className="text-[17px] font-bold text-slate-700">{d_meaning}</div>
-              </div>
-
-              <div className="text-left space-y-3">
-                {d_breakdowns.map((b, i) => (
-                  <div key={i} className="bg-amber-50/70 p-3 rounded-2xl text-[13px] text-amber-900 font-medium leading-relaxed shadow-sm">💡 {b}</div>
-                ))}
-                
-                {d_example && (
-                  <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-100 shadow-sm">
-                    {((s) => {
-                       const m = s.match(/^(.*?)\((.*?)\)(.*)$/);
-                       if (!m) return <div className="text-[14px] text-slate-700 leading-relaxed">{s}</div>;
-                       
-                       const isEnglish = /[a-zA-Z]/.test(card.word);
-                       
-                       return <>
-                         <div className="text-[16px] font-bold text-slate-800 leading-tight mb-2">{m[1].trim()}</div>
-                         {m[2].trim() && !isEnglish && <div className="text-[14px] font-medium text-indigo-600 mb-2">({m[2].trim()})</div>}
-                         <div className="text-[14px] font-bold text-slate-700 mt-1">{m[3].trim()}</div>
-                       </>;
-                     })(d_example)}
-                  </div>
-                )}
-              </div>
+          <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white rounded-[2rem] shadow-xl flex flex-col p-4 sm:p-5 overflow-hidden border border-slate-100">
+            <div className="w-full h-[100px] sm:h-28 bg-slate-100 rounded-xl mb-3 overflow-hidden relative flex items-center justify-center shadow-inner shrink-0">
+              {imageUrls[card.word] ? (
+                <img src={imageUrls[card.word]} className="w-full h-full object-cover z-10" alt="" onError={e => e.target.src='https://loremflickr.com/400/300/japan'} />
+              ) : (
+                <div className="flex flex-col items-center text-indigo-400"><Loader2 className="w-6 h-6 animate-spin mb-1" /><span className="text-[10px] font-black uppercase">Loading...</span></div>
+              )}
             </div>
 
-            <div className="grid grid-cols-5 gap-1.5 mt-3 pt-3 border-t shrink-0">
+            <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
+              {formatBackHeader(card)}
+              {card.info.includes('【例句】') && <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 mt-2">{formatExampleText(card.info.split('【例句】')[1])}</div>}
+            </div>
+
+            <div className="grid grid-cols-5 gap-1 sm:gap-2 mt-2 pt-2 border-t border-slate-100 shrink-0">
               {btnConfig.map(btn => (
-                <button 
-                  key={btn.id} 
-                  onClick={e => { 
-                    e.stopPropagation(); 
-                    btn.id==='listen' ? speak(getSpeakableText(card)) : handleAction(btn.id); 
-                  }} 
-                  className={`flex flex-col items-center gap-1 ${btn.special?'-mt-4 hover:scale-110':'hover:scale-105'} transition-all`}
-                >
-                  <div className={`${btn.special?'w-14 h-14 rounded-full bg-indigo-600 text-white shadow-xl border-4 border-white':`w-11 h-11 rounded-2xl bg-${btn.color}-50 text-${btn.color}-600 border border-${btn.color}-100 shadow-sm`} flex items-center justify-center`}>{btn.icon}</div>
-                  <span className={`text-[10px] font-black uppercase ${btn.special?'text-indigo-600':`text-${btn.color}-500/80`}`}>{btn.label}</span>
+                <button key={btn.id} onClick={e => { e.stopPropagation(); btn.id==='listen' ? speak(getSpeakableText(card)) : handleAction(btn.id); }} className={`flex flex-col items-center gap-1 ${btn.special?'-mt-2 hover:scale-110':'hover:scale-105'} transition-all`}>
+                  <div className={`${btn.special?'w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-indigo-600 text-white shadow-md border-2 border-indigo-100':`w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-${btn.color}-50 text-${btn.color}-600 border border-${btn.color}-100 shadow-sm`} flex items-center justify-center`}>{btn.icon}</div>
+                  <span className={`text-[9px] sm:text-[10px] font-black uppercase tracking-wider ${btn.special?'text-indigo-600':`text-${btn.color}-500`}`}>{btn.label}</span>
                 </button>
               ))}
             </div>
