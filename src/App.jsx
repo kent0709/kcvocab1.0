@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Volume2, RefreshCcw, Brain, Zap, Star, Flame, Share2, Check, Loader2, AlertTriangle, ChevronRight, Clock, Home, Trophy, Lock, Trash2, Upload, CheckCircle2
+  Volume2, RefreshCcw, Brain, Zap, Star, Flame, Share2, Check, Loader2, AlertTriangle, ChevronRight, Clock, Home, Trophy, Lock, Trash2, Upload, CheckCircle2, Shuffle
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
@@ -119,7 +119,6 @@ const App = () => {
 
   const translatingRef = useRef(new Set());
   
-  // 💡 v12.6 核心魔法：記憶您的最佳模型，避免重複呼叫浪費額度
   const resolvedModelRef = useRef(isCanvas ? "gemini-2.5-flash-preview-09-2025" : "");
 
   useEffect(() => {
@@ -210,6 +209,24 @@ const App = () => {
     }
   };
 
+  // 💡 洗牌功能實作
+  const handleShuffle = async () => {
+    if (queue.length <= 1) return;
+    const newQueue = [...queue];
+    for (let i = newQueue.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [newQueue[i], newQueue[j]] = [newQueue[j], newQueue[i]];
+    }
+    setQueue(newQueue);
+    setIsFlipped(false);
+    
+    if (deckId && user) {
+      try {
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', deckId), { queue: newQueue });
+      } catch(err) {}
+    }
+  };
+
   const openConfirm = (type, message) => setConfirmDialog({ isOpen: true, type, message });
   const closeConfirm = () => setConfirmDialog({ isOpen: false, type: '', message: '' });
 
@@ -271,7 +288,6 @@ const App = () => {
     }
   };
 
-  // 💡 v12.6 智慧雷達：只在第一次呼叫時尋找舊專案的可用模型，之後就記住不再浪費額度
   const getBestModel = async (reqKey) => {
     if (resolvedModelRef.current) return resolvedModelRef.current;
     try {
@@ -282,14 +298,13 @@ const App = () => {
           .filter(m => m.supportedGenerationMethods?.includes("generateContent"))
           .map(m => m.name.replace("models/", ""));
         
-        // 自動替換成您帳號能用的最優模型（對付舊專案沒有 1.5-flash 的問題）
         if (names.includes("gemini-1.5-flash")) resolvedModelRef.current = "gemini-1.5-flash";
         else if (names.includes("gemini-1.5-pro")) resolvedModelRef.current = "gemini-1.5-pro";
-        else if (names.includes("gemini-pro")) resolvedModelRef.current = "gemini-pro"; // 舊專案的救星！
+        else if (names.includes("gemini-pro")) resolvedModelRef.current = "gemini-pro"; 
         else if (names.length > 0) resolvedModelRef.current = names[0];
         else resolvedModelRef.current = "gemini-1.5-flash";
       } else {
-        resolvedModelRef.current = "gemini-pro"; // 出錯時預設給舊專案可用型號
+        resolvedModelRef.current = "gemini-pro"; 
       }
     } catch(e) {
       resolvedModelRef.current = "gemini-pro";
@@ -312,7 +327,6 @@ const App = () => {
       ? `請分析以下文字：\n"""${input}"""\n這是一份「英文學習清單」。請提取出英文單字。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯"}]。請只回傳 JSON。`
       : `請分析以下文字：\n"""${input}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
 
-    // 使用智慧雷達尋找模型
     const modelToUse = await getBestModel(reqKey);
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${reqKey}`;
     
@@ -380,7 +394,6 @@ const App = () => {
     if (cards.length === 0 || isFinished) return;
 
     const loadImages = async () => {
-      // 一樣保留每次只預載 2 張圖片的省流設定
       const nextCards = queue.slice(0, 2).map(idx => cards[idx]);
       for (const card of nextCards) {
         if (!card || imageUrls[card.word] || translatingRef.current.has(card.word)) continue;
@@ -578,7 +591,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v12.6 終極完美融合版 byKC</span>
+          <span>v12.7 隨機洗牌版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-red-400 text-slate-400 transition-colors flex items-center gap-1">
                <Trash2 size={10} /> 刪除本地記憶金鑰
@@ -615,9 +628,22 @@ const App = () => {
               <p className="text-green-500 text-[9px] font-bold uppercase tracking-widest">Easy</p>
             </div>
           </div>
-          <button onClick={() => { setQueue(Array.from({length: cards.length}, (_, i) => i)); setHistory({again:0, hard:0, good:0, easy:0}); setIsFinished(false); }} className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl hover:bg-black transition-all">
-            <RefreshCcw size={18} />重新開始
-          </button>
+          
+          <div className="flex gap-3 w-full">
+            <button onClick={() => { setQueue(Array.from({length: cards.length}, (_, i) => i)); setHistory({again:0, hard:0, good:0, easy:0}); setIsFinished(false); }} className="flex-1 bg-slate-200 text-slate-700 font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-md hover:bg-slate-300 transition-all">
+              <RefreshCcw size={18} />循序重來
+            </button>
+            <button onClick={() => { 
+                const newQ = Array.from({length: cards.length}, (_, i) => i);
+                for(let i = newQ.length - 1; i > 0; i--){
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [newQ[i], newQ[j]] = [newQ[j], newQ[i]];
+                }
+                setQueue(newQ); setHistory({again:0, hard:0, good:0, easy:0}); setIsFinished(false); 
+            }} className="flex-1 bg-slate-900 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl hover:bg-black transition-all">
+              <Shuffle size={18} />洗牌重來
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -695,6 +721,8 @@ const App = () => {
             <div className="w-px h-4 bg-slate-200 mx-0.5"></div>
             <Brain size={18} className="text-indigo-600" />
             <span>{total - queue.length} <span className="text-slate-400 text-sm font-medium">/ {total}</span></span>
+            <div className="w-px h-4 bg-slate-200 mx-0.5"></div>
+            <button onClick={handleShuffle} className="text-indigo-400 hover:text-indigo-600 transition-colors" title="隨機洗牌"><Shuffle size={16}/></button>
             <div className="w-px h-4 bg-slate-200 mx-0.5"></div>
             <button onClick={() => setShowRatingModal(true)} className="flex items-center gap-1 text-[13px] text-amber-600 hover:text-amber-700 transition-colors font-bold">📊 評分</button>
           </div>
