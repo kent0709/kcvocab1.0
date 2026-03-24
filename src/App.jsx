@@ -7,7 +7,7 @@ import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged }
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
 // --- 1. Firebase 資料庫專用配置 ---
-// 這裡保留了您最新且正確的設定檔，請放心使用！
+// 這是 Firebase 的公開配置，放在程式碼裡是安全的，因為我們已經鎖定了網域授權
 const firebaseConfig = {
   apiKey: "AIzaSyD2dxrjW68kjR66RgeFdXl2o4jW2ooGwwU",
   authDomain: "killercards.firebaseapp.com",
@@ -18,7 +18,7 @@ const firebaseConfig = {
   measurementId: "G-PVFYPMRPH2"
 };
 
-// --- 2. 金鑰自動讀取機制 (完全移除寫死在程式碼的風險) ---
+// --- 2. AI 金鑰讀取機制 (完全移除明碼與切半邏輯，只依賴環境變數與本機暫存) ---
 const getEnvKey = () => {
   try {
     const env = typeof import.meta !== 'undefined' ? import.meta.env : (typeof process !== 'undefined' ? process.env : {});
@@ -56,7 +56,7 @@ const safePushState = (url) => {
   } catch (e) {}
 };
 
-// --- 新增：國小必備 300 單字庫 (依難易度分三級) ---
+// --- 國小必備 300 單字庫 (依難易度分三級) ---
 const vocabLow = [
   { word: "zero", meaning: "零" }, { word: "one", meaning: "一" }, { word: "two", meaning: "二" }, { word: "three", meaning: "三" },
   { word: "four", meaning: "四" }, { word: "five", meaning: "五" }, { word: "six", meaning: "六" }, { word: "seven", meaning: "七" },
@@ -96,7 +96,7 @@ const vocabHigh = [
 ];
 
 const App = () => {
-  // 只依賴 Vercel 環境變數或本地快取，絕對不從程式碼讀取，避免 GitHub 外洩！
+  // AI 金鑰完全只依賴 Vercel 環境變數或本地 LocalStorage
   const [activeApiKey, setActiveApiKey] = useState(() => isCanvas ? "" : (getEnvKey() || getLocalKey()));
   const [keyInput, setKeyInput] = useState('');
 
@@ -236,7 +236,6 @@ const App = () => {
     closeConfirm();
   };
 
-  // 💡 新增：載入內建單字庫的專用函數
   const loadPresetCards = (vocabList) => {
     const newCards = vocabList.map(item => ({
       word: item.word,
@@ -265,6 +264,11 @@ const App = () => {
       return;
     }
 
+    if (reqKey === firebaseConfig.apiKey) {
+      setError('❌ 致命錯誤：您把「Firebase 資料庫金鑰」誤填成「AI 金鑰」了！\n請前往 Google AI Studio 申請真正的 Gemini AI 金鑰！');
+      return;
+    }
+
     setGenLoading(true); setError('');
     const isEn = /[a-zA-Z]/.test(input);
     
@@ -272,10 +276,9 @@ const App = () => {
       ? `請分析以下文字：\n"""${input}"""\n這是一份「英文學習清單」。請提取出英文單字。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯"}]。請只回傳 JSON。`
       : `請分析以下文字：\n"""${input}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
 
-    // 💡 v11.5 核心修復：移除了會報錯的不穩定模型，僅保留最穩定、權限最開的標準模型名稱。
     const targetModels = isCanvas 
       ? ["gemini-2.5-flash-preview-09-2025"] 
-      : ["gemini-1.5-flash", "gemini-1.5-pro"];
+      : ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"];
     
     const payload = {
         contents: [{ parts: [{ text: prompt }] }],
@@ -286,14 +289,12 @@ const App = () => {
     let lastError = "";
     let isKeyInvalid = false;
 
-    // 外層迴圈：嘗試不同的模型名稱
     for (const model of targetModels) {
         if (success || isKeyInvalid) break;
         
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${reqKey}`;
         const delays = [1000, 2000, 4000];
 
-        // 內層迴圈：遇到伺服器擁擠時的自動重試機制
         for (let attempt = 0; attempt <= 3; attempt++) {
             try {
                 const res = await fetch(url, {
@@ -307,9 +308,11 @@ const App = () => {
                 if (!res.ok) {
                     const errMsg = data.error?.message || "未知錯誤";
                     
-                    // 遇到 404 (找不到模型)：直接跳出內層迴圈，換下一個模型名字嘗試
                     if (res.status === 404) {
-                        lastError = `模型 ${model} 不可用，自動切換備用模型中...`;
+                        lastError = `模型 ${model} 不可用...`;
+                        if (model === targetModels[targetModels.length - 1]) {
+                            lastError = `您輸入的 AI 金鑰權限不足，找不到可用的模型！\n請確認這把金鑰是從「Google AI Studio」申請的，而不是 Firebase。`;
+                        }
                         break; 
                     }
                     
@@ -326,7 +329,7 @@ const App = () => {
                     if (res.status === 400 || res.status === 403) {
                         setActiveApiKey(''); 
                         try { localStorage.removeItem('my_gemini_key'); } catch(e){}
-                        lastError = `您的 AI 金鑰已被 Google 停權！請至 Vercel 更新 VITE_GEMINI_API_KEY。`;
+                        lastError = `您的 AI 金鑰已被 Google 停權或無效！請至 Vercel 更新 VITE_GEMINI_API_KEY。`;
                         isKeyInvalid = true;
                         break; 
                     }
@@ -354,7 +357,7 @@ const App = () => {
                 setTotal(newCards.length);
                 setIsFinished(false); setIsFlipped(false);
                 success = true;
-                break; // 成功生出單字卡，跳出內外所有迴圈
+                break; 
                 
             } catch (e) { 
                 lastError = "伺服器處理失敗，正在嘗試修復中...";
@@ -388,7 +391,6 @@ const App = () => {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600 w-12 h-12" /></div>;
 
-  // --- 確保用戶明確知道要去 Vercel 設定，而不是從 UI 填寫容易被洗掉的金鑰 ---
   if (!isCanvas && !activeApiKey) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
@@ -405,7 +407,7 @@ const App = () => {
               <li>前往 <b>Vercel 後台</b> 的專案設定 (Settings)</li>
               <li>點選 <b>Environment Variables</b></li>
               <li>新增變數：<br/><span className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600 font-bold">VITE_GEMINI_API_KEY</span></li>
-              <li>貼上您全新申請的 API 金鑰並儲存</li>
+              <li>貼上您 <a href="https://aistudio.google.com/" target="_blank" className="text-blue-500 underline">Google AI Studio</a> 申請的全新金鑰並儲存</li>
               <li>至 Deployments 點擊 <b>Redeploy</b> 重新發布</li>
             </ol>
           </div>
@@ -417,7 +419,6 @@ const App = () => {
   if (cards.length === 0) return (
     <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center text-center">
       
-      {/* 密碼驗證彈窗 */}
       {pwdModal.isOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
@@ -459,7 +460,6 @@ const App = () => {
         
         <h1 className="text-2xl font-black mb-6 text-slate-800">Killer Cards</h1>
         
-        {/* 💡 新增：國小必備單字內建按鈕區 */}
         <div className="bg-indigo-50/50 p-4 rounded-2xl mb-5 border border-indigo-100">
           <div className="text-[13px] font-black text-indigo-800 mb-3 text-left flex items-center gap-2">
             <Zap size={16} className="text-amber-500" />
@@ -490,7 +490,7 @@ const App = () => {
         <textarea value={input} onChange={e => setInput(e.target.value)} placeholder="貼上想背的單字..." className="w-full h-32 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" />
         
         {error && (
-          <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed whitespace-pre-wrap ${error.includes('連線失敗') || error.includes('發生錯誤') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+          <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed whitespace-pre-wrap ${error.includes('連線失敗') || error.includes('發生錯誤') || error.includes('致命錯誤') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
             {error.includes('請求太快') ? <Clock size={18} className="shrink-0 mt-0.5" /> : <AlertTriangle size={18} className="shrink-0 mt-0.5" />}
             {error}
           </div>
@@ -501,7 +501,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v11.5 終極穩固模型版 byKC</span>
+          <span>v11.7 純淨無金鑰版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-indigo-400 transition-colors flex items-center gap-1">
                <Trash2 size={10} /> 刪除本地舊鑰匙
