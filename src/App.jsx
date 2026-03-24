@@ -7,16 +7,15 @@ import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged }
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
 // --- 1. Firebase 資料庫專用配置 ---
-// 已經為您重新放入正確的 Firebase 專屬金鑰與資料庫網址，並同步至兩邊檔案
+// ⚠️ 因為您刪除了舊專案，請將下方整段替換成您「全新 Firebase 專案」的設定檔！
 const firebaseConfig = {
-  apiKey: "AIzaSyBTcPWX29sXFY0dqzOpJn8We6uoJLwHv9U",
-  authDomain: "kcvocabapp.firebaseapp.com",
-  databaseURL: "https://kcvocabapp-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "kcvocabapp",
-  storageBucket: "kcvocabapp.firebasestorage.app",
-  messagingSenderId: "835597766849",
-  appId: "1:835597766849:web:962ccd9b694c7e08250440",
-  measurementId: "G-C1SDRQR6MS"
+  apiKey: "AIzaSyD2dxrjW68kjR66RgeFdXl2o4jW2ooGwwU",
+  authDomain: "killercards.firebaseapp.com",
+  projectId: "killercards",
+  storageBucket: "killercards.firebasestorage.app",
+  messagingSenderId: "281065379733",
+  appId: "1:281065379733:web:06fc2160b85fae7579c89c",
+  measurementId: "G-PVFYPMRPH2"
 };
 
 // --- 2. 金鑰自動讀取與親友共享機制 ---
@@ -45,7 +44,7 @@ const app = initializeApp(isCanvas ? JSON.parse(__firebase_config) : firebaseCon
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-const appId = typeof __app_id !== 'undefined' ? String(__app_id).replace(/\//g, '_') : 'kcvocabapp';
+const appId = typeof __app_id !== 'undefined' ? String(__app_id).replace(/\//g, '_') : (firebaseConfig.projectId !== '請在此填入新的_projectId' ? firebaseConfig.projectId : 'kcvocabapp');
 
 // 安全更新網址列，避免在特定環境中產生錯誤
 const safePushState = (url) => {
@@ -98,6 +97,12 @@ const App = () => {
   useEffect(() => {
     const initAuth = async () => {
       try {
+        if (firebaseConfig.apiKey === "請在此填入新的_apiKey") {
+          setError("❌ 請先至程式碼第 11 行替換您全新的 Firebase 設定檔 (firebaseConfig)！");
+          setLoading(false);
+          return;
+        }
+
         if (isCanvas && typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           await signInWithCustomToken(auth, __initial_auth_token);
         } else {
@@ -107,8 +112,8 @@ const App = () => {
         console.error("登入錯誤", err);
         // 💡 加入更精準的錯誤判斷，直接告訴使用者哪裡沒設定好
         let errMsg = "❌ Firebase 連線失敗：";
-        if (err.code === 'auth/api-key-expired') {
-          errMsg += "您的 Firebase API 金鑰已過期，請至 Firebase 後台更新 firebaseConfig！";
+        if (err.code === 'auth/api-key-expired' || err.code === 'auth/invalid-api-key') {
+          errMsg += "您的 Firebase 專案已刪除或金鑰失效！請去 Firebase 建立新專案，並把新的 firebaseConfig 貼到程式碼。";
         } else if (err.code === 'auth/operation-not-allowed') {
           errMsg += "請至 Firebase 後台開啟「匿名登入 (Anonymous)」！";
         } else if (err.code === 'auth/unauthorized-domain') {
@@ -433,7 +438,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v10.5 同步金鑰版 byKC</span>
+          <span>v10.6 全新資料庫準備版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-indigo-400 transition-colors flex items-center gap-1">
                <Lock size={10} /> 重新設定金鑰
