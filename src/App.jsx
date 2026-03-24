@@ -284,8 +284,8 @@ const App = () => {
       ? `請分析以下文字：\n"""${input}"""\n這是一份「英文學習清單」。請提取出英文單字。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯"}]。請只回傳 JSON。`
       : `請分析以下文字：\n"""${input}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
 
-    // 💡 修正：使用最穩定版本的模型，移除不穩定的前綴測試版
-    const targetModels = isCanvas ? ["gemini-2.5-flash-preview-09-2025"] : ["gemini-1.5-flash", "gemini-1.5-pro"];
+    // 💡 v12.1 終極備援：加入所有可用模型，並在全部都報 404 時給出最終警告
+    const targetModels = isCanvas ? ["gemini-2.5-flash-preview-09-2025"] : ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-pro", "gemini-1.5-pro"];
     
     const payload = {
         contents: [{ parts: [{ text: prompt }] }],
@@ -297,6 +297,7 @@ const App = () => {
 
     for (const model of targetModels) {
         if (success) break;
+        let modelFailed = false; // 紀錄單一模型是否徹底失敗
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${reqKey}`;
 
         for (let attempt = 0; attempt < 3; attempt++) {
@@ -310,24 +311,23 @@ const App = () => {
                 const data = await res.json();
 
                 if (!res.ok) {
-                    // 💡 修復盲點：遇到 404 找不到模型，不要清空金鑰，換下一個模型名字試試！
                     if (res.status === 404) {
-                        lastError = `模型 ${model} 不可用...`;
-                        break; 
+                        lastError = `🚨 致命錯誤：您的金鑰已連上，但找不到 AI 模型 (404)！\n這 100% 代表您放在 Vercel 的是一把「沒有 AI 權限」的資料庫金鑰。\n👉 請務必前往 aistudio.google.com 重新產生，並到 Vercel 替換掉！`;
+                        modelFailed = true;
+                        break; // 換下一個模型試試
                     }
                     if (res.status === 429 || res.status === 503) {
                         await new Promise(r => setTimeout(r, 2000));
                         lastError = "Google 伺服器忙碌中，請稍後重試。";
                         continue; 
                     } 
-                    // 只有真正的 400/403 才是金鑰無效
                     if (res.status === 400 || res.status === 403) {
                         setActiveApiKey(''); 
                         try { localStorage.removeItem('my_gemini_key'); } catch(e){}
                         lastError = `🚨 您的 API 金鑰無效或被停權，請重新設定！`;
                         setGenLoading(false);
                         setError(lastError);
-                        return; // 直接中斷
+                        return; // 金鑰徹底無效，直接中斷
                     }
                     lastError = `發生錯誤：${data.error?.message}`;
                     break;
@@ -352,12 +352,13 @@ const App = () => {
                 setTotal(newCards.length);
                 setIsFinished(false); setIsFlipped(false);
                 success = true;
-                break; 
+                break; // 成功，跳出重試迴圈
             } catch (e) { 
                 lastError = "伺服器處理失敗，請稍後再試...";
                 await new Promise(r => setTimeout(r, 2000));
             }
         }
+        if (modelFailed) continue; // 如果這個模型 404，繼續試下一個模型
     }
 
     if (!success) setError(`❌ ${lastError}`);
@@ -568,7 +569,7 @@ const App = () => {
         <textarea value={input} onChange={e => setInput(e.target.value)} placeholder="貼上想背的單字..." className="w-full h-32 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" />
         
         {error && (
-          <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed whitespace-pre-wrap ${error.includes('連線失敗') || error.includes('發生錯誤') || error.includes('權限錯誤') || error.includes('無效') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+          <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed whitespace-pre-wrap ${error.includes('連線失敗') || error.includes('發生錯誤') || error.includes('權限錯誤') || error.includes('致命錯誤') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
             {error.includes('請求太快') ? <Clock size={18} className="shrink-0 mt-0.5" /> : <AlertTriangle size={18} className="shrink-0 mt-0.5" />}
             {error}
           </div>
@@ -579,7 +580,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v12.0 終極修復版 byKC</span>
+          <span>v12.1 終極模型偵測版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-red-400 text-slate-400 transition-colors flex items-center gap-1">
                <Trash2 size={10} /> 刪除本地舊鑰匙
