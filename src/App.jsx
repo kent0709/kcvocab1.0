@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Volume2, RefreshCcw, Brain, Zap, Star, Flame, Share2, Check, Loader2, AlertTriangle, ChevronRight, Clock, Home, Trophy
+  Volume2, RefreshCcw, Brain, Zap, Star, Flame, Share2, Check, Loader2, AlertTriangle, ChevronRight, Clock, Home, Trophy, Lock
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
-// --- 1. Firebase 資料庫專用配置 ---
+// --- 1. Firebase 資料庫專用配置 (保持原樣，這是安全的) ---
 const firebaseConfig = {
-  apiKey: "AIzaSyBTcPWX29sXFY0dqzOpJn8We6uoJLwHv9U", // 👈 換回您專屬的 Firebase 金鑰，連線就不會卡死了
+  apiKey: "AIzaSyBTcPWX29sXFY0dqzOpJn8We6uoJLwHv9U",
   authDomain: "kcvocabapp.firebaseapp.com",
   databaseURL: "https://kcvocabapp-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "kcvocabapp",
@@ -18,21 +18,18 @@ const firebaseConfig = {
   measurementId: "G-C1SDRQR6MS"
 };
 
-// --- 2. Google AI 金鑰 (Gemini 專用) ---
-// 這裡放的是您稍早申請的那把 AI 鑰匙，一樣做拼接防護
-const keyPart1 = "AIzaSyAQqoHqY0l";
-const keyPart2 = "pfWCGyq2Xacgp7kl4x6mwWWY";
-const fallbackKey = keyPart1 + keyPart2;
+// --- 2. 終極金鑰保險箱機制 (絕對不在程式碼裡留明碼) ---
+const getEnvKey = () => {
+  try {
+    const env = typeof import.meta !== 'undefined' ? import.meta.env : (typeof process !== 'undefined' ? process.env : {});
+    if (env?.VITE_GEMINI_API_KEY) return env.VITE_GEMINI_API_KEY;
+  } catch(e) {}
+  return "";
+};
 
-let GEMINI_API_KEY = fallbackKey;
-try {
-  const env = typeof import.meta !== 'undefined' ? import.meta.env : (typeof process !== 'undefined' ? process.env : {});
-  if (env?.VITE_GEMINI_API_KEY) {
-    GEMINI_API_KEY = env.VITE_GEMINI_API_KEY;
-  }
-} catch (e) {
-  // 靜默攔截環境變數讀取錯誤
-}
+const getLocalKey = () => {
+  try { return localStorage.getItem('my_gemini_key') || ""; } catch(e) { return ""; }
+};
 
 // 自動判斷環境
 const isCanvas = typeof __firebase_config !== 'undefined';
@@ -41,7 +38,6 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 const appId = typeof __app_id !== 'undefined' ? String(__app_id).replace(/\//g, '_') : 'kcvocabapp';
-const apiKey = isCanvas ? "" : GEMINI_API_KEY;
 
 // 安全更新網址列，避免在特定環境中產生錯誤
 const safePushState = (url) => {
@@ -63,6 +59,10 @@ const safePushState = (url) => {
 };
 
 const App = () => {
+  // AI 金鑰狀態管理
+  const [activeApiKey, setActiveApiKey] = useState(() => isCanvas ? "" : (getEnvKey() || getLocalKey()));
+  const [keyInput, setKeyInput] = useState('');
+
   const [user, setUser] = useState(null);
   const [cards, setCards] = useState([]);
   const [queue, setQueue] = useState([]);
@@ -176,7 +176,6 @@ const App = () => {
     if (deckId && user) {
       try {
         const updatePromise = updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', deckId), { queue: nextQ, history: nextH });
-        // 加入 5 秒背景更新超時，避免卡死
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 5000));
         await Promise.race([updatePromise, timeoutPromise]);
       } catch(err) {
@@ -207,7 +206,8 @@ const App = () => {
   const generate = async () => {
     if (!input.trim() || genLoading) return;
     
-    if (!apiKey) {
+    const reqKey = isCanvas ? "" : activeApiKey;
+    if (!reqKey && !isCanvas) {
       setError('❌ 找不到 API 金鑰！');
       return;
     }
@@ -215,7 +215,6 @@ const App = () => {
     setGenLoading(true); setError('');
     const isEn = /[a-zA-Z]/.test(input);
     
-    // 💡 智慧語系翻譯指令
     const prompt = isEn 
       ? `請分析以下文字：\n"""${input}"""\n這是一份「英文學習清單」。請提取出英文單字。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯"}]。請只回傳 JSON。`
       : `請分析以下文字：\n"""${input}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
@@ -231,7 +230,7 @@ const App = () => {
 
     for (const target of targets) {
       try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/${target.v}/models/${target.m}:generateContent?key=${apiKey}`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/${target.v}/models/${target.m}:generateContent?key=${reqKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
@@ -243,7 +242,9 @@ const App = () => {
           const errMsg = data.error?.message || "";
           
           if (res.status === 400 || res.status === 403) {
-            lastError = `API 金鑰無效或已被 Google 停權。請申請一把「全新」的金鑰替換！`;
+            lastError = `API 金鑰無效或已被 Google 停權。請點擊首頁重新設定金鑰！`;
+            setActiveApiKey(''); // 清除失效的金鑰
+            try { localStorage.removeItem('my_gemini_key'); } catch(e){}
             break; 
           }
 
@@ -310,6 +311,45 @@ const App = () => {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600 w-12 h-12" /></div>;
 
+  // --- 獨家防護：金鑰輸入畫面 ---
+  if (!isCanvas && !activeApiKey) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="bg-white p-8 rounded-[2rem] shadow-2xl max-w-md w-full border border-slate-100 text-center relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-2 bg-indigo-500"></div>
+          <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 mx-auto mb-6 shadow-inner">
+             <Lock size={32} />
+          </div>
+          <h1 className="text-2xl font-black text-slate-800 mb-4">安全連線設定</h1>
+          <p className="text-[13px] text-slate-500 mb-6 font-medium text-left leading-relaxed">
+            為了防止 GitHub 機器人誤掃並封鎖您的帳號，我們已將金鑰從程式碼中抽離。<br/><br/>
+            請去申請一把<b>全新的 Gemini API 金鑰</b>，並直接貼在下方。<br/>
+            <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded">這把金鑰只會保存在您的瀏覽器中，絕對安全！</span>
+          </p>
+          <input
+            type="password"
+            value={keyInput}
+            onChange={e => setKeyInput(e.target.value)}
+            placeholder="請貼上 AIzaSy 開頭的全新金鑰..."
+            className="w-full p-4 mb-4 bg-slate-50 border-2 border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-medium transition-colors"
+          />
+          <button
+            onClick={() => {
+              if (keyInput.trim()) {
+                try { localStorage.setItem('my_gemini_key', keyInput.trim()); } catch(e) {}
+                setActiveApiKey(keyInput.trim());
+              }
+            }}
+            disabled={!keyInput.trim()}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black py-4 rounded-xl shadow-md transition-all flex justify-center items-center gap-2"
+          >
+            安全儲存並進入 App <ChevronRight size={18} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (cards.length === 0) return (
     <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center text-center">
       <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-md w-full border border-slate-100">
@@ -331,8 +371,15 @@ const App = () => {
           {genLoading ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {genLoading ? '請求中...' : 'AI 智慧生成單字卡'}
         </button>
         
-        {/* 客製化署名 */}
-        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest uppercase">v9.9 完美鑰匙歸位版 byKC</div>
+        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
+          <span>v10.0 終極金鑰保險箱版 byKC</span>
+          {!isCanvas && (
+             <button onClick={() => {
+                setActiveApiKey('');
+                try { localStorage.removeItem('my_gemini_key'); } catch(e){}
+             }} className="hover:text-indigo-400 transition-colors">重新設定金鑰</button>
+          )}
+        </div>
       </div>
     </div>
   );
