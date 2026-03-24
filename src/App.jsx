@@ -119,7 +119,7 @@ const App = () => {
 
   const translatingRef = useRef(new Set());
   
-  // 💡 v12.9 核心：記憶您金鑰專屬的可用模型名稱
+  // 💡 記憶真實抓取到的模型
   const workingModelRef = useRef(isCanvas ? "gemini-2.5-flash-preview-09-2025" : "");
 
   useEffect(() => {
@@ -279,6 +279,12 @@ const App = () => {
         setIsValidatingKey(false);
         return;
       }
+      
+      const data = await res.json();
+      const validModels = (data.models || []).filter(m => m.supportedGenerationMethods?.includes("generateContent")).map(m => m.name.replace("models/", ""));
+      const preferred = ["gemini-1.5-flash", "gemini-2.5-flash", "gemini-1.5-pro", "gemini-pro"];
+      workingModelRef.current = preferred.find(p => validModels.includes(p)) || validModels[0] || "";
+
       localStorage.setItem('my_gemini_key', tk);
       setActiveApiKey(tk);
     } catch (e) {
@@ -288,7 +294,7 @@ const App = () => {
     }
   };
 
-  // 💡 v12.9 終極自適應：把所有可能的模型排成陣列，一個一個試到通為止！
+  // 💡 v13.0 終極透視眼機制
   const generate = async () => {
     if (!input.trim() || genLoading) return;
     const reqKey = isCanvas ? "" : activeApiKey;
@@ -297,20 +303,59 @@ const App = () => {
       return;
     }
 
-    setGenLoading(true); setError('');
-    const isEn = /[a-zA-Z]/.test(input);
+    setGenLoading(true); 
+    setError('🔍 正在連線 Google 總部，查詢您金鑰的可用權限...');
     
+    const isEn = /[a-zA-Z]/.test(input);
     const prompt = isEn 
       ? `請分析以下文字：\n"""${input}"""\n這是一份「英文學習清單」。請提取出英文單字。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯"}]。請只回傳 JSON。`
       : `請分析以下文字：\n"""${input}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯"}]。請只回傳 JSON。`;
 
-    // 優先使用已成功過的模型，否則將所有可用模型輪詢一次
-    const targetModels = isCanvas 
-      ? ["gemini-2.5-flash-preview-09-2025"] 
-      : workingModelRef.current 
-        ? [workingModelRef.current] 
-        : ["gemini-1.5-flash", "gemini-pro", "gemini-1.5-pro", "gemini-1.0-pro"];
-    
+    let modelToUse = isCanvas ? "gemini-2.5-flash-preview-09-2025" : workingModelRef.current;
+
+    // 如果沒有記憶模型，直接查清單！
+    if (!modelToUse) {
+        try {
+            const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${reqKey}`);
+            if (!listRes.ok) {
+                if (listRes.status === 403) {
+                    setError(`🚨 致命錯誤 (403)：您的金鑰完全沒有開通「AI 生成權限」！\n這通常是因為您在 Google Cloud 建立，卻沒有啟用 Generative Language API。\n👉 請用一個全新的 Google 帳號，前往 aistudio.google.com 重新申請一把！`);
+                } else if (listRes.status === 400) {
+                    setError(`🚨 致命錯誤 (400)：這把金鑰是假的或格式錯誤！`);
+                    setActiveApiKey('');
+                    try { localStorage.removeItem('my_gemini_key'); } catch(e){}
+                } else {
+                    const errData = await listRes.json();
+                    setError(`❌ Google 拒絕連線 (${listRes.status}): ${errData.error?.message}`);
+                }
+                setGenLoading(false);
+                return;
+            }
+
+            const listData = await listRes.json();
+            const validModels = (listData.models || [])
+                .filter(m => m.supportedGenerationMethods?.includes("generateContent"))
+                .map(m => m.name.replace("models/", ""));
+
+            if (validModels.length === 0) {
+                 setError(`🚨 驚人發現：鑰匙是真的，但 Google 說您「擁有 0 個可用模型」！\n這通常代表：\n1. 您的 Google Cloud 專案太舊或被限制。\n2. 您選擇的地區不支援 Gemini。\n👉 唯一解法：請用一個「全新的 Google 帳號」，登入 aistudio.google.com 重新申請！`);
+                 setGenLoading(false);
+                 return;
+            }
+
+            const preferred = ["gemini-1.5-flash", "gemini-2.5-flash", "gemini-1.5-pro", "gemini-pro"];
+            modelToUse = preferred.find(p => validModels.includes(p)) || validModels[0];
+            workingModelRef.current = modelToUse;
+
+        } catch (e) {
+            setError(`❌ 掃描模型失敗：請檢查網路連線。`);
+            setGenLoading(false);
+            return;
+        }
+    }
+
+    setError(''); // 掃描成功，清空提示開始生成
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${reqKey}`;
     const payload = {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { responseMimeType: "application/json" }
@@ -319,76 +364,65 @@ const App = () => {
     let success = false;
     let lastError = "";
 
-    // 自動輪詢所有模型
-    for (const model of targetModels) {
-        if (success) break;
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${reqKey}`;
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
 
-        // 失敗時重試機制 (對付 429 忙碌)
-        for (let attempt = 0; attempt < 3; attempt++) {
-            try {
-                const res = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+            const data = await res.json();
 
-                const data = await res.json();
-
-                if (!res.ok) {
-                    if (res.status === 404) {
-                        // 💡 這個模型名字在你的金鑰不適用，直接跳出重試迴圈，馬上換下一個模型！
-                        lastError = `找不到模型 ${model}，切換中...`;
-                        break; 
-                    }
-                    if (res.status === 429 || res.status === 503) {
-                        await new Promise(r => setTimeout(r, (attempt + 1) * 2000));
-                        lastError = "⏳ 伺服器目前接收到太多請求，請稍等幾秒後再試！";
-                        continue; 
-                    } 
-                    if (res.status === 400 || res.status === 403) {
-                        setActiveApiKey(''); 
-                        try { localStorage.removeItem('my_gemini_key'); } catch(e){}
-                        lastError = `🚨 您的 API 金鑰無效或權限不足，請重新設定！`;
-                        setGenLoading(false);
-                        setError(lastError);
-                        return; // 金鑰直接無效，果斷中斷
-                    }
-                    
-                    lastError = `發生錯誤：${data.error?.message || "未知錯誤"}`;
+            if (!res.ok) {
+                if (res.status === 429 || res.status === 503) {
+                    await new Promise(r => setTimeout(r, (attempt + 1) * 2000));
+                    lastError = "⏳ 伺服器目前接收到太多請求，請稍等幾秒後再試！";
+                    continue; 
+                } 
+                if (res.status === 400 || res.status === 403) {
+                    setActiveApiKey('');
+                    workingModelRef.current = "";
+                    try { localStorage.removeItem('my_gemini_key'); } catch(e){}
+                    lastError = `🚨 您的 API 金鑰無效或權限被收回，請重新設定！`;
+                    break;
+                }
+                if (res.status === 404) {
+                    workingModelRef.current = ""; // 逼它下次重查
+                    lastError = `🚨 模型 ${modelToUse} 突然失效，請再點擊一次重新掃描。`;
                     break;
                 }
                 
-                // 成功了！立刻把這個能用的模型名字記下來
-                workingModelRef.current = model;
-                
-                const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
-                const parsed = JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim());
-                
-                const newCards = parsed.map(c => ({
-                  word: c.word,
-                  reading: c.reading || '',
-                  meaning: c.meaning || '',
-                  breakdown: c.breakdown || '',
-                  example: c.example || '',
-                  example_kana: c.example_kana || '',
-                  example_zh: c.example_zh || '',
-                  info: `${c.reading || ''} ${c.meaning || ''} 💡 [分析] ${c.breakdown || ''} 【例句】${c.example || ''}(${c.example_kana || ''})${c.example_zh || ''}`
-                }));
-                
-                setCards(newCards);
-                setQueue(Array.from({length: newCards.length}, (_, i) => i));
-                setTotal(newCards.length);
-                setIsFinished(false); setIsFlipped(false);
-                success = true;
-                break; 
-                
-            } catch (e) { 
-                if (attempt < 2) {
-                    await new Promise(r => setTimeout(r, 2000));
-                } else {
-                    lastError = `系統連線異常：請稍後再試。`;
-                }
+                lastError = `發生錯誤：${data.error?.message || "未知錯誤"}`;
+                break;
+            }
+            
+            const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+            const parsed = JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim());
+            
+            const newCards = parsed.map(c => ({
+              word: c.word,
+              reading: c.reading || '',
+              meaning: c.meaning || '',
+              breakdown: c.breakdown || '',
+              example: c.example || '',
+              example_kana: c.example_kana || '',
+              example_zh: c.example_zh || '',
+              info: `${c.reading || ''} ${c.meaning || ''} 💡 [分析] ${c.breakdown || ''} 【例句】${c.example || ''}(${c.example_kana || ''})${c.example_zh || ''}`
+            }));
+            
+            setCards(newCards);
+            setQueue(Array.from({length: newCards.length}, (_, i) => i));
+            setTotal(newCards.length);
+            setIsFinished(false); setIsFlipped(false);
+            success = true;
+            break; 
+            
+        } catch (e) { 
+            if (attempt < 2) {
+                await new Promise(r => setTimeout(r, 2000));
+            } else {
+                lastError = `系統連線異常：請稍後再試。`;
             }
         }
     }
@@ -587,18 +621,18 @@ const App = () => {
         <textarea value={input} onChange={e => setInput(e.target.value)} placeholder="貼上想背的單字..." className="w-full h-32 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" />
         
         {error && (
-          <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed whitespace-pre-wrap ${error.includes('連線失敗') || error.includes('發生錯誤') || error.includes('錯誤') || error.includes('系統錯誤') || error.includes('致命錯誤') || error.includes('Google AI 免費版限制') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
-            {error.includes('請求太快') || error.includes('等待') ? <Clock size={18} className="shrink-0 mt-0.5" /> : <AlertTriangle size={18} className="shrink-0 mt-0.5" />}
+          <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed whitespace-pre-wrap ${error.includes('連線失敗') || error.includes('發現') || error.includes('錯誤') || error.includes('系統異常') || error.includes('異常') || error.includes('限制') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+            {error.includes('請求') || error.includes('掃描') ? <Clock size={18} className="shrink-0 mt-0.5" /> : <AlertTriangle size={18} className="shrink-0 mt-0.5" />}
             {error}
           </div>
         )}
 
         <button onClick={generate} disabled={genLoading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50">
-          {genLoading ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {genLoading ? '請求中...' : 'AI 智慧生成單字卡'}
+          {genLoading ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {genLoading ? '處理中...' : 'AI 智慧生成單字卡'}
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v12.9 終極無腦自適應版 byKC</span>
+          <span>v13.0 終極透視版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-red-400 text-slate-400 transition-colors flex items-center gap-1">
                <Trash2 size={10} /> 刪除本地記憶金鑰
