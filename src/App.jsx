@@ -7,11 +7,9 @@ import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged }
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
 // --- 1. Firebase 資料庫專用配置 ---
-// ⚠️ 剛剛的錯誤 (auth/api-key-expired) 是因為原本預設的 Firebase 鑰匙已過期失效！
-// 👉 請回到 [Firebase 控制台] -> 點擊左上角齒輪 [專案設定 Project settings] -> 捲到最下方 [您的應用程式 Your apps]
-// 找到您的 firebaseConfig，把裡面真正的 apiKey 複製並「替換掉」下方這串中文：
+// 已經為您重新放入正確的 Firebase 專屬金鑰與資料庫網址，並同步至兩邊檔案
 const firebaseConfig = {
-  apiKey: "請貼上您Firebase後台真正的_API_Key", // <--- 就是這裡要換！(開頭通常也是 AIzaSy...)
+  apiKey: "AIzaSyBTcPWX29sXFY0dqzOpJn8We6uoJLwHv9U",
   authDomain: "kcvocabapp.firebaseapp.com",
   databaseURL: "https://kcvocabapp-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "kcvocabapp",
@@ -435,7 +433,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v10.4 修正 Firebase 憑證版 byKC</span>
+          <span>v10.5 同步金鑰版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-indigo-400 transition-colors flex items-center gap-1">
                <Lock size={10} /> 重新設定金鑰
