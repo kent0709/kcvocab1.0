@@ -15,7 +15,7 @@ const firebaseConfig = {
   storageBucket: "killercards.firebasestorage.app",
   messagingSenderId: "281065379733",
   appId: "1:281065379733:web:06fc2160b85fae7579c89c",
-  measurementId: "G-PVFYPMRPH2
+  measurementId: "G-PVFYPMRPH2"
 };
 
 // --- 2. 金鑰自動讀取 ---
