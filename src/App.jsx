@@ -8,7 +8,7 @@ import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore
 
 // --- 1. Firebase 配置 ---
 const firebaseConfig = {
-  apiKey: "AIzaSyCfnMao6o2QCNY4ZuV40XATZv-VrZSK_Rg",
+  apiKey: "AIzaSyBTcPWX29sXFY0dqzOpJn8We6uoJLwHv9U",
   authDomain: "kcvocabapp.firebaseapp.com",
   databaseURL: "https://kcvocabapp-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "kcvocabapp",
