@@ -104,6 +104,16 @@ const App = () => {
         }
       } catch (err) {
         console.error("登入錯誤", err);
+        // 💡 加入更精準的錯誤判斷，直接告訴使用者哪裡沒設定好
+        let errMsg = "❌ Firebase 連線失敗：";
+        if (err.code === 'auth/operation-not-allowed') {
+          errMsg += "請至 Firebase 後台開啟「匿名登入 (Anonymous)」！";
+        } else if (err.code === 'auth/unauthorized-domain') {
+          errMsg += "您的網址尚未加入 Firebase 的「授權網域 (Authorized domains)」中！";
+        } else {
+          errMsg += err.message;
+        }
+        setError(errMsg);
         setLoading(false);
       }
     };
@@ -409,7 +419,7 @@ const App = () => {
         <textarea value={input} onChange={e => setInput(e.target.value)} placeholder="貼上想背的單字..." className="w-full h-40 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" />
         
         {error && (
-          <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed ${error.includes('權限不足') || error.includes('請求太快') ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-red-50 text-red-600 border border-red-100'}`}>
+          <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed ${error.includes('連線失敗') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
             {error.includes('請求太快') ? <Clock size={18} className="shrink-0 mt-0.5" /> : <AlertTriangle size={18} className="shrink-0 mt-0.5" />}
             {error}
           </div>
@@ -589,7 +599,7 @@ const App = () => {
           {/* 儲存與分享按鈕 (加入超時偵測防卡死) */}
           <button onClick={async () => {
             if (!user) {
-              setError("❌ 系統連線中，或 Firebase 未開啟匿名登入！");
+              setError("❌ 尚未成功連線至資料庫，請檢查上方是否有紅色的連線錯誤提示！");
               setTimeout(() => setError(""), 4000);
               return;
             }
