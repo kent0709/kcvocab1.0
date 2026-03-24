@@ -1,21 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Volume2, RefreshCcw, Brain, Zap, Star, Flame, Share2, Check, Loader2, AlertTriangle, ChevronRight, Clock, Home, Trophy, Lock
+  Volume2, RefreshCcw, Brain, Zap, Star, Flame, Share2, Check, Loader2, AlertTriangle, ChevronRight, Clock, Home, Trophy, Lock, Trash2
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
 // --- 1. Firebase 資料庫專用配置 ---
-// ⚠️ 請確保這裡填入的是您全新的 Firebase 專案設定檔
+// ⚠️ 貼上這份新程式碼後，請務必把下面這段換成你自己的 Firebase 設定檔！
 const firebaseConfig = {
-  apiKey: "AIzaSyD2dxrjW68kjR66RgeFdXl2o4jW2ooGwwU",
-  authDomain: "killercards.firebaseapp.com",
-  projectId: "killercards",
-  storageBucket: "killercards.firebasestorage.app",
-  messagingSenderId: "281065379733",
-  appId: "1:281065379733:web:06fc2160b85fae7579c89c",
-  measurementId: "G-PVFYPMRPH2"
+  apiKey: "請在此填入新的_apiKey",
+  authDomain: "請在此填入新的_authDomain",
+  databaseURL: "請在此填入新的_databaseURL",
+  projectId: "請在此填入新的_projectId",
+  storageBucket: "請在此填入新的_storageBucket",
+  messagingSenderId: "請在此填入新的_messagingSenderId",
+  appId: "請在此填入新的_appId",
+  measurementId: "請在此填入新的_measurementId"
 };
 
 // --- 2. 金鑰自動讀取 ---
@@ -39,7 +40,7 @@ const db = getFirestore(app);
 
 const appId = typeof __app_id !== 'undefined' ? String(__app_id).replace(/\//g, '_') : (firebaseConfig.projectId !== '請在此填入新的_projectId' ? firebaseConfig.projectId : 'kcvocabapp');
 
-// 安全更新網址列，避免在特定環境中產生錯誤
+// 安全更新網址列
 const safePushState = (url) => {
   try {
     const hostname = window.location.hostname;
@@ -53,13 +54,11 @@ const safePushState = (url) => {
       return;
     }
     window.history.pushState({}, '', url);
-  } catch (e) {
-    // 靜默攔截
-  }
+  } catch (e) {}
 };
 
 const App = () => {
-  // AI 金鑰狀態管理 (優先順序：環境變數 > 本地儲存，已移除容易失效的內建金鑰)
+  // AI 金鑰狀態管理
   const [activeApiKey, setActiveApiKey] = useState(() => isCanvas ? "" : (getEnvKey() || getLocalKey()));
   const [keyInput, setKeyInput] = useState('');
 
@@ -82,8 +81,6 @@ const App = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [shareModal, setShareModal] = useState({ isOpen: false, url: '' });
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, type: '', message: '' });
-  
-  // 新增：工程師密碼解鎖彈窗狀態
   const [pwdModal, setPwdModal] = useState({ isOpen: false, value: '', error: '' });
 
   // 1. 系統登入初始化
@@ -200,9 +197,7 @@ const App = () => {
         const updatePromise = updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', deckId), { queue: nextQ, history: nextH });
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 5000));
         await Promise.race([updatePromise, timeoutPromise]);
-      } catch(err) {
-        console.error("背景進度更新失敗", err);
-      }
+      } catch(err) {}
     }
   };
 
@@ -264,8 +259,10 @@ const App = () => {
           const errMsg = data.error?.message || "未知錯誤";
           
           if (res.status === 400 || res.status === 403) {
-            // 💡 不再自動清除金鑰，而是明確顯示 Google 回傳的錯誤，讓使用者知道發生什麼事
-            lastError = `API 拒絕連線 (錯誤碼 ${res.status})：${errMsg}。\n⚠️ 如果您是在 Vercel 設定的，請務必點擊 Redeploy 重新發布！`;
+            // 💡 終極防呆：只要金鑰無效/過期，立刻清除快取，並把畫面打回鎖頭模式！
+            setActiveApiKey(''); 
+            try { localStorage.removeItem('my_gemini_key'); } catch(e){}
+            lastError = `您的 AI 金鑰已失效！請重新申請並輸入。`;
             break; 
           }
 
@@ -332,7 +329,7 @@ const App = () => {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600 w-12 h-12" /></div>;
 
-  // --- 防護：如果金鑰失效顯示輸入畫面 ---
+  // --- 防護：金鑰輸入畫面 ---
   if (!isCanvas && !activeApiKey) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
@@ -341,10 +338,16 @@ const App = () => {
           <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 mx-auto mb-6 shadow-inner">
              <Lock size={32} />
           </div>
-          <h1 className="text-2xl font-black text-slate-800 mb-4">安全連線設定</h1>
+          <h1 className="text-2xl font-black text-slate-800 mb-4">AI 金鑰驗證</h1>
+          
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-xl text-[13px] font-bold border border-red-100">
+              {error}
+            </div>
+          )}
+
           <p className="text-[13px] text-slate-500 mb-6 font-medium text-left leading-relaxed">
-            系統內建的金鑰似乎已失效。<br/><br/>
-            請去申請一把<b>全新的 Gemini API 金鑰</b>，並直接貼在下方。<br/>
+            為了您的帳號安全，請去申請一把<b>全新的 Gemini API 金鑰</b>，並直接貼在下方。<br/>
             <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded">這把金鑰只會保存在您的瀏覽器中，絕對安全！</span>
           </p>
           <input
@@ -359,12 +362,13 @@ const App = () => {
               if (keyInput.trim()) {
                 try { localStorage.setItem('my_gemini_key', keyInput.trim()); } catch(e) {}
                 setActiveApiKey(keyInput.trim());
+                setError('');
               }
             }}
             disabled={!keyInput.trim()}
             className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black py-4 rounded-xl shadow-md transition-all flex justify-center items-center gap-2"
           >
-            安全儲存並進入 App <ChevronRight size={18} />
+            儲存並進入 App <ChevronRight size={18} />
           </button>
         </div>
       </div>
@@ -414,7 +418,6 @@ const App = () => {
       <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-md w-full border border-slate-100">
         <Brain className="text-indigo-600 w-12 h-12 mx-auto mb-4" />
         
-        {/* 客製化標題 */}
         <h1 className="text-2xl font-black mb-6 text-slate-800">Killer Cards</h1>
         
         <textarea value={input} onChange={e => setInput(e.target.value)} placeholder="貼上想背的單字..." className="w-full h-40 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" />
@@ -431,10 +434,10 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v10.7 終極除錯版 byKC</span>
+          <span>v10.8 終極防護防卡死版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-indigo-400 transition-colors flex items-center gap-1">
-               <Lock size={10} /> 重新設定金鑰
+               <Trash2 size={10} /> 強制清除舊金鑰
              </button>
           )}
         </div>
