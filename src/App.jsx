@@ -17,11 +17,16 @@ const firebaseConfig = {
   measurementId: "G-PVFYPMRPH2"
 };
 
-// --- 2. 金鑰自動讀取機制 ---
+// --- 2. 智慧金鑰讀取機制 (阻斷 Firebase 錯誤金鑰) ---
 const getEnvKey = () => {
   try {
     const env = typeof import.meta !== 'undefined' ? import.meta.env : (typeof process !== 'undefined' ? process.env : {});
-    if (env?.VITE_GEMINI_API_KEY) return env.VITE_GEMINI_API_KEY;
+    const k = env?.VITE_GEMINI_API_KEY;
+    // 🚨 終極防護：如果 Vercel 裡面存的是 Firebase 的資料庫金鑰，直接無視它，打破死迴圈！
+    if (k && (k === firebaseConfig.apiKey || k === "AIzaSyBTcPWX29sXFY0dqzOpJn8We6uoJLwHv9U")) {
+      return ""; 
+    }
+    return k;
   } catch(e) {}
   return "";
 };
@@ -95,7 +100,7 @@ const vocabHigh = [
 ];
 
 const App = () => {
-  const [activeApiKey, setActiveApiKey] = useState(() => isCanvas ? "" : (getEnvKey() || getLocalKey()));
+  const [activeApiKey, setActiveApiKey] = useState(() => isCanvas ? "" : (getLocalKey() || getEnvKey()));
   const [keyInput, setKeyInput] = useState('');
   const [isValidatingKey, setIsValidatingKey] = useState(false);
 
@@ -245,13 +250,13 @@ const App = () => {
     setIsFlipped(false);
   };
 
-  // 💡 v11.8 核心：金鑰即時檢測系統
+  // 💡 v11.9 核心：金鑰即時檢測系統 (嚴格排除 Firebase 金鑰)
   const validateAndSaveKey = async () => {
     const tk = keyInput.trim();
     if (!tk) return;
 
-    if (tk === firebaseConfig.apiKey) {
-      setError('❌ 致命錯誤：這把是「Firebase 資料庫」的鑰匙！您必須去 Google AI Studio 申請 AI 專屬鑰匙。');
+    if (tk === firebaseConfig.apiKey || tk === "AIzaSyBTcPWX29sXFY0dqzOpJn8We6uoJLwHv9U") {
+      setError('🚨 抓到元凶了！您貼到的是「Firebase 資料庫」的鑰匙！\n請打開新分頁前往 Google AI Studio (aistudio.google.com) 申請真正的 AI 鑰匙！');
       return;
     }
 
@@ -259,15 +264,14 @@ const App = () => {
     setError('');
 
     try {
-      // 嘗試去敲 Google AI 的大門，列出可用模型
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${tk}`);
       const data = await res.json();
 
       if (!res.ok) {
         if (res.status === 400) {
-          setError("❌ 錯誤：金鑰格式無效 (API_KEY_INVALID)。請檢查是否複製完整，或是多複製了空白鍵。");
+          setError("❌ 錯誤：金鑰格式無效。請檢查是否複製完整，或是多複製了空白鍵。");
         } else if (res.status === 403) {
-          setError("❌ 錯誤：這把金鑰缺乏 AI 權限 (PERMISSION_DENIED)。請確保您是從「Google AI Studio」申請的！");
+          setError("❌ 錯誤：這把金鑰缺乏 AI 權限。請確保您是從「Google AI Studio」申請的！");
         } else {
           setError(`❌ 錯誤碼 ${res.status}：${data.error?.message}`);
         }
@@ -275,7 +279,6 @@ const App = () => {
         return;
       }
 
-      // 如果成功列出模型，代表這把金鑰 100% 沒問題！
       localStorage.setItem('my_gemini_key', tk);
       setActiveApiKey(tk);
     } catch (e) {
@@ -289,7 +292,7 @@ const App = () => {
     if (!input.trim() || genLoading) return;
     const reqKey = isCanvas ? "" : activeApiKey;
     if (!reqKey && !isCanvas) {
-      setError('❌ 找不到 API 金鑰！請至 Vercel 設定 VITE_GEMINI_API_KEY 環境變數。');
+      setError('❌ 找不到 API 金鑰！請重新輸入。');
       return;
     }
 
@@ -332,11 +335,12 @@ const App = () => {
                 if (!res.ok) {
                     const errMsg = data.error?.message || "未知錯誤";
                     
-                    if (res.status === 404) {
-                        lastError = `模型 ${model} 不可用...`;
-                        if (model === targetModels[targetModels.length - 1]) {
-                            lastError = `您輸入的金鑰權限異常，找不到任何可用模型！\n(可能您把金鑰寫在 Vercel 環境變數了，請確認那把也是從 AI Studio 申請的喔！)`;
-                        }
+                    // 💡 如果在生成時遭遇 404/403，強制跳回解鎖畫面！
+                    if (res.status === 404 || res.status === 403 || res.status === 400) {
+                        setActiveApiKey(''); // 強制清空，打破死迴圈
+                        try { localStorage.removeItem('my_gemini_key'); } catch(e){}
+                        lastError = `🚨 您的金鑰權限錯誤！您可能拿到「資料庫」的鑰匙了！請重新輸入 Google AI Studio 的金鑰。`;
+                        isKeyInvalid = true;
                         break; 
                     }
                     
@@ -349,14 +353,6 @@ const App = () => {
                             break;
                         }
                     } 
-                    
-                    if (res.status === 400 || res.status === 403) {
-                        setActiveApiKey(''); 
-                        try { localStorage.removeItem('my_gemini_key'); } catch(e){}
-                        lastError = `您的 AI 金鑰已被 Google 停權或無效！請重新輸入。`;
-                        isKeyInvalid = true;
-                        break; 
-                    }
 
                     lastError = `發生錯誤：${errMsg}`;
                     break;
@@ -392,7 +388,9 @@ const App = () => {
         }
     }
 
-    if (!success) setError(`❌ ${lastError}`);
+    // 💡 確保錯誤發生時，如果已經清空金鑰，就不會停在原畫面
+    if (!success && !isKeyInvalid) setError(`❌ ${lastError}`);
+    if (isKeyInvalid) setError(lastError);
     setGenLoading(false);
   };
 
@@ -441,7 +439,7 @@ const App = () => {
             value={keyInput}
             onChange={e => setKeyInput(e.target.value)}
             disabled={isValidatingKey}
-            placeholder="請貼上 AIzaSy 開頭的 AI 金鑰..."
+            placeholder="請貼上 AIzaSy 開頭的「真正 AI 金鑰」..."
             className="w-full p-4 mb-4 bg-slate-50 border-2 border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-medium transition-colors disabled:opacity-50"
           />
           <button
@@ -466,31 +464,17 @@ const App = () => {
             <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center text-amber-500 mx-auto mb-4">
               <Lock size={24} />
             </div>
-            <h3 className="text-xl font-black text-slate-800 mb-2">工程師權限驗證</h3>
-            <p className="text-xs text-slate-500 mb-6">請輸入管理者密碼以重置金鑰</p>
-            
-            <input 
-              type="password" 
-              placeholder="請輸入密碼..."
-              value={pwdModal.value}
-              onChange={e => setPwdModal({ ...pwdModal, value: e.target.value, error: '' })}
-              className="w-full p-3 mb-2 bg-slate-50 border border-slate-200 rounded-xl text-center tracking-[0.3em] font-bold outline-none focus:border-indigo-500 transition-colors"
-              maxLength={10}
-            />
-            
-            {pwdModal.error && <p className="text-red-500 text-xs font-bold mb-2 animate-pulse">{pwdModal.error}</p>}
+            <h3 className="text-xl font-black text-slate-800 mb-2">清除系統快取</h3>
+            <p className="text-xs text-slate-500 mb-6">這會清除手機/電腦上記憶的舊金鑰</p>
             
             <div className="flex gap-2 mt-4">
               <button onClick={() => setPwdModal({ isOpen: false, value: '', error: '' })} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-all">取消</button>
               <button onClick={() => {
-                if (pwdModal.value === '564335') {
                   setActiveApiKey('');
                   try { localStorage.removeItem('my_gemini_key'); } catch(e){}
                   setPwdModal({ isOpen: false, value: '', error: '' });
-                } else {
-                  setPwdModal({ ...pwdModal, error: '密碼錯誤，拒絕存取！' });
-                }
-              }} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-md">驗證解鎖</button>
+                  setError("已清除舊金鑰，請貼上新的！");
+              }} className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold transition-all shadow-md">確認清除</button>
             </div>
           </div>
         </div>
@@ -531,7 +515,7 @@ const App = () => {
         <textarea value={input} onChange={e => setInput(e.target.value)} placeholder="貼上想背的單字..." className="w-full h-32 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" />
         
         {error && (
-          <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed whitespace-pre-wrap ${error.includes('連線失敗') || error.includes('發生錯誤') || error.includes('致命錯誤') || error.includes('無效') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+          <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed whitespace-pre-wrap ${error.includes('連線失敗') || error.includes('發生錯誤') || error.includes('權限錯誤') || error.includes('無效') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
             {error.includes('請求太快') ? <Clock size={18} className="shrink-0 mt-0.5" /> : <AlertTriangle size={18} className="shrink-0 mt-0.5" />}
             {error}
           </div>
@@ -542,9 +526,9 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v11.8 終極金鑰檢測版 byKC</span>
+          <span>v11.9 終極除錯大絕版 byKC</span>
           {!isCanvas && (
-             <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-indigo-400 transition-colors flex items-center gap-1">
+             <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-red-400 text-slate-400 transition-colors flex items-center gap-1">
                <Trash2 size={10} /> 刪除本地舊鑰匙
              </button>
           )}
