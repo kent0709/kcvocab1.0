@@ -61,13 +61,21 @@ const allVocab = rawData.split('|').map(item => {
   return { word, meaning };
 });
 
+// 💡 分類一：保留原本的「小班、中班、大班」(每組 100 單字)
+const kinderCategories = [
+  { name: "小班", icon: "🍼", start: 0, end: 100 },
+  { name: "中班", icon: "🧸", start: 100, end: 200 },
+  { name: "大班", icon: "🖍️", start: 200, end: 300 }
+];
+
+// 💡 分類二：新增的 18 級國小類別 (每組 50 單字)
 const gradeCategories = [
-  { name: "一上", icon: "👶" }, { name: "一中", icon: "👶" }, { name: "一下", icon: "👶" },
-  { name: "二上", icon: "🧒" }, { name: "二中", icon: "🧒" }, { name: "二下", icon: "🧒" },
-  { name: "三上", icon: "👦" }, { name: "三中", icon: "👦" }, { name: "三下", icon: "👦" },
-  { name: "四上", icon: "👧" }, { name: "四中", icon: "👧" }, { name: "四下", icon: "👧" },
-  { name: "五上", icon: "🧑" }, { name: "五中", icon: "🧑" }, { name: "五下", icon: "🧑" },
-  { name: "六上", icon: "👱" }, { name: "六中", icon: "👱" }, { name: "六下", icon: "👱" }
+  { name: "一上", icon: "👶", start: 0, end: 50 }, { name: "一中", icon: "👶", start: 50, end: 100 }, { name: "一下", icon: "👶", start: 100, end: 150 },
+  { name: "二上", icon: "🧒", start: 150, end: 200 }, { name: "二中", icon: "🧒", start: 200, end: 250 }, { name: "二下", icon: "🧒", start: 250, end: 300 },
+  { name: "三上", icon: "👦", start: 300, end: 350 }, { name: "三中", icon: "👦", start: 350, end: 400 }, { name: "三下", icon: "👦", start: 400, end: 450 },
+  { name: "四上", icon: "👧", start: 450, end: 500 }, { name: "四中", icon: "👧", start: 500, end: 550 }, { name: "四下", icon: "👧", start: 550, end: 600 },
+  { name: "五上", icon: "🧑", start: 600, end: 650 }, { name: "五中", icon: "🧑", start: 650, end: 700 }, { name: "五下", icon: "🧑", start: 700, end: 750 },
+  { name: "六上", icon: "👱", start: 750, end: 800 }, { name: "六中", icon: "👱", start: 800, end: 850 }, { name: "六下", icon: "👱", start: 850, end: 900 }
 ];
 
 const App = () => {
@@ -95,6 +103,10 @@ const App = () => {
   const [shareModal, setShareModal] = useState({ isOpen: false, url: '' });
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, type: '', message: '' });
   const [pwdModal, setPwdModal] = useState({ isOpen: false, value: '', error: '' });
+
+  // 💡 新增：鼓勵系統的狀態與紀錄器
+  const [encouragement, setEncouragement] = useState('');
+  const lastMilestoneRef = useRef(0);
 
   const translatingRef = useRef(new Set());
   const workingModelRef = useRef(isCanvas ? "gemini-2.5-flash-preview-09-2025" : "");
@@ -242,6 +254,7 @@ const App = () => {
     if (confirmDialog.type === 'home') {
       setCards([]); setQueue([]); setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
       setIsFinished(false); setIsFlipped(false); setDeckId(null); setInput('');
+      lastMilestoneRef.current = 0; // 💡 首頁重置
       safePushState(window.location.pathname);
     } else if (confirmDialog.type === 'finish') {
       setIsFinished(true);
@@ -268,6 +281,7 @@ const App = () => {
     setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
     setIsFinished(false); 
     setIsFlipped(false);
+    lastMilestoneRef.current = 0; // 💡 載入新單字重置里程碑
   };
 
   const validateAndSaveKey = async () => {
@@ -427,6 +441,7 @@ const App = () => {
             setTotal(newCards.length);
             setIsFinished(false); setIsFlipped(false);
             success = true;
+            lastMilestoneRef.current = 0; // 💡 AI 生成完畢重置里程碑
             break; 
             
         } catch (e) { 
@@ -477,6 +492,28 @@ const App = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFlipped, cards, queue, isFinished]);
+
+  // 💡 新增：計算進度並觸發「十連擊」鼓勵！
+  useEffect(() => {
+    if (total === 0 || isFinished) return;
+    const completedCount = total - queue.length;
+    
+    // 當完成數量是 10 的倍數、大於 0，且不是剛好全部完成時觸發
+    if (completedCount > 0 && completedCount % 10 === 0 && completedCount !== lastMilestoneRef.current && completedCount !== total) {
+      const messages = [
+        "你好厲害！🎉", "你真是記單字高手！💪", "你好強！🔥", 
+        "快要完成了哦！🚀", "有點厲害！😎", "太棒了！✨", 
+        "無人能敵！👑", "繼續保持！🎯"
+      ];
+      setEncouragement(messages[Math.floor(Math.random() * messages.length)]);
+      lastMilestoneRef.current = completedCount;
+
+      // 顯示 2.5 秒後自動消失
+      setTimeout(() => {
+        setEncouragement('');
+      }, 2500);
+    }
+  }, [queue.length, total, isFinished]);
 
   const getRating = () => {
     const t = history.again + history.hard + history.good + history.easy;
@@ -611,23 +648,20 @@ const App = () => {
             免輸入！點擊直接開始練習
           </div>
           
-          {/* 💡 更新六宮格選單，完美支援手機排版，並加上捲動軸避免過長 */}
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 max-h-[220px] overflow-y-auto custom-scrollbar pr-1 pb-1">
-            {gradeCategories.map((cat, index) => {
-              const start = index * 50;
-              const end = start + 50;
-              const vocabChunk = allVocab.slice(start, end);
-              return (
+          {/* 💡 更新選單：統一成 3 欄 7 排 (共 21 個選項)，視覺不再感到可怕 */}
+          <div className="max-h-[260px] overflow-y-auto custom-scrollbar pr-2 pb-1">
+            <div className="grid grid-cols-3 gap-2.5">
+              {[...kinderCategories, ...gradeCategories].map((cat, index) => (
                 <button 
-                  key={index}
-                  onClick={() => loadPresetCards(vocabChunk)} 
-                  className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-2 px-1 rounded-xl text-[12px] sm:text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
+                  key={`cat-${index}`}
+                  onClick={() => loadPresetCards(allVocab.slice(cat.start, cat.end))} 
+                  className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
                 >
-                  <span className="text-xl sm:text-2xl drop-shadow-sm">{cat.icon}</span>
+                  <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
                   <span>{cat.name}</span>
                 </button>
-              )
-            })}
+              ))}
+            </div>
           </div>
         </div>
 
@@ -651,7 +685,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v13.8 完美 18 級分級版 byKC</span>
+          <span>v13.10 排版優化與鼓勵系統版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-red-400 text-slate-400 transition-colors flex items-center gap-1">
                <Trash2 size={10} /> 刪除本地記憶金鑰
@@ -690,7 +724,12 @@ const App = () => {
           </div>
           
           <div className="flex gap-3 w-full">
-            <button onClick={() => { setQueue(Array.from({length: cards.length}, (_, i) => i)); setHistory({again:0, hard:0, good:0, easy:0}); setIsFinished(false); }} className="flex-1 bg-slate-200 text-slate-700 font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-md hover:bg-slate-300 transition-all">
+            <button onClick={() => { 
+                setQueue(Array.from({length: cards.length}, (_, i) => i)); 
+                setHistory({again:0, hard:0, good:0, easy:0}); 
+                setIsFinished(false); 
+                lastMilestoneRef.current = 0; // 💡 重新開始重置
+            }} className="flex-1 bg-slate-200 text-slate-700 font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-md hover:bg-slate-300 transition-all">
               <RefreshCcw size={18} />循序重來
             </button>
             <button onClick={() => { 
@@ -700,6 +739,7 @@ const App = () => {
                     [newQ[i], newQ[j]] = [newQ[j], newQ[i]];
                 }
                 setQueue(newQ); setHistory({again:0, hard:0, good:0, easy:0}); setIsFinished(false); 
+                lastMilestoneRef.current = 0; // 💡 重新開始重置
             }} className="flex-1 bg-slate-900 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl hover:bg-black transition-all">
               <Shuffle size={18} />洗牌重來
             </button>
@@ -713,8 +753,17 @@ const App = () => {
   const progress = total === 0 ? 0 : ((total - queue.length) / total) * 100;
   
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center py-4 px-4 font-sans text-slate-800 h-[100dvh]">
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center py-4 px-4 font-sans text-slate-800 h-[100dvh] relative overflow-hidden">
       
+      {/* 💡 新增：霸氣又可愛的鼓勵特效彈窗 (懸浮在正中間上方) */}
+      {encouragement && (
+        <div className="fixed top-[25%] left-1/2 transform -translate-x-1/2 z-[100] animate-bounce pointer-events-none">
+          <div className="bg-gradient-to-r from-amber-400 to-orange-500 text-white font-black px-6 py-3 rounded-full shadow-2xl text-lg sm:text-xl whitespace-nowrap border-4 border-white">
+            {encouragement}
+          </div>
+        </div>
+      )}
+
       {shareModal.isOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
