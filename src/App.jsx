@@ -817,7 +817,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-center">
-          <span>v13.19 選項狀態修復版 byKC</span>
+          <span>v13.20 選項顏色修復版 byKC</span>
         </div>
       </div>
     </div>
@@ -1010,7 +1010,8 @@ const App = () => {
 
             <div className="w-full flex flex-col gap-2.5 mb-4 shrink-0">
               {currentChoices.map((choice, idx) => {
-                let btnClass = "bg-slate-50 text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 border-slate-200 hover:border-indigo-200";
+                // 💡 修正：移除容易在手機上殘留的 hover，改用 active (按壓時才變色)，並加上 sm:hover 確保電腦版正常
+                let btnClass = "bg-slate-50 text-slate-600 active:bg-indigo-50 active:text-indigo-700 border-slate-200 active:border-indigo-200 sm:hover:bg-indigo-50 sm:hover:text-indigo-700 sm:hover:border-indigo-200";
                 if (selectedChoice !== null) {
                   if (choice === card.meaning) {
                     btnClass = "bg-green-100 text-green-700 border-green-400 shadow-sm"; 
@@ -1023,7 +1024,8 @@ const App = () => {
 
                 return (
                   <button
-                    key={idx}
+                    // 💡 修正：給每一個選項加上獨一無二的 key，強迫 React 每一題都重新產生按鈕，徹底消滅狀態殘留！
+                    key={`${card.word}-${idx}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       if (selectedChoice !== null) return; 
