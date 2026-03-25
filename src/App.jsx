@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Volume2, RefreshCcw, Brain, Zap, Star, Flame, Share2, Check, Loader2, AlertTriangle, ChevronRight, Clock, Home, Trophy, Lock, Trash2, Upload, CheckCircle2, Shuffle
+  Volume2, RefreshCcw, Brain, Zap, Star, Flame, Share2, Check, Loader2, AlertTriangle, ChevronRight, Clock, Home, Trophy, Lock, Trash2, Shuffle
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
@@ -160,8 +160,6 @@ const App = () => {
 
   const translatingRef = useRef(new Set());
   const workingModelRef = useRef(isCanvas ? "gemini-2.5-flash-preview-09-2025" : "");
-  
-  // 💡 用來記錄語音暫停的 Timeout，翻面或切換時可清除
   const speechTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -211,7 +209,6 @@ const App = () => {
     }
   }, [user]);
 
-  // 💡 單純唸一段文字 (用於正面單字)
   const playSimpleText = (text) => {
     if (!text) return;
     window.speechSynthesis.cancel();
@@ -224,7 +221,6 @@ const App = () => {
     window.speechSynthesis.speak(u);
   };
 
-  // 💡 節奏朗讀：單字 -> 停頓 1 秒 -> 例句 (用於背面翻開或按 Listen)
   const playCardSequence = (c) => {
     if (!c) return;
     window.speechSynthesis.cancel();
@@ -236,7 +232,6 @@ const App = () => {
     let wordText = c.word;
     let exampleText = "";
 
-    // 擷取乾淨的例句 (不含中文翻譯)
     if (c.info && c.info.includes('【例句】')) {
       const examplePart = c.info.split('【例句】')[1];
       if (examplePart) exampleText = examplePart.split('(')[0].trim();
@@ -256,7 +251,6 @@ const App = () => {
 
     if (exampleText) {
       speakPart(wordText, () => {
-        // 單字唸完後，精準停頓 1000ms (1秒) 再唸例句
         speechTimeoutRef.current = setTimeout(() => {
           speakPart(exampleText);
         }, 1000);
@@ -327,7 +321,7 @@ const App = () => {
       example_kana: '',
       example_zh: '',
       image_keyword: item.word, 
-      info: `${item.meaning} 💡 [單字分類] 教育部國小必備單字`
+      info: item.meaning 
     }));
     
     setCards(newCards);
@@ -387,7 +381,7 @@ const App = () => {
     const isEn = hasEnglish && !hasKana;
     
     const prompt = isEn 
-      ? `請分析以下文字：\n"""${input}"""\n這是一份「英文學習清單」。請提取出英文單字。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "詞性與意思", "breakdown": "字根拆解與意象說明 (請用生動通用的比喻幫助記憶)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`
+      ? `請分析以下文字：\n"""${input}"""\n這是一份「英文學習清單」。請提取出英文單字。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n請為每個單字提供更廣泛的解釋：\n1. 包含不同「詞性」的意思 (例如：book 作為 [名詞] 書、[動詞] 預定)。\n2. 補充類似的「同義詞」或相反的「反義詞」 (例如：fast 補充反義詞 slow)。\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "列出不同詞性與意思綜合", "breakdown": "字根拆解與意象說明 (請在此加入同義詞/反義詞補充)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`
       : `請分析以下文字：\n"""${input}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`;
 
     let modelToUse = isCanvas ? "gemini-2.5-flash-preview-09-2025" : workingModelRef.current;
@@ -514,7 +508,6 @@ const App = () => {
     if (cards.length === 0 || isFinished) return;
 
     const loadImages = async () => {
-      // 💡 節約額度，只預先加載後面 2 張的圖片
       const nextCards = queue.slice(0, 2).map(idx => cards[idx]);
       for (const card of nextCards) {
         if (!card || imageUrls[card.word]) continue;
@@ -528,11 +521,9 @@ const App = () => {
     loadImages();
   }, [queue, cards, isFinished, imageUrls]);
 
-  // 💡 自動翻轉朗讀監聽器
   useEffect(() => {
     if (queue.length > 0 && !isFinished && cards.length > 0) {
       if (isFlipped) {
-        // 翻開背面時，自動執行「節奏朗讀」 (單字->停1秒->例句)
         playCardSequence(cards[queue[0]]);
       }
     }
@@ -558,7 +549,6 @@ const App = () => {
     return { score, text: "加油", color: "text-orange-500", emoji: "💪" };
   };
 
-  // 💡 放大優化版面：背面標題區
   const formatBackHeader = (card) => {
     if (!card.info) return null;
     const mainPart = card.info.split('【例句】')[0].trim();
@@ -590,7 +580,6 @@ const App = () => {
     );
   };
 
-  // 💡 放大優化版面：例句區
   const formatExampleText = (exampleString, cardWord) => {
     if (!exampleString) return null;
     const match = exampleString.match(/^(.*?)\((.*?)\)(.*)$/);
@@ -683,8 +672,6 @@ const App = () => {
             <Zap size={16} className="text-amber-500" />
             免輸入！點擊直接開始練習
           </div>
-          
-          {/* 💡 更新六宮格選單，完美支援手機排版 */}
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
             <button onClick={() => loadPresetCards(vocabGrade1)} className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-2 px-1 rounded-xl text-[12px] sm:text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95">
               <span className="text-xl sm:text-2xl drop-shadow-sm">1️⃣</span><span>小一</span>
@@ -727,7 +714,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v13.4 國小六級精細版 byKC</span>
+          <span>v13.6 圖片完美比例修復版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-red-400 text-slate-400 transition-colors flex items-center gap-1">
                <Trash2 size={10} /> 刪除本地記憶金鑰
@@ -787,6 +774,14 @@ const App = () => {
 
   const card = cards[queue[0]];
   const progress = total === 0 ? 0 : ((total - queue.length) / total) * 100;
+  
+  const btnConfig = [
+    { id: 'again', label: 'Again', color: 'red', icon: <RefreshCcw size={18} /> },
+    { id: 'hard', label: 'Hard', color: 'orange', icon: <Flame size={18} /> },
+    { id: 'listen', label: 'Listen', color: 'indigo', icon: <Volume2 size={24} />, special: true },
+    { id: 'good', label: 'Good', color: 'blue', icon: <Star size={18} /> },
+    { id: 'easy', label: 'Easy', color: 'green', icon: <Zap size={18} /> }
+  ];
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center py-4 px-4 font-sans text-slate-800 h-[100dvh]">
@@ -894,8 +889,8 @@ const App = () => {
           {/* 背面 */}
           <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white rounded-[2rem] shadow-xl flex flex-col p-4 sm:p-5 overflow-hidden border border-slate-100">
             
-            {/* 縮小圖片佔比，留給文字 */}
-            <div className="w-full h-24 sm:h-28 bg-slate-100 rounded-xl mb-3 overflow-hidden relative flex items-center justify-center shadow-inner shrink-0">
+            {/* 💡 調整圖片佔比：把原本的 h-[100px] 加高到 h-36 (144px) 或 h-40 (160px)，讓照片不再扁平 */}
+            <div className="w-full h-36 sm:h-40 bg-slate-100 rounded-xl mb-3 overflow-hidden relative flex items-center justify-center shadow-inner shrink-0">
               {imageUrls[card.word] ? (
                 <img src={imageUrls[card.word]} className="w-full h-full object-cover z-10" alt="" onError={e => e.target.src='https://loremflickr.com/400/300/japan'} />
               ) : (
