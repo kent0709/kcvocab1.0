@@ -106,6 +106,10 @@ const App = () => {
   const [error, setError] = useState('');
   const [showRatingModal, setShowRatingModal] = useState(false);
   
+  // 💡 兩階段狀態追蹤
+  const [activeCategory, setActiveCategory] = useState(null);
+  const [activePart, setActivePart] = useState(1);
+
   const [isSaving, setIsSaving] = useState(false);
   const [shareModal, setShareModal] = useState({ isOpen: false, url: '' });
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, type: '', message: '' });
@@ -198,7 +202,6 @@ const App = () => {
           exEn = exStr;
         }
       }
-      // 💡 取代 " / " 讓語音朗讀可以自然停頓
       exampleText = exEn.replace(/\s\/\s/g, '. ');
     }
 
@@ -268,6 +271,8 @@ const App = () => {
       setCards([]); setQueue([]); setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
       setIsFinished(false); setIsFlipped(false); setDeckId(null); setInput('');
       lastMilestoneRef.current = 0;
+      setActiveCategory(null);
+      setActivePart(1);
       safePushState(window.location.pathname);
     } else if (confirmDialog.type === 'finish') {
       setIsFinished(true);
@@ -311,6 +316,10 @@ const App = () => {
   const generate = async (overrideText = null) => {
     const targetText = typeof overrideText === 'string' ? overrideText : input;
     
+    if (typeof overrideText !== 'string') {
+      setActiveCategory(null); // 手動輸入時清除闖關狀態
+    }
+
     if (!targetText.trim() || genLoading) return;
     const reqKey = isCanvas ? "" : activeApiKey;
     if (!reqKey && !isCanvas) {
@@ -325,7 +334,6 @@ const App = () => {
     const hasEnglish = /[a-zA-Z]/.test(targetText);
     const isEn = hasEnglish && !hasKana;
     
-    // 💡 調整 Prompt：讓英文模式能生出符合您要求的多詞性、同反義詞、與多例句的完美格式
     const prompt = isEn 
       ? `請分析以下文字：\n"""${targetText}"""\n這是一份「英文學習清單」。請提取出所有英文單字（務必完整包含輸入的所有單字，不可遺漏！）。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」，請務必自動將其「翻譯成英文單字」。\n請為每個單字提供更廣泛且結構化的解釋：\n1. 包含不同「詞性」的意思，並換行顯示。例如：\n(n.) 書；卷\n(v.) 預訂; 預約 (To reserve/order)\n2. 補充類似的「同類詞、同義詞」或相反的「反義詞」。例如：[同義詞] reserve, order / [反義詞] cancel\n3. 提供對應的英文例句，若有多個詞性請提供多句，並用「 / 」隔開。\n4. 提供對應的中文翻譯，多句請用「 / 」隔開。\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "不同詞性與意思(務必使用 \\n 換行)", "breakdown": "同義詞/反義詞補充", "example": "英文例句1 / 英文例句2", "example_kana": "", "example_zh": "中文翻譯1 / 中文翻譯2", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字"}]。請只回傳 JSON。`
       : `請分析以下文字：\n"""${targetText}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`;
@@ -337,7 +345,7 @@ const App = () => {
             const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${reqKey}`);
             if (!listRes.ok) {
                 if (listRes.status === 403) {
-                    setError(`🚨 致命錯誤 (403)：您的金鑰完全沒有開通「AI 生成權限」！\n這通常是因為您在 Google Cloud 建立，卻沒有啟用 Generative Language API。\n👉 請用一個全新的 Google 帳號，前往 aistudio.google.com 重新申請一把！`);
+                    setError(`🚨 致命錯誤 (403)：您的金鑰完全沒有開通「AI 生成權限」！\n👉 請用一個全新的 Google 帳號，前往 aistudio.google.com 重新申請一把！`);
                 } else if (listRes.status === 400) {
                     setError(`🚨 致命錯誤 (400)：這把金鑰是假的或格式錯誤！`);
                     setActiveApiKey('');
@@ -356,7 +364,7 @@ const App = () => {
                 .map(m => m.name.replace("models/", ""));
 
             if (validModels.length === 0) {
-                 setError(`🚨 驚人發現：鑰匙是真的，但 Google 說您「擁有 0 個可用模型」！\n這通常代表：\n1. 您的 Google Cloud 專案太舊或被限制。\n2. 您選擇的地區不支援 Gemini。\n👉 唯一解法：請用一個「全新的 Google 帳號」，登入 aistudio.google.com 重新申請！`);
+                 setError(`🚨 驚人發現：鑰匙是真的，但 Google 說您「擁有 0 個可用模型」！\n👉 唯一解法：請用一個「全新的 Google 帳號」，登入 aistudio.google.com 重新申請！`);
                  setGenLoading(false);
                  return;
             }
@@ -451,7 +459,27 @@ const App = () => {
     setGenLoading(false);
   };
 
-  const loadPresetCards = (vocabList, useAI = true) => {
+  // 💡 兩階段載入邏輯
+  const loadPresetCategory = (cat, part = 1) => {
+    setActiveCategory(cat);
+    setActivePart(part);
+    
+    let vocabList = [];
+    let useAI = true;
+
+    if (cat.name.includes('班')) {
+       useAI = false;
+       vocabList = allVocab.slice(cat.start, cat.end); // 100 幼兒單字不經AI
+    } else {
+       useAI = true;
+       // 50 個單字切一半：前 25 個與後 25 個
+       if (part === 1) {
+          vocabList = allVocab.slice(cat.start, cat.start + 25);
+       } else {
+          vocabList = allVocab.slice(cat.start + 25, cat.end);
+       }
+    }
+
     const wordsOnlyStr = vocabList.map(item => item.word).join('\n');
     setInput(wordsOnlyStr);
 
@@ -545,7 +573,6 @@ const App = () => {
     return { score, text: "加油", color: "text-orange-500", emoji: "💪" };
   };
 
-  // 💡 v13.14 全新統一渲染器：完美支援結構化資料與換行顯示，取代原本的 formatBackHeader
   const renderCardBackText = (card) => {
     if (!card) return null;
     const isEnglishCard = /[a-zA-Z]/.test(card.word) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(card.word);
@@ -557,7 +584,6 @@ const App = () => {
     let exKana = card.example_kana || '';
     let exZh = card.example_zh || '';
     
-    // 向下相容舊的 info 字串格式 (如果是存進資料庫的舊卡片)
     if (!meaning && card.info) {
        const mainPart = card.info.split('【例句】')[0].trim();
        const parts = mainPart.split('💡').map(p => p.trim());
@@ -597,12 +623,10 @@ const App = () => {
             {reading && <span className="text-sm text-indigo-600 font-bold bg-indigo-50 px-2 py-1 rounded-md">{reading}</span>}
           </div>
           
-          {/* 詞性與意思 */}
           <div className="text-slate-700 text-lg mb-2 whitespace-pre-line leading-snug font-bold">
             {meaning}
           </div>
           
-          {/* 同反義詞或字根拆解 */}
           {breakdown && (
             <div className="mt-2 text-sm text-amber-800 bg-amber-50 p-3 rounded-xl border border-amber-100/50 leading-relaxed font-bold shadow-sm whitespace-pre-line">
               💡 {breakdown}
@@ -610,7 +634,6 @@ const App = () => {
           )}
         </div>
 
-        {/* 例句區塊 */}
         {(exEn || exZh) && (
           <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 mt-2 space-y-2">
             {exEn && <div className="text-base sm:text-lg font-black text-slate-800 leading-tight tracking-wide whitespace-pre-line">{exEn.replace(/\s\/\s/g, '\n')}</div>}
@@ -680,19 +703,16 @@ const App = () => {
           
           <div className="max-h-[260px] overflow-y-auto custom-scrollbar pr-2 pb-1">
             <div className="grid grid-cols-3 gap-2.5">
-              {[...kinderCategories, ...gradeCategories].map((cat, index) => {
-                const useAI = !cat.name.includes('班');
-                return (
-                  <button 
-                    key={`cat-${index}`}
-                    onClick={() => loadPresetCards(allVocab.slice(cat.start, cat.end), useAI)} 
-                    className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
-                  >
-                    <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
-                    <span>{cat.name}</span>
-                  </button>
-                );
-              })}
+              {[...kinderCategories, ...gradeCategories].map((cat, index) => (
+                <button 
+                  key={`cat-${index}`}
+                  onClick={() => loadPresetCategory(cat, 1)} 
+                  className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
+                >
+                  <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
+                  <span>{cat.name}</span>
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -717,7 +737,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-center">
-          <span>v13.14 多義詞與完美排版版 byKC</span>
+          <span>v13.15 兩階段闖關版 byKC</span>
         </div>
       </div>
     </div>
@@ -731,7 +751,7 @@ const App = () => {
           <div className="text-7xl mb-4 animate-bounce drop-shadow-md">{r.emoji}</div>
           <h1 className="text-2xl font-black mb-2 text-slate-800">完成本日練習！</h1>
           <div className={`text-5xl font-black ${r.color} mb-6`}>{r.score} <span className="text-xl text-slate-400 font-bold ml-1">分 - {r.text}</span></div>
-          <div className="grid grid-cols-4 gap-2 mb-8">
+          <div className="grid grid-cols-4 gap-2 mb-6">
             <div className="bg-red-50 p-3 rounded-2xl border border-red-100 flex flex-col items-center justify-center">
               <p className="text-red-600 font-black text-xl mb-1">{history.again}</p>
               <p className="text-red-500 text-[9px] font-bold uppercase tracking-widest">Again</p>
@@ -750,6 +770,15 @@ const App = () => {
             </div>
           </div>
           
+          {/* 💡 當您位於第一階段且類別不包含「班」時，顯示進入下半關的按鈕！ */}
+          {activeCategory && !activeCategory.name.includes('班') && activePart === 1 && (
+            <button onClick={() => {
+                loadPresetCategory(activeCategory, 2);
+            }} className="w-full mb-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl hover:scale-[1.02] transition-all">
+              <Zap size={20} /> 進入下半關 (剩下的 25 個單字)
+            </button>
+          )}
+
           <div className="flex gap-3 w-full">
             <button onClick={() => { 
                 setQueue(Array.from({length: cards.length}, (_, i) => i)); 
