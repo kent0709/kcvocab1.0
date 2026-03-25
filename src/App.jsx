@@ -53,42 +53,83 @@ const safePushState = (url) => {
   } catch (e) {}
 };
 
-const vocabLow = [
-  { word: "zero", meaning: "零" }, { word: "one", meaning: "一" }, { word: "two", meaning: "二" }, { word: "three", meaning: "三" },
-  { word: "four", meaning: "四" }, { word: "five", meaning: "五" }, { word: "six", meaning: "六" }, { word: "seven", meaning: "七" },
-  { word: "eight", meaning: "八" }, { word: "nine", meaning: "九" }, { word: "ten", meaning: "十" }, { word: "I", meaning: "我" },
-  { word: "you", meaning: "你" }, { word: "he", meaning: "他" }, { word: "she", meaning: "她" }, { word: "it", meaning: "牠/它" },
-  { word: "we", meaning: "我們" }, { word: "they", meaning: "他們" }, { word: "mother", meaning: "媽媽" }, { word: "father", meaning: "爸爸" },
-  { word: "brother", meaning: "兄弟" }, { word: "sister", meaning: "姊妹" }, { word: "head", meaning: "頭" }, { word: "hair", meaning: "頭髮" },
-  { word: "eye", meaning: "眼睛" }, { word: "nose", meaning: "鼻子" }, { word: "mouth", meaning: "嘴巴" }, { word: "ear", meaning: "耳朵" },
-  { word: "hand", meaning: "手" }, { word: "leg", meaning: "腿" }, { word: "foot", meaning: "腳" }, { word: "dog", meaning: "狗" },
-  { word: "cat", meaning: "貓" }, { word: "bird", meaning: "鳥" }, { word: "fish", meaning: "魚" }, { word: "pig", meaning: "豬" },
-  { word: "lion", meaning: "獅子" }, { word: "tiger", meaning: "老虎" }, { word: "elephant", meaning: "大象" }, { word: "monkey", meaning: "猴子" }
+// --- 將原本的 vocabLow, vocabMid, vocabHigh 替換成六級分類 ---
+const vocabGrade1 = [
+  { word: "zero", meaning: "零" }, { word: "one", meaning: "一" }, { word: "two", meaning: "二" }, { word: "three", meaning: "三" }, { word: "four", meaning: "四" },
+  { word: "five", meaning: "五" }, { word: "six", meaning: "六" }, { word: "seven", meaning: "七" }, { word: "eight", meaning: "八" }, { word: "nine", meaning: "九" },
+  { word: "ten", meaning: "十" }, { word: "eleven", meaning: "十一" }, { word: "twelve", meaning: "十二" }, { word: "thirteen", meaning: "十三" }, { word: "fourteen", meaning: "十四" },
+  { word: "fifteen", meaning: "十五" }, { word: "sixteen", meaning: "十六" }, { word: "seventeen", meaning: "十七" }, { word: "eighteen", meaning: "十八" }, { word: "nineteen", meaning: "十九" },
+  { word: "twenty", meaning: "二十" }, { word: "thirty", meaning: "三十" }, { word: "forty", meaning: "四十" }, { word: "fifty", meaning: "五十" }, { word: "sixty", meaning: "六十" },
+  { word: "seventy", meaning: "七十" }, { word: "eighty", meaning: "八十" }, { word: "ninety", meaning: "九十" }, { word: "hundred", meaning: "百" }, { word: "I", meaning: "我" },
+  { word: "You", meaning: "你（你們）" }, { word: "We", meaning: "我們" }, { word: "They", meaning: "他們" }, { word: "He (him)", meaning: "他（男）" }, { word: "She", meaning: "她（女）" },
+  { word: "It", meaning: "它（牠）" }, { word: "my", meaning: "我的" }, { word: "your", meaning: "你的（你們的）" }, { word: "his", meaning: "他的（男）" }, { word: "her", meaning: "她的（女）" },
+  { word: "its", meaning: "它的、牠的" }, { word: "grandmother", meaning: "阿嬤" }, { word: "grandfather", meaning: "阿公" }, { word: "mother (mom)", meaning: "媽媽" }, { word: "father (dad)", meaning: "爸爸" },
+  { word: "sister", meaning: "姊妹" }, { word: "brother", meaning: "兄弟" }, { word: "baby", meaning: "嬰兒" }, { word: "girl", meaning: "女孩" }, { word: "boy", meaning: "男孩" }
 ];
 
-const vocabMid = [
-  { word: "teacher", meaning: "老師" }, { word: "student", meaning: "學生" }, { word: "doctor", meaning: "醫生" }, { word: "nurse", meaning: "護理師" },
-  { word: "hat", meaning: "帽子" }, { word: "shirt", meaning: "襯衫" }, { word: "pants", meaning: "長褲" }, { word: "shoes", meaning: "鞋子" },
-  { word: "pen", meaning: "原子筆" }, { word: "pencil", meaning: "鉛筆" }, { word: "eraser", meaning: "橡皮擦" }, { word: "ruler", meaning: "尺" },
-  { word: "book", meaning: "書" }, { word: "bag", meaning: "袋子" }, { word: "desk", meaning: "書桌" }, { word: "chair", meaning: "椅子" },
-  { word: "door", meaning: "門" }, { word: "window", meaning: "窗戶" }, { word: "computer", meaning: "電腦" }, { word: "phone", meaning: "手機" },
-  { word: "water", meaning: "水" }, { word: "milk", meaning: "牛奶" }, { word: "juice", meaning: "果汁" }, { word: "apple", meaning: "蘋果" },
-  { word: "banana", meaning: "香蕉" }, { word: "bread", meaning: "麵包" }, { word: "egg", meaning: "蛋" }, { word: "cake", meaning: "蛋糕" },
-  { word: "home", meaning: "家" }, { word: "school", meaning: "學校" }, { word: "park", meaning: "公園" }, { word: "store", meaning: "商店" },
-  { word: "car", meaning: "車" }, { word: "bus", meaning: "公車" }, { word: "train", meaning: "火車" }, { word: "bike", meaning: "腳踏車" }
+const vocabGrade2 = [
+  { word: "woman", meaning: "女人" }, { word: "man", meaning: "男人" }, { word: "cook", meaning: "廚師" }, { word: "teacher", meaning: "老師" }, { word: "student", meaning: "學生" },
+  { word: "farmer", meaning: "農夫" }, { word: "doctor", meaning: "醫生" }, { word: "nurse", meaning: "護理師" }, { word: "driver", meaning: "司機" }, { word: "head", meaning: "頭" },
+  { word: "hair", meaning: "頭髮" }, { word: "eye", meaning: "眼睛" }, { word: "nose", meaning: "鼻子" }, { word: "mouth", meaning: "嘴巴" }, { word: "ear", meaning: "耳朵" },
+  { word: "hand", meaning: "手" }, { word: "leg", meaning: "腿" }, { word: "foot (feet)", meaning: "腳" }, { word: "hat", meaning: "帽子" }, { word: "glasses", meaning: "眼鏡" },
+  { word: "shirt", meaning: "襯衫" }, { word: "shorts", meaning: "短褲" }, { word: "pants", meaning: "長褲" }, { word: "skirt", meaning: "裙子" }, { word: "dress", meaning: "洋裝" },
+  { word: "socks", meaning: "襪子" }, { word: "shoes", meaning: "鞋子" }, { word: "boots", meaning: "靴子" }, { word: "bear", meaning: "熊" }, { word: "dog", meaning: "狗" },
+  { word: "cat", meaning: "貓" }, { word: "bird", meaning: "鳥" }, { word: "rabbit", meaning: "兔" }, { word: "frog", meaning: "青蛙" }, { word: "fish", meaning: "魚" },
+  { word: "chicken", meaning: "雞" }, { word: "turtle", meaning: "烏龜" }, { word: "lion", meaning: "獅子" }, { word: "tiger", meaning: "虎" }, { word: "monkey", meaning: "猴子" },
+  { word: "giraffe", meaning: "長頸鹿" }, { word: "fox", meaning: "狐狸" }, { word: "zebra", meaning: "斑馬" }, { word: "pig", meaning: "豬" }, { word: "elephant", meaning: "大象" },
+  { word: "pen", meaning: "原子筆" }, { word: "pencil", meaning: "鉛筆" }, { word: "marker", meaning: "麥克筆" }, { word: "eraser", meaning: "橡皮擦" }, { word: "ruler", meaning: "尺" }
 ];
 
-const vocabHigh = [
-  { word: "morning", meaning: "早上" }, { word: "afternoon", meaning: "下午" }, { word: "evening", meaning: "傍晚" }, { word: "night", meaning: "晚上" },
-  { word: "today", meaning: "今天" }, { word: "run", meaning: "跑" }, { word: "walk", meaning: "走路" }, { word: "swim", meaning: "游泳" },
-  { word: "jump", meaning: "跳" }, { word: "read", meaning: "閱讀" }, { word: "write", meaning: "寫" }, { word: "eat", meaning: "吃" },
-  { word: "drink", meaning: "喝" }, { word: "look", meaning: "看" }, { word: "listen", meaning: "聽" }, { word: "say", meaning: "說" },
-  { word: "good", meaning: "好的" }, { word: "bad", meaning: "壞的" }, { word: "big", meaning: "大的" }, { word: "small", meaning: "小的" },
-  { word: "tall", meaning: "高的" }, { word: "short", meaning: "短的" }, { word: "fast", meaning: "快的" }, { word: "slow", meaning: "慢的" },
-  { word: "happy", meaning: "開心的" }, { word: "sad", meaning: "傷心的" }, { word: "angry", meaning: "生氣的" }, { word: "tired", meaning: "累的" },
-  { word: "hot", meaning: "熱的" }, { word: "cold", meaning: "冷的" }, { word: "in", meaning: "在...裡面" }, { word: "on", meaning: "在...上面" },
-  { word: "under", meaning: "在...下面" }, { word: "what", meaning: "什麼" }, { word: "where", meaning: "哪裡" }, { word: "when", meaning: "何時" },
-  { word: "who", meaning: "誰" }, { word: "why", meaning: "為什麼" }, { word: "how", meaning: "如何" }
+const vocabGrade3 = [
+  { word: "book", meaning: "書" }, { word: "bag", meaning: "袋子" }, { word: "desk", meaning: "書桌" }, { word: "table", meaning: "餐桌" }, { word: "chair", meaning: "椅子" },
+  { word: "crayon", meaning: "蠟筆" }, { word: "box", meaning: "箱子" }, { word: "door", meaning: "門" }, { word: "window", meaning: "窗戶" }, { word: "picture", meaning: "圖片" },
+  { word: "TV", meaning: "電視" }, { word: "sofa", meaning: "沙發" }, { word: "light", meaning: "光" }, { word: "bed", meaning: "床" }, { word: "lamp", meaning: "燈" },
+  { word: "clock", meaning: "時鐘" }, { word: "cell phone", meaning: "手機" }, { word: "video game", meaning: "電動" }, { word: "computer", meaning: "電腦" }, { word: "cup", meaning: "杯子" },
+  { word: "mug", meaning: "馬克杯" }, { word: "bowl", meaning: "碗" }, { word: "ball", meaning: "球" }, { word: "yo-yo", meaning: "溜溜球" }, { word: "bat", meaning: "球棒" },
+  { word: "robot", meaning: "機器人" }, { word: "kite", meaning: "風箏" }, { word: "doll", meaning: "娃娃" }, { word: "mop", meaning: "拖把" }, { word: "map", meaning: "地圖" },
+  { word: "weather", meaning: "天氣" }, { word: "sun", meaning: "太陽" }, { word: "cloud", meaning: "雲" }, { word: "wind", meaning: "風" }, { word: "rain", meaning: "雨" },
+  { word: "snow", meaning: "雪" }, { word: "river", meaning: "河" }, { word: "flower", meaning: "花" }, { word: "grass", meaning: "草" }, { word: "tree", meaning: "樹" },
+  { word: "bike (bicycle)", meaning: "腳踏車" }, { word: "car", meaning: "車" }, { word: "bus", meaning: "公車" }, { word: "train", meaning: "火車" }, { word: "taxi", meaning: "計程車" },
+  { word: "breakfast", meaning: "早餐" }, { word: "lunch", meaning: "午餐" }, { word: "dinner", meaning: "晚餐" }, { word: "cookie", meaning: "餅乾" }, { word: "ice cream", meaning: "冰淇淋" }
+];
+
+const vocabGrade4 = [
+  { word: "candy", meaning: "糖果" }, { word: "hamburger", meaning: "漢堡" }, { word: "hot dog", meaning: "熱狗" }, { word: "pizza", meaning: "比薩" }, { word: "bread", meaning: "麵包" },
+  { word: "sandwich", meaning: "三明治" }, { word: "cake", meaning: "蛋糕" }, { word: "rice", meaning: "飯" }, { word: "noodles", meaning: "麵" }, { word: "spaghetti", meaning: "義大利麵" },
+  { word: "tea", meaning: "茶" }, { word: "coke", meaning: "可樂" }, { word: "soda", meaning: "汽水" }, { word: "water", meaning: "水" }, { word: "juice", meaning: "果汁" },
+  { word: "milk", meaning: "牛奶" }, { word: "egg", meaning: "蛋" }, { word: "ham", meaning: "火腿" }, { word: "salad", meaning: "沙拉" }, { word: "tomato", meaning: "番茄" },
+  { word: "banana", meaning: "香蕉" }, { word: "apple", meaning: "蘋果" }, { word: "pear", meaning: "梨子" }, { word: "grape", meaning: "葡萄" }, { word: "peach", meaning: "桃子" },
+  { word: "home", meaning: "家" }, { word: "school", meaning: "學校" }, { word: "park", meaning: "公園" }, { word: "zoo", meaning: "動物園" }, { word: "store", meaning: "商店" },
+  { word: "shop", meaning: "商店" }, { word: "house", meaning: "房子" }, { word: "garage", meaning: "車庫" }, { word: "living room", meaning: "客廳" }, { word: "dining room", meaning: "飯廳" },
+  { word: "kitchen", meaning: "廚房" }, { word: "bedroom", meaning: "臥室" }, { word: "bathroom", meaning: "浴室、廁所" }, { word: "yard", meaning: "庭院" }, { word: "garden", meaning: "花園、菜園" },
+  { word: "...o'clock", meaning: "...點鐘" }, { word: "now", meaning: "現在" }, { word: "morning", meaning: "早上" }, { word: "afternoon", meaning: "下午" }, { word: "evening", meaning: "傍晚" },
+  { word: "night", meaning: "晚上" }, { word: "today", meaning: "今天" }, { word: "Sunday", meaning: "星期天" }, { word: "Monday", meaning: "星期一" }, { word: "Tuesday", meaning: "星期二" }
+];
+
+const vocabGrade5 = [
+  { word: "Wednesday", meaning: "星期三" }, { word: "Thursday", meaning: "星期四" }, { word: "Friday", meaning: "星期五" }, { word: "Saturday", meaning: "星期六" }, { word: "do", meaning: "做" },
+  { word: "like", meaning: "喜歡" }, { word: "love", meaning: "愛" }, { word: "want", meaning: "想要" }, { word: "have (has)", meaning: "擁有" }, { word: "run", meaning: "跑" },
+  { word: "walk", meaning: "走路" }, { word: "swim", meaning: "游泳" }, { word: "jump", meaning: "跳" }, { word: "ride", meaning: "騎" }, { word: "dance", meaning: "跳舞" },
+  { word: "sing", meaning: "唱" }, { word: "write", meaning: "寫" }, { word: "read", meaning: "閱讀" }, { word: "draw", meaning: "（乾筆）畫" }, { word: "color", meaning: "上色" },
+  { word: "paint", meaning: "（濕筆）畫" }, { word: "speak", meaning: "說" }, { word: "say", meaning: "說" }, { word: "eat", meaning: "吃" }, { word: "drink", meaning: "喝" },
+  { word: "look", meaning: "看" }, { word: "watch", meaning: "看" }, { word: "see", meaning: "看" }, { word: "listen", meaning: "聽" }, { word: "smile", meaning: "微笑" },
+  { word: "laugh", meaning: "大笑" }, { word: "cry", meaning: "哭" }, { word: "hold", meaning: "拿" }, { word: "put", meaning: "放" }, { word: "take", meaning: "拿" },
+  { word: "sit", meaning: "坐" }, { word: "stand", meaning: "站" }, { word: "fine", meaning: "好的" }, { word: "good", meaning: "好的" }, { word: "bad", meaning: "壞的" },
+  { word: "favorite", meaning: "最喜歡的" }, { word: "big", meaning: "大的" }, { word: "small", meaning: "小的" }, { word: "little", meaning: "小的" }, { word: "old", meaning: "老的、舊的" },
+  { word: "young", meaning: "年輕的" }, { word: "tall", meaning: "高的" }, { word: "long", meaning: "長的" }, { word: "short", meaning: "短的" }, { word: "thin", meaning: "瘦的、薄的" }
+];
+
+const vocabGrade6 = [
+  { word: "fat", meaning: "胖的" }, { word: "fast", meaning: "快的" }, { word: "slow", meaning: "慢的" }, { word: "clean", meaning: "乾淨的" }, { word: "dirty", meaning: "髒的" },
+  { word: "hungry", meaning: "餓的" }, { word: "thirsty", meaning: "渴的" }, { word: "happy", meaning: "開心的" }, { word: "unhappy", meaning: "不開心的" }, { word: "sad", meaning: "傷心的" },
+  { word: "angry", meaning: "生氣的" }, { word: "sick", meaning: "生病的" }, { word: "tired", meaning: "累的" }, { word: "hot", meaning: "熱的" }, { word: "cold", meaning: "冷的" },
+  { word: "rainy", meaning: "下雨的" }, { word: "snowy", meaning: "下雪的" }, { word: "sunny", meaning: "晴朗的" }, { word: "cloudy", meaning: "多雲的" }, { word: "windy", meaning: "起風的" },
+  { word: "black", meaning: "黑色的" }, { word: "white", meaning: "白色的" }, { word: "gray", meaning: "灰色的" }, { word: "brown", meaning: "咖啡色的" }, { word: "red", meaning: "紅色的" },
+  { word: "orange", meaning: "橘色的" }, { word: "yellow", meaning: "黃色的" }, { word: "green", meaning: "綠色的" }, { word: "blue", meaning: "藍色的" }, { word: "purple", meaning: "紫色的" },
+  { word: "pink", meaning: "粉紅色的" }, { word: "at", meaning: "在…地點；在…時刻" }, { word: "in", meaning: "在…裡面" }, { word: "on", meaning: "在…上面" }, { word: "under", meaning: "在…下面" },
+  { word: "by", meaning: "在…旁邊" }, { word: "next to", meaning: "在…旁邊" }, { word: "beside", meaning: "在…旁邊" }, { word: "in front of", meaning: "在…前面" }, { word: "behind", meaning: "在…後面" },
+  { word: "who", meaning: "誰" }, { word: "what", meaning: "什麼" }, { word: "when", meaning: "何時" }, { word: "where", meaning: "哪裡" }, { word: "which", meaning: "哪一個" },
+  { word: "why", meaning: "為什麼" }, { word: "what time", meaning: "幾點" }, { word: "how / how old", meaning: "如何、怎麼 / 幾歲" }, { word: "how much", meaning: "多少" }, { word: "how many", meaning: "多少" }
 ];
 
 const App = () => {
@@ -642,15 +683,26 @@ const App = () => {
             <Zap size={16} className="text-amber-500" />
             免輸入！點擊直接開始練習
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            <button onClick={() => loadPresetCards(vocabLow)} className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-3 px-2 rounded-xl text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1.5 active:scale-95">
-              <span className="text-2xl drop-shadow-sm">👶</span><span>國小(低)</span>
+          
+          {/* 💡 更新六宮格選單，完美支援手機排版 */}
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            <button onClick={() => loadPresetCards(vocabGrade1)} className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-2 px-1 rounded-xl text-[12px] sm:text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95">
+              <span className="text-xl sm:text-2xl drop-shadow-sm">1️⃣</span><span>小一</span>
             </button>
-            <button onClick={() => loadPresetCards(vocabMid)} className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-3 px-2 rounded-xl text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1.5 active:scale-95">
-              <span className="text-2xl drop-shadow-sm">🧒</span><span>國小(中)</span>
+            <button onClick={() => loadPresetCards(vocabGrade2)} className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-2 px-1 rounded-xl text-[12px] sm:text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95">
+              <span className="text-xl sm:text-2xl drop-shadow-sm">2️⃣</span><span>小二</span>
             </button>
-            <button onClick={() => loadPresetCards(vocabHigh)} className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-3 px-2 rounded-xl text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1.5 active:scale-95">
-              <span className="text-2xl drop-shadow-sm">👦</span><span>國小(高)</span>
+            <button onClick={() => loadPresetCards(vocabGrade3)} className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-2 px-1 rounded-xl text-[12px] sm:text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95">
+              <span className="text-xl sm:text-2xl drop-shadow-sm">3️⃣</span><span>小三</span>
+            </button>
+            <button onClick={() => loadPresetCards(vocabGrade4)} className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-2 px-1 rounded-xl text-[12px] sm:text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95">
+              <span className="text-xl sm:text-2xl drop-shadow-sm">4️⃣</span><span>小四</span>
+            </button>
+            <button onClick={() => loadPresetCards(vocabGrade5)} className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-2 px-1 rounded-xl text-[12px] sm:text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95">
+              <span className="text-xl sm:text-2xl drop-shadow-sm">5️⃣</span><span>小五</span>
+            </button>
+            <button onClick={() => loadPresetCards(vocabGrade6)} className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-2 px-1 rounded-xl text-[12px] sm:text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95">
+              <span className="text-xl sm:text-2xl drop-shadow-sm">6️⃣</span><span>小六</span>
             </button>
           </div>
         </div>
@@ -675,7 +727,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v13.3 尊榮閱讀與朗讀版 byKC</span>
+          <span>v13.4 國小六級精細版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-red-400 text-slate-400 transition-colors flex items-center gap-1">
                <Trash2 size={10} /> 刪除本地記憶金鑰
