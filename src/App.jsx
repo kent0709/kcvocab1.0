@@ -53,74 +53,21 @@ const safePushState = (url) => {
   } catch (e) {}
 };
 
-// --- 將原本的六級分類替換成 小班、中班、大班 (各 100 單字) ---
-const vocabClass1 = [
-  { word: "zero", meaning: "零" }, { word: "one", meaning: "一" }, { word: "two", meaning: "二" }, { word: "three", meaning: "三" }, { word: "four", meaning: "四" },
-  { word: "five", meaning: "五" }, { word: "six", meaning: "六" }, { word: "seven", meaning: "七" }, { word: "eight", meaning: "八" }, { word: "nine", meaning: "九" },
-  { word: "ten", meaning: "十" }, { word: "eleven", meaning: "十一" }, { word: "twelve", meaning: "十二" }, { word: "thirteen", meaning: "十三" }, { word: "fourteen", meaning: "十四" },
-  { word: "fifteen", meaning: "十五" }, { word: "sixteen", meaning: "十六" }, { word: "seventeen", meaning: "十七" }, { word: "eighteen", meaning: "十八" }, { word: "nineteen", meaning: "十九" },
-  { word: "twenty", meaning: "二十" }, { word: "thirty", meaning: "三十" }, { word: "forty", meaning: "四十" }, { word: "fifty", meaning: "五十" }, { word: "sixty", meaning: "六十" },
-  { word: "seventy", meaning: "七十" }, { word: "eighty", meaning: "八十" }, { word: "ninety", meaning: "九十" }, { word: "hundred", meaning: "百" }, { word: "I", meaning: "我" },
-  { word: "You", meaning: "你（你們）" }, { word: "We", meaning: "我們" }, { word: "They", meaning: "他們" }, { word: "He him", meaning: "他（男）" }, { word: "She", meaning: "她（女）" },
-  { word: "It", meaning: "它（牠）" }, { word: "my", meaning: "我的" }, { word: "your", meaning: "你的（你們的）" }, { word: "his", meaning: "他的（男）" }, { word: "her", meaning: "她的（女）" },
-  { word: "its", meaning: "它的、牠的" }, { word: "grandmother", meaning: "阿嬤" }, { word: "grandfather", meaning: "阿公" }, { word: "mother (mom)", meaning: "媽媽" }, { word: "father (dad)", meaning: "爸爸" },
-  { word: "sister", meaning: "姊妹" }, { word: "brother", meaning: "兄弟" }, { word: "baby", meaning: "嬰兒" }, { word: "girl", meaning: "女孩" }, { word: "boy", meaning: "男孩" },
-  { word: "woman", meaning: "女人" }, { word: "man", meaning: "男人" }, { word: "cook", meaning: "廚師" }, { word: "teacher", meaning: "老師" }, { word: "student", meaning: "學生" },
-  { word: "farmer", meaning: "農夫" }, { word: "doctor", meaning: "醫生" }, { word: "nurse", meaning: "護理師" }, { word: "driver", meaning: "司機" }, { word: "head", meaning: "頭" },
-  { word: "hair", meaning: "頭髮" }, { word: "eye", meaning: "眼睛" }, { word: "nose", meaning: "鼻子" }, { word: "mouth", meaning: "嘴巴" }, { word: "ear", meaning: "耳朵" },
-  { word: "hand", meaning: "手" }, { word: "leg", meaning: "腿" }, { word: "foot (feet)", meaning: "腳" }, { word: "hat", meaning: "帽子" }, { word: "glasses", meaning: "眼鏡" },
-  { word: "shirt", meaning: "襯衫" }, { word: "shorts", meaning: "短褲" }, { word: "pants", meaning: "長褲" }, { word: "skirt", meaning: "裙子" }, { word: "dress", meaning: "洋裝" },
-  { word: "socks", meaning: "襪子" }, { word: "shoes", meaning: "鞋子" }, { word: "boots", meaning: "靴子" }, { word: "bear", meaning: "熊" }, { word: "dog", meaning: "狗" },
-  { word: "cat", meaning: "貓" }, { word: "bird", meaning: "鳥" }, { word: "rabbit", meaning: "兔" }, { word: "frog", meaning: "青蛙" }, { word: "fish", meaning: "魚" },
-  { word: "chicken", meaning: "雞" }, { word: "turtle", meaning: "烏龜" }, { word: "lion", meaning: "獅子" }, { word: "tiger", meaning: "虎" }, { word: "monkey", meaning: "猴子" },
-  { word: "giraffe", meaning: "長頸鹿" }, { word: "fox", meaning: "狐狸" }, { word: "zebra", meaning: "斑馬" }, { word: "pig", meaning: "豬" }, { word: "elephant", meaning: "大象" },
-  { word: "pen", meaning: "原子筆" }, { word: "pencil", meaning: "鉛筆" }, { word: "marker", meaning: "麥克筆" }, { word: "eraser", meaning: "橡皮擦" }, { word: "ruler", meaning: "尺" }
-];
+// --- 💡 終極壓縮版 900 單字庫 (避免程式碼過於冗長) ---
+const rawData = `zero,零|one,一|two,二|three,三|four,四|five,五|six,六|seven,七|eight,八|nine,九|ten,十|eleven,十一|twelve,十二|thirteen,十三|fourteen,十四|fifteen,十五|sixteen,十六|seventeen,十七|eighteen,十八|nineteen,十九|twenty,二十|thirty,三十|forty,四十|fifty,五十|sixty,六十|seventy,七十|eighty,八十|ninety,九十|hundred,百|I,我|You,你（你們）|We,我們|They,他們|He,他（男）|She,她（女）|It,它（牠）|my,我的|your,你的（你們的）|his,他的（男）|her,她的（女）|its,它的、牠的|grandmother,阿嬤|grandfather,阿公|mother,媽媽|father,爸爸|sister,姊妹|brother,兄弟|baby,嬰兒|girl,女孩|boy,男孩|woman,女人|man,男人|cook,廚師|teacher,老師|student,學生|farmer,農夫|doctor,醫生|nurse,護理師|driver,司機|head,頭|hair,頭髮|eye,眼睛|nose,鼻子|mouth,嘴巴|ear,耳朵|hand,手|leg,腿|foot,腳|hat,帽子|glasses,眼鏡|shirt,襯衫|shorts,短褲|pants,長褲|skirt,裙子|dress,洋裝|socks,襪子|shoes,鞋子|boots,靴子|bear,熊|dog,狗|cat,貓|bird,鳥|rabbit,兔|frog,青蛙|fish,魚|chicken,雞|turtle,烏龜|lion,獅子|tiger,虎|monkey,猴子|giraffe,長頸鹿|fox,狐狸|zebra,斑馬|pig,豬|elephant,大象|pen,原子筆|pencil,鉛筆|marker,麥克筆|eraser,橡皮擦|ruler,尺|book,書|bag,袋子|desk,書桌|table,餐桌|chair,椅子|crayon,蠟筆|box,箱子|door,門|window,窗戶|picture,圖片|TV,電視|sofa,沙發|light,光|bed,床|lamp,燈|clock,時鐘|cellphone,手機|videogame,電動|computer,電腦|cup,杯子|mug,馬克杯|bowl,碗|ball,球|yoyo,溜溜球|bat,球棒|robot,機器人|kite,風箏|doll,娃娃|mop,拖把|map,地圖|weather,天氣|sun,太陽|cloud,雲|wind,風|rain,雨|snow,雪|river,河|flower,花|grass,草|tree,樹|bike,腳踏車|car,車|bus,公車|train,火車|taxi,計程車|breakfast,早餐|lunch,午餐|dinner,晚餐|cookie,餅乾|icecream,冰淇淋|candy,糖果|hamburger,漢堡|hotdog,熱狗|pizza,比薩|bread,麵包|sandwich,三明治|cake,蛋糕|rice,飯|noodles,麵|spaghetti,義大利麵|tea,茶|coke,可樂|soda,汽水|water,水|juice,果汁|milk,牛奶|egg,蛋|ham,火腿|salad,沙拉|tomato,番茄|banana,香蕉|apple,蘋果|pear,梨子|grape,葡萄|peach,桃子|home,家|school,學校|park,公園|zoo,動物園|store,商店|shop,商店|house,房子|garage,車庫|livingroom,客廳|diningroom,飯廳|kitchen,廚房|bedroom,臥室|bathroom,浴室、廁所|yard,庭院|garden,花園、菜園|o'clock,點鐘|now,現在|morning,早上|afternoon,下午|evening,傍晚|night,晚上|today,今天|Sunday,星期天|Monday,星期一|Tuesday,星期二|Wednesday,星期三|Thursday,星期四|Friday,星期五|Saturday,星期六|do,做|like,喜歡|love,愛|want,想要|have,擁有|run,跑|walk,走路|swim,游泳|jump,跳|ride,騎|dance,跳舞|sing,唱|write,寫|read,閱讀|draw,畫|color,上色|paint,畫|speak,說|say,說|eat,吃|drink,喝|look,看|watch,看|see,看|listen,聽|smile,微笑|laugh,大笑|cry,哭|hold,拿|put,放|take,拿|sit,坐|stand,站|fine,好的|good,好的|bad,壞的|favorite,最喜歡的|big,大的|small,小的|little,小的|old,老的、舊的|young,年輕的|tall,高的|long,長的|short,短的|thin,瘦的、薄的|fat,胖的|fast,快的|slow,慢的|clean,乾淨的|dirty,髒的|hungry,餓的|thirsty,渴的|happy,開心的|unhappy,不開心的|sad,傷心的|angry,生氣的|sick,生病的|tired,累的|hot,熱的|cold,冷的|rainy,下雨的|snowy,下雪的|sunny,晴朗的|cloudy,多雲的|windy,起風的|black,黑色的|white,白色的|gray,灰色的|brown,咖啡色的|red,紅色的|orange,橘色的|yellow,黃色的|green,綠色的|blue,藍色的|purple,紫色的|pink,粉紅色的|at,在…地點|in,在…裡面|on,在…上面|under,在…下面|by,在…旁邊|nextto,在…旁邊|beside,在…旁邊|infrontof,在…前面|behind,在…後面|who,誰|what,什麼|when,何時|where,哪裡|which,哪一個|why,為什麼|whattime,幾點|how,如何|howmuch,多少|howmany,多少|east,東方|Easter,復活節|easy,容易的|edge,邊緣|education,教育|effect,效果、影響|effort,努力|either,也不、兩者之一|elder,長輩、較年長的|elect,選舉|element,元素|else,其他|email,電子郵件|embarrass,使困窘|emphasize,強調|employ,雇用|empty,空的|end,結束|enemy,敵人|energy,能源、能量|engine,引擎|engineer,工程師|enjoy,享受|enough,足夠的|enter,進入|entire,整個的|entrance,入口|envelope,信封|environment,環境|envy,嫉妒、羨慕|equal,相等的|error,錯誤|escape,逃跑|especially,特別地|essay,論文、散文|Europe,歐洲|European,歐洲的|even,甚至|event,事件|ever,曾經|every,每個|everybody,每個人|everyday,每天的|everyone,每個人|everything,每件事|everywhere,到處|evidence,證據|evil,邪惡的|exact,精確的|examine,檢查、考試|example,例子|excellent,優秀的|except,除了...之外|excite,使興奮|excitement,興奮|excuse,藉口、原諒|exercise,運動、練習|exist,存在|exit,出口|expect,期待|expensive,昂貴的|experience,經驗|experiment,實驗|expert,專家|explain,解釋|explanation,解釋|explore,探險|express,表達|expression,表達、表情|extra,額外的|face,臉、面對|fact,事實|factory,工廠|fail,失敗、不及格|failure,失敗|fair,公平的|fall,落下、秋天|false,錯誤的|family,家庭|famous,有名的|fan,扇子、迷|fancy,精緻的、想像|fantastic,極好的|far,遠的|farm,農場|fashionable,流行的|faucet,水龍頭|fault,錯誤、缺點|favor,幫助、偏愛|fear,害怕|February,二月|fee,費用|feed,餵食|feel,感覺|feeling,感覺|female,女性的|fence,籬笆|festival,節日|fever,發燒|few,很少|fiction,小說|field,田野、領域|fight,戰鬥、打架|figure,數字、身材、人物|fill,充滿|film,電影、膠捲|final,最後的|finally,最後|find,找到|finish,完成|fire,火、開除|firm,堅定的、公司|first,第一|fisherman,漁夫|fit,適合|fix,修理|flag,旗子|flash,快閃、閃光|flashlight,手電筒|flat,平坦的|flight,飛行、班機|float,漂浮|floor,地板、樓層|flour,麵粉|flow,流動|flu,流行性感冒|flute,笛子|fly,飛、蒼蠅|focus,焦點、集中|fog,霧|foggy,有霧的|follow,跟隨|fool,傻瓜、愚弄|foolish,愚蠢的|football,足球|for,為了、給|force,力量、強迫|foreign,外國的|foreigner,外國人|forest,森林|forget,忘記|forgive,原諒|fork,叉子|form,表格、形式|formal,正式的|former,前者的|forward,向前|France,法國|frank,率直的|free,自由的、免費的|freedom,自由|freezer,冷凍櫃|freezing,極冷的|French,法國的、法語|frequent,頻繁的|fresh,新鮮的|friend,朋友|friendly,友善的|friendship,友誼|frighten,使驚恐|Frisbee,飛盤|from,從...|front,前面|fruit,水果|fry,煎、炸、炒|full,滿的|fun,樂趣|function,功能|funny,好笑的|furniture,傢俱|future,未來|gain,獲得|game,遊戲|gas,瓦斯、汽油|gate,大門|gather,聚集|general,一般的|generally,一般地|generation,代、輩|generous,慷慨的|genius,天才|gentle,溫和的|gentleman,先生、紳士|geography,地理|gesture,姿勢、手勢|get,得到、變成|getin,進入、搭乘|getoff,下車|geton,上車|ghost,鬼|giant,巨大的|gift,禮物|girlfriend,女朋友|give,給|givenname,名字|glad,高興的|glass,玻璃、杯子|glove,手套|glue,膠水|go,去|goal,目標、得分|goat,山羊|god,神|gold,黃金|golden,金色的|golf,高爾夫|good-looking,美貌的|goodness,善良|goose,鵝|government,政府|grade,年級、分數|gradual,逐漸的|graduate,畢業|gram,公克|grand,盛大的|granddaughter,孫女|grandfather,爺爺、外公|grandmother,奶奶、外婆|grandson,孫子|grapefruit,葡萄柚|great,偉大的、棒的|greedy,貪婪的|greet,問候|ground,地面|group,群、組|grow,生長、種植|growup,長大|guard,保衛、警衛|guava,蕃石榴|guess,猜|guest,客人|guide,嚮導、指引|guitar,吉他|gun,槍|guy,傢伙、男人|gym,體育館|habit,習慣|haircut,理髮|hairdresser,美髮師|half,一半|hall,大廳|Halloween,萬聖節前夕|hammer,槌子|handkerchief,手帕|handle,處理、把手|handsome,英俊的|hang,懸掛|hanger,掛衣架|happen,發生|hardly,幾乎不|hate,討厭|headache,頭痛|health,健康|hear,聽見|heart,心|heat,熱|heater,暖氣機|height,高度|helicopter,直升機|hello,哈囉|help,幫助|helpful,有幫助的|hen,母雞|here,這裡|hero,英雄|hey,嘿|hi,嗨|hide,躲藏|high,高的|highway,公路|hike,遠足|hiking,徒步旅行|hill,小山|him,他(受格)|hip,臀部|hippo,河馬|hire,雇用|history,歷史|hit,打、擊|hobby,嗜好|hold,拿、握、舉辦|hole,洞|holiday,假期|homesick,想家的|homework,家事、家庭作業|honest,誠實的|honestly,誠實地|honey,蜂蜜、親愛的|HongKong,香港|hope,希望|hop,單腳跳|horrible,恐怖的|horse,馬|hospital,醫院|host,主人|hotel,飯店|hour,小時|housewife,家庭主婦|housework,家事|however,然而|huge,巨大的|human,人類的|humble,謙遜的|humid,潮濕的|humor,幽默|humorous,幽默的|hunger,飢餓|hungry,飢餓的|hunt,狩獵|hunter,獵人|hurry,趕快|hurt,受傷|husband,丈夫|ice,冰|idea,主意|if,如果|ill,生病的|imagine,想像|impolite,無禮的|importance,重要性|important,重要的|impossible,不可能的|improve,改善|inbackof,在...後面|infrontof,在...前面|inch,英吋|include,包含|income,收入|increase,增加|independent,獨立的|indicate,指示|industry,工業、行業|influence,影響|information,資訊|ink,墨水|insect,昆蟲|insist,堅持|inspire,鼓舞|instant,瞬間、立即的|instantnoodle,泡麵|instead,代替|instrument,儀器、樂器|intelligent,聰明的|interest,興趣|interested,感興趣的|interesting,有趣的|international,國際的|internet,網路|interrupt,打斷|interview,面試、採訪|introduce,介紹|invent,發明|invention,發明|invitation,邀請|invite,邀請|iron,鐵、熨斗|island,島嶼|Italy,義大利|item,項目|jacket,夾克|jam,果醬、堵塞|January,一月|Japan,日本|Japanese,日本的、日語|jar,罐子|jazz,爵士樂|jealous,嫉妒的|jeep,吉普車|job,工作|jog,慢跑|jogging,慢跑|join,加入|joke,玩笑|journalist,記者|joy,歡樂|judge,判斷、法官|July,七月|June,六月|junior,初級的、年幼的|just,剛好、僅僅|kangaroo,袋鼠|Kaohsiung,高雄|keep,保持、繼續|ketchup,番茄醬|key,鑰匙、關鍵|keyboard,鍵盤|kick,踢|kid,小孩|kill,殺|kilo,公斤|kilogram,公斤|kilometer,公里|kind,種類、親切的|kindergarten,幼稚園|king,國王|kingdom,王國|kiss,親吻|kitten,小貓|kitty,小貓|knee,膝蓋|knife,刀子|knight,騎士|ladder,梯子|lady,女士|lake,湖|lamb,小羊|land,土地|language,語言|lantern,燈籠|large,大的|late,遲的|laugh,笑|law,法律|lawyer,律師|lazy,懶惰的|leader,領導者|leaf,葉子|learn,學習|least,最少|leave,離開|left,左邊|lemon,檸檬|lend,借出|less,較少|lesson,課|let,讓|letter,信|level,程度|library,圖書館|life,生活|lift,舉起|light,輕的|likely,可能的|limit,限制|line,線|link,連結|lip,嘴唇|liquid,液體|list,清單|listen,聽|liter,公升|live,生活|local,當地的|lock,鎖|lonely,寂寞的|look,看|lose,失去|loud,大聲的|lovely,可愛的|low,低的|lucky,幸運的|machine,機器|mad,生氣的|magic,魔術|mail,信件|main,主要的|major,主要的|make,製造|male,男性的|mall,購物中心|manager,經理|mango,芒果|manner,禮貌|mark,標記|market,市場|marry,結婚|mask,面具|mass,大量|master,主人|match,火柴|material,材料|math,數學|matter,事情|meal,一餐|mean,意思|meat,肉|medicine,藥|meet,遇見|meeting,會議|member,成員|memory,記憶|mend,修理|mental,心理的|menu,菜單|message,訊息|metal,金屬|meter,公尺|method,方法|middle,中間|midnight,午夜|mile,英里|mind,心智|mine,我的|minute,分鐘|mirror,鏡子|miss,想念|mistake,錯誤|mix,混合|model,模型|modern,現代的|moment,時刻|money,錢|month,月|moon,月亮|more,更多的|most,更多的|motion,動作|mountain,山|mouse,老鼠|move,移動|movie,電影|much,很多的|mud,泥巴|music,音樂|musician,音樂家|must,必須|nail,釘子|name,名字|narrow,狹窄的|nation,國家|national,國家的|native,本地的|natural,自然的|nature,自然|near,靠近|neat,整潔的|neck,脖子|need,需要|needle,針|negative,負面的|neighbor,鄰居|neither,也不|nephew,姪子|nervous,緊張的|nest,鳥巢|net,網子|never,從不`.replace(/\n/g, '');
 
-const vocabClass2 = [
-  { word: "book", meaning: "書" }, { word: "bag", meaning: "袋子" }, { word: "desk", meaning: "書桌" }, { word: "table", meaning: "餐桌" }, { word: "chair", meaning: "椅子" },
-  { word: "crayon", meaning: "蠟筆" }, { word: "box", meaning: "箱子" }, { word: "door", meaning: "門" }, { word: "window", meaning: "窗戶" }, { word: "picture", meaning: "圖片" },
-  { word: "TV", meaning: "電視" }, { word: "sofa", meaning: "沙發" }, { word: "light", meaning: "光" }, { word: "bed", meaning: "床" }, { word: "lamp", meaning: "燈" },
-  { word: "clock", meaning: "時鐘" }, { word: "cell phone", meaning: "手機" }, { word: "video game", meaning: "電動" }, { word: "computer", meaning: "電腦" }, { word: "cup", meaning: "杯子" },
-  { word: "mug", meaning: "馬克杯" }, { word: "bowl", meaning: "碗" }, { word: "ball", meaning: "球" }, { word: "yo-yo", meaning: "溜溜球" }, { word: "bat", meaning: "球棒" },
-  { word: "robot", meaning: "機器人" }, { word: "kite", meaning: "風箏" }, { word: "doll", meaning: "娃娃" }, { word: "mop", meaning: "拖把" }, { word: "map", meaning: "地圖" },
-  { word: "weather", meaning: "天氣" }, { word: "sun", meaning: "太陽" }, { word: "cloud", meaning: "雲" }, { word: "wind", meaning: "風" }, { word: "rain", meaning: "雨" },
-  { word: "snow", meaning: "雪" }, { word: "river", meaning: "河" }, { word: "flower", meaning: "花" }, { word: "grass", meaning: "草" }, { word: "tree", meaning: "樹" },
-  { word: "bike (bicycle)", meaning: "腳踏車" }, { word: "car", meaning: "車" }, { word: "bus", meaning: "公車" }, { word: "train", meaning: "火車" }, { word: "taxi", meaning: "計程車" },
-  { word: "breakfast", meaning: "早餐" }, { word: "lunch", meaning: "午餐" }, { word: "dinner", meaning: "晚餐" }, { word: "cookie", meaning: "餅乾" }, { word: "ice cream", meaning: "冰淇淋" },
-  { word: "candy", meaning: "糖果" }, { word: "hamburger", meaning: "漢堡" }, { word: "hot dog", meaning: "熱狗" }, { word: "pizza", meaning: "比薩" }, { word: "bread", meaning: "麵包" },
-  { word: "sandwich", meaning: "三明治" }, { word: "cake", meaning: "蛋糕" }, { word: "rice", meaning: "飯" }, { word: "noodles", meaning: "麵" }, { word: "spaghetti", meaning: "義大利麵" },
-  { word: "tea", meaning: "茶" }, { word: "coke", meaning: "可樂" }, { word: "soda", meaning: "汽水" }, { word: "water", meaning: "水" }, { word: "juice", meaning: "果汁" },
-  { word: "milk", meaning: "牛奶" }, { word: "egg", meaning: "蛋" }, { word: "ham", meaning: "火腿" }, { word: "salad", meaning: "沙拉" }, { word: "tomato", meaning: "番茄" },
-  { word: "banana", meaning: "香蕉" }, { word: "apple", meaning: "蘋果" }, { word: "pear", meaning: "梨子" }, { word: "grape", meaning: "葡萄" }, { word: "peach", meaning: "桃子" },
-  { word: "home", meaning: "家" }, { word: "school", meaning: "學校" }, { word: "park", meaning: "公園" }, { word: "zoo", meaning: "動物園" }, { word: "store", meaning: "商店" },
-  { word: "shop", meaning: "商店" }, { word: "house", meaning: "房子" }, { word: "garage", meaning: "車庫" }, { word: "living room", meaning: "客廳" }, { word: "dining room", meaning: "飯廳" },
-  { word: "kitchen", meaning: "廚房" }, { word: "bedroom", meaning: "臥室" }, { word: "bathroom", meaning: "浴室、廁所" }, { word: "yard", meaning: "庭院" }, { word: "garden", meaning: "花園、菜園" },
-  { word: "...o'clock", meaning: "...點鐘" }, { word: "now", meaning: "現在" }, { word: "morning", meaning: "早上" }, { word: "afternoon", meaning: "下午" }, { word: "evening", meaning: "傍晚" },
-  { word: "night", meaning: "晚上" }, { word: "today", meaning: "今天" }, { word: "Sunday", meaning: "星期天" }, { word: "Monday", meaning: "星期一" }, { word: "Tuesday", meaning: "星期二" }
-];
+const allVocab = rawData.split('|').map(item => {
+  const [word, meaning] = item.split(',');
+  return { word, meaning };
+});
 
-const vocabClass3 = [
-  { word: "Wednesday", meaning: "星期三" }, { word: "Thursday", meaning: "星期四" }, { word: "Friday", meaning: "星期五" }, { word: "Saturday", meaning: "星期六" }, { word: "do", meaning: "做" },
-  { word: "like", meaning: "喜歡" }, { word: "love", meaning: "愛" }, { word: "want", meaning: "想要" }, { word: "have (has)", meaning: "擁有" }, { word: "run", meaning: "跑" },
-  { word: "walk", meaning: "走路" }, { word: "swim", meaning: "游泳" }, { word: "jump", meaning: "跳" }, { word: "ride", meaning: "騎" }, { word: "dance", meaning: "跳舞" },
-  { word: "sing", meaning: "唱" }, { word: "write", meaning: "寫" }, { word: "read", meaning: "閱讀" }, { word: "draw", meaning: "（乾筆）畫" }, { word: "color", meaning: "上色" },
-  { word: "paint", meaning: "（濕筆）畫" }, { word: "speak", meaning: "說" }, { word: "say", meaning: "說" }, { word: "eat", meaning: "吃" }, { word: "drink", meaning: "喝" },
-  { word: "look", meaning: "看" }, { word: "watch", meaning: "看" }, { word: "see", meaning: "看" }, { word: "listen", meaning: "聽" }, { word: "smile", meaning: "微笑" },
-  { word: "laugh", meaning: "大笑" }, { word: "cry", meaning: "哭" }, { word: "hold", meaning: "拿" }, { word: "put", meaning: "放" }, { word: "take", meaning: "拿" },
-  { word: "sit", meaning: "坐" }, { word: "stand", meaning: "站" }, { word: "fine", meaning: "好的" }, { word: "good", meaning: "好的" }, { word: "bad", meaning: "壞的" },
-  { word: "favorite", meaning: "最喜歡的" }, { word: "big", meaning: "大的" }, { word: "small", meaning: "小的" }, { word: "little", meaning: "小的" }, { word: "old", meaning: "老的、舊的" },
-  { word: "young", meaning: "年輕的" }, { word: "tall", meaning: "高的" }, { word: "long", meaning: "長的" }, { word: "short", meaning: "短的" }, { word: "thin", meaning: "瘦的、薄的" },
-  { word: "fat", meaning: "胖的" }, { word: "fast", meaning: "快的" }, { word: "slow", meaning: "慢的" }, { word: "clean", meaning: "乾淨的" }, { word: "dirty", meaning: "髒的" },
-  { word: "hungry", meaning: "餓的" }, { word: "thirsty", meaning: "渴的" }, { word: "happy", meaning: "開心的" }, { word: "unhappy", meaning: "不開心的" }, { word: "sad", meaning: "傷心的" },
-  { word: "angry", meaning: "生氣的" }, { word: "sick", meaning: "生病的" }, { word: "tired", meaning: "累的" }, { word: "hot", meaning: "熱的" }, { word: "cold", meaning: "冷的" },
-  { word: "rainy", meaning: "下雨的" }, { word: "snowy", meaning: "下雪的" }, { word: "sunny", meaning: "晴朗的" }, { word: "cloudy", meaning: "多雲的" }, { word: "windy", meaning: "起風的" },
-  { word: "black", meaning: "黑色的" }, { word: "white", meaning: "白色的" }, { word: "gray", meaning: "灰色的" }, { word: "brown", meaning: "咖啡色的" }, { word: "red", meaning: "紅色的" },
-  { word: "orange", meaning: "橘色的" }, { word: "yellow", meaning: "黃色的" }, { word: "green", meaning: "綠色的" }, { word: "blue", meaning: "藍色的" }, { word: "purple", meaning: "紫色的" },
-  { word: "pink", meaning: "粉紅色的" }, { word: "at", meaning: "在…地點；在…時刻" }, { word: "in", meaning: "在…裡面" }, { word: "on", meaning: "在…上面" }, { word: "under", meaning: "在…下面" },
-  { word: "by", meaning: "在…旁邊" }, { word: "next to", meaning: "在…旁邊" }, { word: "beside", meaning: "在…旁邊" }, { word: "in front of", meaning: "在…前面" }, { word: "behind", meaning: "在…後面" },
-  { word: "who", meaning: "誰" }, { word: "what", meaning: "什麼" }, { word: "when", meaning: "何時" }, { word: "where", meaning: "哪裡" }, { word: "which", meaning: "哪一個" },
-  { word: "why", meaning: "為什麼" }, { word: "what time", meaning: "幾點" }, { word: "how / how old", meaning: "如何、怎麼 / 幾歲" }, { word: "how much", meaning: "多少" }, { word: "how many", meaning: "多少" }
+const gradeCategories = [
+  { name: "一上", icon: "👶" }, { name: "一中", icon: "👶" }, { name: "一下", icon: "👶" },
+  { name: "二上", icon: "🧒" }, { name: "二中", icon: "🧒" }, { name: "二下", icon: "🧒" },
+  { name: "三上", icon: "👦" }, { name: "三中", icon: "👦" }, { name: "三下", icon: "👦" },
+  { name: "四上", icon: "👧" }, { name: "四中", icon: "👧" }, { name: "四下", icon: "👧" },
+  { name: "五上", icon: "🧑" }, { name: "五中", icon: "🧑" }, { name: "五下", icon: "🧑" },
+  { name: "六上", icon: "👱" }, { name: "六中", icon: "👱" }, { name: "六下", icon: "👱" }
 ];
 
 const App = () => {
@@ -663,16 +610,24 @@ const App = () => {
             <Zap size={16} className="text-amber-500" />
             免輸入！點擊直接開始練習
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            <button onClick={() => loadPresetCards(vocabClass1)} className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-3 px-2 rounded-xl text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1.5 active:scale-95">
-              <span className="text-2xl drop-shadow-sm">👶</span><span>小班</span>
-            </button>
-            <button onClick={() => loadPresetCards(vocabClass2)} className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-3 px-2 rounded-xl text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1.5 active:scale-95">
-              <span className="text-2xl drop-shadow-sm">🧒</span><span>中班</span>
-            </button>
-            <button onClick={() => loadPresetCards(vocabClass3)} className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-3 px-2 rounded-xl text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1.5 active:scale-95">
-              <span className="text-2xl drop-shadow-sm">👦</span><span>大班</span>
-            </button>
+          
+          {/* 💡 更新六宮格選單，完美支援手機排版，並加上捲動軸避免過長 */}
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 max-h-[220px] overflow-y-auto custom-scrollbar pr-1 pb-1">
+            {gradeCategories.map((cat, index) => {
+              const start = index * 50;
+              const end = start + 50;
+              const vocabChunk = allVocab.slice(start, end);
+              return (
+                <button 
+                  key={index}
+                  onClick={() => loadPresetCards(vocabChunk)} 
+                  className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-2 px-1 rounded-xl text-[12px] sm:text-[13px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
+                >
+                  <span className="text-xl sm:text-2xl drop-shadow-sm">{cat.icon}</span>
+                  <span>{cat.name}</span>
+                </button>
+              )
+            })}
           </div>
         </div>
 
@@ -696,7 +651,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v13.7 三百單字三級版 byKC</span>
+          <span>v13.8 完美 18 級分級版 byKC</span>
           {!isCanvas && (
              <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-red-400 text-slate-400 transition-colors flex items-center gap-1">
                <Trash2 size={10} /> 刪除本地記憶金鑰
@@ -757,14 +712,6 @@ const App = () => {
   const card = cards[queue[0]];
   const progress = total === 0 ? 0 : ((total - queue.length) / total) * 100;
   
-  const btnConfig = [
-    { id: 'again', label: 'Again', color: 'red', icon: <RefreshCcw size={18} /> },
-    { id: 'hard', label: 'Hard', color: 'orange', icon: <Flame size={18} /> },
-    { id: 'listen', label: 'Listen', color: 'indigo', icon: <Volume2 size={24} />, special: true },
-    { id: 'good', label: 'Good', color: 'blue', icon: <Star size={18} /> },
-    { id: 'easy', label: 'Easy', color: 'green', icon: <Zap size={18} /> }
-  ];
-
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center py-4 px-4 font-sans text-slate-800 h-[100dvh]">
       
