@@ -121,6 +121,11 @@ const App = () => {
   const workingModelRef = useRef(isCanvas ? "gemini-2.5-flash-preview-09-2025" : "");
   const speechTimeoutRef = useRef(null);
 
+  // 💡 新增：選擇題狀態
+  const [currentChoices, setCurrentChoices] = useState([]);
+  const [selectedChoice, setSelectedChoice] = useState(null);
+  const [isChoiceCorrect, setIsChoiceCorrect] = useState(false);
+
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -167,6 +172,30 @@ const App = () => {
       setLoading(false);
     }
   }, [user]);
+
+  // 💡 新增：當題目更新時，自動產生防呆選擇題
+  useEffect(() => {
+    if (cards.length > 0 && queue.length > 0) {
+      const correctCard = cards[queue[0]];
+      const choices = [correctCard.meaning];
+      
+      // 隨機抓兩個不重複的錯誤答案
+      let attempts = 0;
+      while (choices.length < 3 && attempts < 50) {
+        const randomIndex = Math.floor(Math.random() * cards.length);
+        const randomCard = cards[randomIndex];
+        if (randomCard.word !== correctCard.word && !choices.includes(randomCard.meaning)) {
+          choices.push(randomCard.meaning);
+        }
+        attempts++;
+      }
+      
+      // 洗牌
+      setCurrentChoices(choices.sort(() => 0.5 - Math.random()));
+      setSelectedChoice(null);
+      setIsChoiceCorrect(false); // 翻下一題時重置解鎖狀態
+    }
+  }, [queue[0], cards]);
 
   const playSimpleText = (text) => {
     if (!text) return;
@@ -327,7 +356,6 @@ const App = () => {
       return;
     }
 
-    // 💡 確保在開始生成前清除卡片與結算狀態，強制畫面回到主頁的「載入中」模式
     setCards([]);
     setIsFinished(false);
     setGenLoading(true); 
@@ -510,18 +538,25 @@ const App = () => {
     }
   };
 
+  // 💡 預載擴增為 4 張 (當前 + 接下來 3 張)，並強制快取消除延遲
   useEffect(() => {
     if (cards.length === 0 || isFinished) return;
 
     const loadImages = async () => {
-      const nextCards = queue.slice(0, 2).map(idx => cards[idx]);
+      const nextCards = queue.slice(0, 4).map(idx => cards[idx]);
       for (const card of nextCards) {
         if (!card || imageUrls[card.word]) continue;
         
         let imgQuery = card.image_keyword || "study,japan";
         if (!/[a-zA-Z]/.test(imgQuery)) imgQuery = "study,japan";
         
-        setImageUrls(prev => ({ ...prev, [card.word]: `https://loremflickr.com/400/300/${encodeURIComponent(imgQuery)}` }));
+        const url = `https://loremflickr.com/400/300/${encodeURIComponent(imgQuery)}`;
+        
+        // 確保瀏覽器強制載入到記憶體中，翻面時瞬間呈現
+        const img = new Image();
+        img.src = url;
+
+        setImageUrls(prev => ({ ...prev, [card.word]: url }));
       }
     };
     loadImages();
@@ -750,7 +785,7 @@ const App = () => {
           value={input} 
           onChange={e => {
             setInput(e.target.value);
-            setActiveCategory(null); // 手動修改內容時，清除闖關狀態
+            setActiveCategory(null); 
           }} 
           placeholder="貼上想背的單字..." 
           className="w-full h-32 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" 
@@ -768,7 +803,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-center">
-          <span>v13.17 載入狀態優化版 byKC</span>
+          <span>v13.18 預載與防呆解鎖版 byKC</span>
         </div>
       </div>
     </div>
@@ -801,7 +836,6 @@ const App = () => {
             </div>
           </div>
           
-          {/* 💡 優化：下半關按鈕點擊後會顯示載入狀態，避免畫面看似當機 */}
           {activeCategory && !activeCategory.name.includes('班') && activePart === 1 && (
             <button 
               onClick={() => loadPresetCategory(activeCategory, 2)} 
@@ -944,12 +978,58 @@ const App = () => {
       <div className="relative w-full max-w-md flex-1 min-h-[450px] cursor-pointer perspective-1000 group mb-2" onClick={() => !isFlipped && setIsFlipped(true)}>
         <div className={`relative w-full h-full transition-all duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
           
-          <div className="absolute inset-0 backface-hidden bg-white rounded-[2rem] shadow-xl flex flex-col items-center justify-center p-8 border border-slate-100">
-            <h2 className="text-[4rem] font-black text-slate-800 text-center leading-tight mb-10 break-words w-full">{card.word}</h2>
-            <button onClick={e => { e.stopPropagation(); playSimpleText(card.word); }} className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 hover:scale-105 transition-all shadow-md"><Volume2 size={40} /></button>
-            <div className="absolute bottom-8 text-slate-400 text-sm font-bold tracking-widest animate-pulse">點擊翻面</div>
+          {/* 💡 正面：加入了 3 個選擇題 */}
+          <div className="absolute inset-0 backface-hidden bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 flex flex-col items-center justify-between p-6 border border-slate-100">
+            <div className="flex flex-col items-center justify-center flex-1 w-full gap-4">
+              <h2 className="text-[3rem] sm:text-[3.5rem] font-black text-slate-800 text-center leading-tight tracking-wide drop-shadow-sm w-full break-words">
+                {card.word}
+              </h2>
+              <button onClick={e => { e.stopPropagation(); playSimpleText(card.word); }} className="w-14 h-14 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 hover:bg-indigo-100 hover:scale-105 transition-all shadow-sm shrink-0">
+                <Volume2 size={28} />
+              </button>
+            </div>
+
+            <div className="w-full flex flex-col gap-2.5 mb-4 shrink-0">
+              {currentChoices.map((choice, idx) => {
+                let btnClass = "bg-slate-50 text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 border-slate-200 hover:border-indigo-200";
+                if (selectedChoice !== null) {
+                  if (choice === card.meaning) {
+                    btnClass = "bg-green-100 text-green-700 border-green-400 shadow-sm"; 
+                  } else if (selectedChoice === idx) {
+                    btnClass = "bg-red-100 text-red-700 border-red-300"; 
+                  } else {
+                    btnClass = "bg-slate-50 text-slate-400 border-slate-100 opacity-50"; 
+                  }
+                }
+
+                return (
+                  <button
+                    key={idx}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (selectedChoice !== null) return; 
+                      setSelectedChoice(idx);
+                      const isCorrect = (choice === card.meaning);
+                      setIsChoiceCorrect(isCorrect);
+                      
+                      setTimeout(() => {
+                        setIsFlipped(true);
+                      }, 600);
+                    }}
+                    className={`w-full p-3.5 rounded-xl border text-[13px] sm:text-[14px] font-bold transition-all text-left overflow-hidden text-ellipsis line-clamp-2 ${btnClass}`}
+                  >
+                    {choice}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="text-slate-400 text-[10px] font-bold tracking-widest uppercase shrink-0">
+              [ 答對才能解鎖 Easy 按鈕 ]
+            </div>
           </div>
           
+          {/* 背面 */}
           <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white rounded-[2rem] shadow-xl flex flex-col p-4 sm:p-5 overflow-hidden border border-slate-100">
             
             <div className="w-full h-36 sm:h-40 bg-slate-100 rounded-xl mb-3 overflow-hidden relative flex items-center justify-center shadow-inner shrink-0">
@@ -985,9 +1065,19 @@ const App = () => {
                 <span className="text-xs font-black uppercase tracking-wider text-blue-500">Good</span>
               </button>
 
-              <button onClick={(e) => { e.stopPropagation(); handleAction('easy'); }} className="flex flex-col items-center gap-1.5 hover:scale-105 active:scale-95 transition-all">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center shadow-sm bg-green-50 text-green-600 border border-green-100"><Zap size={24} /></div>
-                <span className="text-xs font-black uppercase tracking-wider text-green-500">Easy</span>
+              {/* 💡 Easy 按鈕被加入解鎖條件：如果沒有答對，只能看著鎖頭發呆 */}
+              <button 
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  if (isChoiceCorrect) handleAction('easy'); 
+                }} 
+                disabled={!isChoiceCorrect}
+                className={`flex flex-col items-center gap-1.5 transition-all ${!isChoiceCorrect ? 'opacity-40 cursor-not-allowed' : 'hover:scale-105 active:scale-95'}`}
+              >
+                <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center shadow-sm border ${!isChoiceCorrect ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-green-50 text-green-600 border-green-100'}`}>
+                  {!isChoiceCorrect ? <Lock size={20} /> : <Zap size={24} />}
+                </div>
+                <span className={`text-xs font-black uppercase tracking-wider ${!isChoiceCorrect ? 'text-slate-400' : 'text-green-500'}`}>Easy</span>
               </button>
             </div>
 
