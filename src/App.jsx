@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Volume2, RefreshCcw, Brain, Zap, Star, Flame, Share2, Check, Loader2, AlertTriangle, ChevronRight, Clock, Home, Trophy, Lock, Trash2, Shuffle
+  Volume2, RefreshCcw, Brain, Zap, Star, Flame, Share2, Check, Loader2, AlertTriangle, ChevronRight, Clock, Home, Trophy, Lock, Shuffle
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
@@ -62,7 +62,6 @@ const allVocab = rawData.split('|').map(item => {
 });
 
 // 💡 自動防護機制：如果單字庫不滿 900 個，自動循環拿前面的單字補齊！
-// 這樣保證六下的按鈕 (850~900) 絕對抓得到 50 個單字，絕對不會沒反應！
 let fallbackIndex = 0;
 while (allVocab.length < 900) {
   allVocab.push({
@@ -113,7 +112,6 @@ const App = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [shareModal, setShareModal] = useState({ isOpen: false, url: '' });
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, type: '', message: '' });
-  const [pwdModal, setPwdModal] = useState({ isOpen: false, value: '', error: '' });
 
   // 💡 鼓勵系統的狀態與紀錄器
   const [encouragement, setEncouragement] = useState('');
@@ -273,28 +271,6 @@ const App = () => {
     closeConfirm();
   };
 
-  const loadPresetCards = (vocabList) => {
-    const newCards = vocabList.map(item => ({
-      word: item.word,
-      reading: '',
-      meaning: item.meaning,
-      breakdown: '',
-      example: '',
-      example_kana: '',
-      example_zh: '',
-      image_keyword: item.word, 
-      info: item.meaning 
-    }));
-    
-    setCards(newCards);
-    setQueue(Array.from({length: newCards.length}, (_, i) => i));
-    setTotal(newCards.length);
-    setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
-    setIsFinished(false); 
-    setIsFlipped(false);
-    lastMilestoneRef.current = 0;
-  };
-
   const validateAndSaveKey = async () => {
     const tk = keyInput.trim();
     if (!tk) return;
@@ -328,8 +304,12 @@ const App = () => {
     }
   };
 
-  const generate = async () => {
-    if (!input.trim() || genLoading) return;
+  // 💡 v13.12 核心：讓 generate 函式可以接收傳入的文字 (用來讓按鈕一鍵呼叫 AI)
+  const generate = async (overrideText = null) => {
+    // 如果是從點擊「AI 智慧生成單字卡」按鈕觸發，overrideText 會是 Event 物件，因此改回取用 input 變數
+    const targetText = typeof overrideText === 'string' ? overrideText : input;
+    
+    if (!targetText.trim() || genLoading) return;
     const reqKey = isCanvas ? "" : activeApiKey;
     if (!reqKey && !isCanvas) {
       setError('❌ 找不到 API 金鑰！請確認 Vercel 環境變數 VITE_GEMINI_API_KEY。');
@@ -337,15 +317,16 @@ const App = () => {
     }
 
     setGenLoading(true); 
-    setError('🔍 正在連線 Google 總部...');
+    setError('🔍 正在請 AI 為單字擴充詞性與例句...');
     
-    const hasKana = /[\u3040-\u309F\u30A0-\u30FF]/.test(input);
-    const hasEnglish = /[a-zA-Z]/.test(input);
+    const hasKana = /[\u3040-\u309F\u30A0-\u30FF]/.test(targetText);
+    const hasEnglish = /[a-zA-Z]/.test(targetText);
     const isEn = hasEnglish && !hasKana;
     
+    // 💡 Prompt 已強化，保證回傳的單字具有詞性與多重涵義
     const prompt = isEn 
-      ? `請分析以下文字：\n"""${input}"""\n這是一份「英文學習清單」。請提取出英文單字。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n請為每個單字提供更廣泛的解釋：\n1. 包含不同「詞性」的意思 (例如：book 作為 [名詞] 書、[動詞] 預定)。\n2. 補充類似的「同義詞」或相反的「反義詞」 (例如：fast 補充反義詞 slow)。\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "列出不同詞性與意思綜合", "breakdown": "字根拆解與意象說明 (請在此加入同義詞/反義詞補充)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`
-      : `請分析以下文字：\n"""${input}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`;
+      ? `請分析以下文字：\n"""${targetText}"""\n這是一份「英文學習清單」。請提取出所有英文單字（務必完整包含輸入的所有單字，不可遺漏！）。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」（代表使用者不知道那個字的英文怎麼拼），請務必自動將該中文「翻譯成英文單字」，並作為一張新的英文單字卡加入清單中！\n請為每個單字提供更廣泛的解釋：\n1. 包含不同「詞性」的意思 (例如：book 作為 [名詞] 書、[動詞] 預訂)。\n2. 補充類似的「同義詞」或相反的「反義詞」 (例如：fast 補充反義詞 slow)。\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "列出不同詞性與意思綜合", "breakdown": "字根拆解與意象說明 (請在此加入同義詞/反義詞補充)", "example": "英文例句", "example_kana": "", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`
+      : `請分析以下文字：\n"""${targetText}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`;
 
     let modelToUse = isCanvas ? "gemini-2.5-flash-preview-09-2025" : workingModelRef.current;
 
@@ -466,6 +447,38 @@ const App = () => {
 
     if (!success) setError(`❌ ${lastError}`);
     setGenLoading(false);
+  };
+
+  // 💡 v13.13 核心：根據類別決定是否呼叫 AI。小中大班秒速載入，國小18級呼叫 AI 擴充！
+  const loadPresetCards = (vocabList, useAI = true) => {
+    const wordsOnlyStr = vocabList.map(item => item.word).join('\n');
+    setInput(wordsOnlyStr);
+
+    if (useAI) {
+      generate(wordsOnlyStr); 
+    } else {
+      // ⚡ 秒速載入模式 (不經過 AI，適合簡單的幼兒園單字)
+      const newCards = vocabList.map(item => ({
+        word: item.word,
+        reading: '',
+        meaning: item.meaning,
+        breakdown: '',
+        example: '',
+        example_kana: '',
+        example_zh: '',
+        image_keyword: item.word, 
+        info: item.meaning 
+      }));
+      
+      setCards(newCards);
+      setQueue(Array.from({length: newCards.length}, (_, i) => i));
+      setTotal(newCards.length);
+      setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
+      setIsFinished(false); 
+      setIsFlipped(false);
+      lastMilestoneRef.current = 0;
+      setGenError('');
+    }
   };
 
   useEffect(() => {
@@ -624,28 +637,7 @@ const App = () => {
 
   if (cards.length === 0) return (
     <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center text-center">
-      {pwdModal.isOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
-            <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center text-amber-500 mx-auto mb-4">
-              <Lock size={24} />
-            </div>
-            <h3 className="text-xl font-black text-slate-800 mb-2">清除系統快取</h3>
-            <p className="text-xs text-slate-500 mb-6">這會清除本地所有的記憶金鑰</p>
-            <div className="flex gap-2 mt-4">
-              <button onClick={() => setPwdModal({ isOpen: false, value: '', error: '' })} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-all">取消</button>
-              <button onClick={() => {
-                  setActiveApiKey('');
-                  workingModelRef.current = ""; 
-                  try { localStorage.removeItem('my_gemini_key'); } catch(e){}
-                  setPwdModal({ isOpen: false, value: '', error: '' });
-                  setError("已清除舊金鑰！");
-              }} className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold transition-all shadow-md">確認清除</button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      
       <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-md w-full border border-slate-100">
         <Brain className="text-indigo-600 w-12 h-12 mx-auto mb-4" />
         <h1 className="text-2xl font-black mb-6 text-slate-800">Killer Cards</h1>
@@ -653,21 +645,25 @@ const App = () => {
         <div className="bg-indigo-50/50 p-4 rounded-2xl mb-5 border border-indigo-100">
           <div className="text-[13px] font-black text-indigo-800 mb-3 text-left flex items-center gap-2">
             <Zap size={16} className="text-amber-500" />
-            免輸入！點擊直接開始練習
+            免輸入！一鍵請 AI 擴充詞性與例句
           </div>
           
           <div className="max-h-[260px] overflow-y-auto custom-scrollbar pr-2 pb-1">
             <div className="grid grid-cols-3 gap-2.5">
-              {[...kinderCategories, ...gradeCategories].map((cat, index) => (
-                <button 
-                  key={`cat-${index}`}
-                  onClick={() => loadPresetCards(allVocab.slice(cat.start, cat.end))} 
-                  className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
-                >
-                  <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
-                  <span>{cat.name}</span>
-                </button>
-              ))}
+              {[...kinderCategories, ...gradeCategories].map((cat, index) => {
+                // 💡 小班、中班、大班 (名稱有"班"字) 不使用 AI，直接秒速載入
+                const useAI = !cat.name.includes('班');
+                return (
+                  <button 
+                    key={`cat-${index}`}
+                    onClick={() => loadPresetCards(allVocab.slice(cat.start, cat.end), useAI)} 
+                    className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
+                  >
+                    <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
+                    <span>{cat.name}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -682,7 +678,7 @@ const App = () => {
         
         {error && (
           <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed whitespace-pre-wrap ${error.includes('連線失敗') || error.includes('發現') || error.includes('錯誤') || error.includes('系統異常') || error.includes('異常') || error.includes('限制') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
-            {error.includes('請求') || error.includes('掃描') ? <Clock size={18} className="shrink-0 mt-0.5" /> : <AlertTriangle size={18} className="shrink-0 mt-0.5" />}
+            {error.includes('請求') || error.includes('掃描') || error.includes('請 AI 為單字擴充') ? <Clock size={18} className="shrink-0 mt-0.5" /> : <AlertTriangle size={18} className="shrink-0 mt-0.5" />}
             {error}
           </div>
         )}
@@ -691,13 +687,9 @@ const App = () => {
           {genLoading ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {genLoading ? '處理中...' : 'AI 智慧生成單字卡'}
         </button>
         
-        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-between">
-          <span>v13.11 完美資料庫修復版 byKC</span>
-          {!isCanvas && (
-             <button onClick={() => setPwdModal({ isOpen: true, value: '', error: '' })} className="hover:text-red-400 text-slate-400 transition-colors flex items-center gap-1">
-               <Trash2 size={10} /> 刪除本地記憶金鑰
-             </button>
-          )}
+        {/* 💡 乾淨的底部，刪除記憶金鑰的按鈕已經移除！ */}
+        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-center">
+          <span>v13.13 智慧分流秒速版 byKC</span>
         </div>
       </div>
     </div>
