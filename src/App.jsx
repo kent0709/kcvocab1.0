@@ -106,7 +106,6 @@ const App = () => {
   const [error, setError] = useState('');
   const [showRatingModal, setShowRatingModal] = useState(false);
   
-  // 💡 兩階段狀態追蹤
   const [activeCategory, setActiveCategory] = useState(null);
   const [activePart, setActivePart] = useState(1);
 
@@ -317,6 +316,10 @@ const App = () => {
   const generate = async (overrideText = null) => {
     const targetText = typeof overrideText === 'string' ? overrideText : input;
 
+    if (typeof overrideText !== 'string') {
+      setActiveCategory(null);
+    }
+
     if (!targetText.trim() || genLoading) return;
     const reqKey = isCanvas ? "" : activeApiKey;
     if (!reqKey && !isCanvas) {
@@ -324,6 +327,9 @@ const App = () => {
       return;
     }
 
+    // 💡 確保在開始生成前清除卡片與結算狀態，強制畫面回到主頁的「載入中」模式
+    setCards([]);
+    setIsFinished(false);
     setGenLoading(true); 
     setError('🔍 正在請 AI 為單字擴充詞性與例句...');
     
@@ -744,7 +750,7 @@ const App = () => {
           value={input} 
           onChange={e => {
             setInput(e.target.value);
-            setActiveCategory(null); // 💡 手動修改內容時，才清除闖關狀態
+            setActiveCategory(null); // 手動修改內容時，清除闖關狀態
           }} 
           placeholder="貼上想背的單字..." 
           className="w-full h-32 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" 
@@ -762,7 +768,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-center">
-          <span>v13.16 編譯修復與分段優化版 byKC</span>
+          <span>v13.17 載入狀態優化版 byKC</span>
         </div>
       </div>
     </div>
@@ -795,12 +801,15 @@ const App = () => {
             </div>
           </div>
           
-          {/* 💡 當您位於第一階段且類別不包含「班」時，顯示進入下半關的按鈕！ */}
+          {/* 💡 優化：下半關按鈕點擊後會顯示載入狀態，避免畫面看似當機 */}
           {activeCategory && !activeCategory.name.includes('班') && activePart === 1 && (
-            <button onClick={() => {
-                loadPresetCategory(activeCategory, 2);
-            }} className="w-full mb-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl hover:scale-[1.02] transition-all">
-              <Zap size={20} /> ⚡ 進入下半關 (第 26~50 個單字)
+            <button 
+              onClick={() => loadPresetCategory(activeCategory, 2)} 
+              disabled={genLoading}
+              className="w-full mb-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl hover:scale-[1.02] transition-all disabled:opacity-75 disabled:scale-100"
+            >
+              {genLoading ? <Loader2 size={20} className="animate-spin" /> : <Zap size={20} />}
+              {genLoading ? '正在準備下半關，請稍候...' : '⚡ 進入下半關 (第 26~50 個單字)'}
             </button>
           )}
 
@@ -810,7 +819,7 @@ const App = () => {
                 setHistory({again:0, hard:0, good:0, easy:0}); 
                 setIsFinished(false); 
                 lastMilestoneRef.current = 0; 
-            }} className="flex-1 bg-slate-200 text-slate-700 font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-md hover:bg-slate-300 transition-all">
+            }} disabled={genLoading} className="flex-1 bg-slate-200 text-slate-700 font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-md hover:bg-slate-300 transition-all disabled:opacity-50">
               <RefreshCcw size={18} />循序重來
             </button>
             <button onClick={() => { 
@@ -821,7 +830,7 @@ const App = () => {
                 }
                 setQueue(newQ); setHistory({again:0, hard:0, good:0, easy:0}); setIsFinished(false); 
                 lastMilestoneRef.current = 0; 
-            }} className="flex-1 bg-slate-900 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl hover:bg-black transition-all">
+            }} disabled={genLoading} className="flex-1 bg-slate-900 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl hover:bg-black transition-all disabled:opacity-50">
               <Shuffle size={18} />洗牌重來
             </button>
           </div>
