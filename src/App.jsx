@@ -121,7 +121,6 @@ const App = () => {
   const workingModelRef = useRef(isCanvas ? "gemini-2.5-flash-preview-09-2025" : "");
   const speechTimeoutRef = useRef(null);
 
-  // 💡 新增：選擇題狀態
   const [currentChoices, setCurrentChoices] = useState([]);
   const [selectedChoice, setSelectedChoice] = useState(null);
   const [isChoiceCorrect, setIsChoiceCorrect] = useState(false);
@@ -173,13 +172,11 @@ const App = () => {
     }
   }, [user]);
 
-  // 💡 新增：當題目更新時，自動產生防呆選擇題
   useEffect(() => {
     if (cards.length > 0 && queue.length > 0) {
       const correctCard = cards[queue[0]];
       const choices = [correctCard.meaning];
       
-      // 隨機抓兩個不重複的錯誤答案
       let attempts = 0;
       while (choices.length < 3 && attempts < 50) {
         const randomIndex = Math.floor(Math.random() * cards.length);
@@ -190,10 +187,7 @@ const App = () => {
         attempts++;
       }
       
-      // 洗牌
       setCurrentChoices(choices.sort(() => 0.5 - Math.random()));
-      setSelectedChoice(null);
-      setIsChoiceCorrect(false); // 翻下一題時重置解鎖狀態
     }
   }, [queue[0], cards]);
 
@@ -261,6 +255,11 @@ const App = () => {
     nextQ.shift();
     const nextH = { ...history, [type]: history[type] + 1 };
     setHistory(nextH);
+
+    // 💡 強制重置選項狀態，避免顏色殘留到下一題
+    setSelectedChoice(null);
+    setIsChoiceCorrect(false);
+
     if (type === 'again') nextQ.splice(1, 0, curr);
     else if (type === 'hard') nextQ.splice(Math.floor(nextQ.length/2), 0, curr);
     else if (type === 'good') nextQ.push(curr);
@@ -285,6 +284,10 @@ const App = () => {
     setQueue(newQueue);
     setIsFlipped(false);
     
+    // 💡 強制重置選項狀態
+    setSelectedChoice(null);
+    setIsChoiceCorrect(false);
+
     if (deckId && user) {
       try {
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', deckId), { queue: newQueue });
@@ -302,6 +305,11 @@ const App = () => {
       lastMilestoneRef.current = 0;
       setActiveCategory(null);
       setActivePart(1);
+      
+      // 💡 強制重置選項狀態
+      setSelectedChoice(null);
+      setIsChoiceCorrect(false);
+
       safePushState(window.location.pathname);
     } else if (confirmDialog.type === 'finish') {
       setIsFinished(true);
@@ -361,6 +369,10 @@ const App = () => {
     setGenLoading(true); 
     setError('🔍 正在請 AI 為單字擴充詞性與例句...');
     
+    // 💡 強制重置選項狀態
+    setSelectedChoice(null);
+    setIsChoiceCorrect(false);
+
     const hasKana = /[\u3040-\u309F\u30A0-\u30FF]/.test(targetText);
     const hasEnglish = /[a-zA-Z]/.test(targetText);
     const isEn = hasEnglish && !hasKana;
@@ -494,6 +506,10 @@ const App = () => {
     setActiveCategory(cat);
     setActivePart(part);
     
+    // 💡 強制重置選項狀態
+    setSelectedChoice(null);
+    setIsChoiceCorrect(false);
+
     let vocabList = [];
     let useAI = true;
 
@@ -538,7 +554,6 @@ const App = () => {
     }
   };
 
-  // 💡 預載擴增為 4 張 (當前 + 接下來 3 張)，並強制快取消除延遲
   useEffect(() => {
     if (cards.length === 0 || isFinished) return;
 
@@ -552,7 +567,6 @@ const App = () => {
         
         const url = `https://loremflickr.com/400/300/${encodeURIComponent(imgQuery)}`;
         
-        // 確保瀏覽器強制載入到記憶體中，翻面時瞬間呈現
         const img = new Image();
         img.src = url;
 
@@ -803,7 +817,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-center">
-          <span>v13.18 預載與防呆解鎖版 byKC</span>
+          <span>v13.19 選項狀態修復版 byKC</span>
         </div>
       </div>
     </div>
@@ -853,6 +867,9 @@ const App = () => {
                 setHistory({again:0, hard:0, good:0, easy:0}); 
                 setIsFinished(false); 
                 lastMilestoneRef.current = 0; 
+                // 💡 強制重置選項狀態
+                setSelectedChoice(null);
+                setIsChoiceCorrect(false);
             }} disabled={genLoading} className="flex-1 bg-slate-200 text-slate-700 font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-md hover:bg-slate-300 transition-all disabled:opacity-50">
               <RefreshCcw size={18} />循序重來
             </button>
@@ -864,6 +881,9 @@ const App = () => {
                 }
                 setQueue(newQ); setHistory({again:0, hard:0, good:0, easy:0}); setIsFinished(false); 
                 lastMilestoneRef.current = 0; 
+                // 💡 強制重置選項狀態
+                setSelectedChoice(null);
+                setIsChoiceCorrect(false);
             }} disabled={genLoading} className="flex-1 bg-slate-900 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl hover:bg-black transition-all disabled:opacity-50">
               <Shuffle size={18} />洗牌重來
             </button>
@@ -978,7 +998,6 @@ const App = () => {
       <div className="relative w-full max-w-md flex-1 min-h-[450px] cursor-pointer perspective-1000 group mb-2" onClick={() => !isFlipped && setIsFlipped(true)}>
         <div className={`relative w-full h-full transition-all duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
           
-          {/* 💡 正面：加入了 3 個選擇題 */}
           <div className="absolute inset-0 backface-hidden bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 flex flex-col items-center justify-between p-6 border border-slate-100">
             <div className="flex flex-col items-center justify-center flex-1 w-full gap-4">
               <h2 className="text-[3rem] sm:text-[3.5rem] font-black text-slate-800 text-center leading-tight tracking-wide drop-shadow-sm w-full break-words">
@@ -1029,7 +1048,6 @@ const App = () => {
             </div>
           </div>
           
-          {/* 背面 */}
           <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white rounded-[2rem] shadow-xl flex flex-col p-4 sm:p-5 overflow-hidden border border-slate-100">
             
             <div className="w-full h-36 sm:h-40 bg-slate-100 rounded-xl mb-3 overflow-hidden relative flex items-center justify-center shadow-inner shrink-0">
@@ -1065,7 +1083,6 @@ const App = () => {
                 <span className="text-xs font-black uppercase tracking-wider text-blue-500">Good</span>
               </button>
 
-              {/* 💡 Easy 按鈕被加入解鎖條件：如果沒有答對，只能看著鎖頭發呆 */}
               <button 
                 onClick={(e) => { 
                   e.stopPropagation(); 
