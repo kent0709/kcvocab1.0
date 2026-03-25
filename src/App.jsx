@@ -113,6 +113,7 @@ const App = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [shareModal, setShareModal] = useState({ isOpen: false, url: '' });
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, type: '', message: '' });
+  const [pwdModal, setPwdModal] = useState({ isOpen: false, value: '', error: '' });
 
   const [encouragement, setEncouragement] = useState('');
   const lastMilestoneRef = useRef(0);
@@ -191,9 +192,9 @@ const App = () => {
     let wordText = c.word;
     let exampleText = "";
 
-    if (c.example || c.info.includes('【例句】')) {
+    if (c.example || (c.info && c.info.includes('【例句】'))) {
       let exEn = c.example || "";
-      if (!exEn && c.info.includes('【例句】')) {
+      if (!exEn && c.info && c.info.includes('【例句】')) {
         const exStr = c.info.split('【例句】')[1];
         const match = exStr.match(/^(.*?)\((.*?)\)(.*)$/);
         if (match) {
@@ -315,10 +316,6 @@ const App = () => {
 
   const generate = async (overrideText = null) => {
     const targetText = typeof overrideText === 'string' ? overrideText : input;
-    
-    if (typeof overrideText !== 'string') {
-      setActiveCategory(null); // 手動輸入時清除闖關狀態
-    }
 
     if (!targetText.trim() || genLoading) return;
     const reqKey = isCanvas ? "" : activeApiKey;
@@ -459,7 +456,6 @@ const App = () => {
     setGenLoading(false);
   };
 
-  // 💡 兩階段載入邏輯
   const loadPresetCategory = (cat, part = 1) => {
     setActiveCategory(cat);
     setActivePart(part);
@@ -469,10 +465,9 @@ const App = () => {
 
     if (cat.name.includes('班')) {
        useAI = false;
-       vocabList = allVocab.slice(cat.start, cat.end); // 100 幼兒單字不經AI
+       vocabList = allVocab.slice(cat.start, cat.end);
     } else {
        useAI = true;
-       // 50 個單字切一半：前 25 個與後 25 個
        if (part === 1) {
           vocabList = allVocab.slice(cat.start, cat.start + 25);
        } else {
@@ -691,6 +686,28 @@ const App = () => {
   if (cards.length === 0) return (
     <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center text-center">
       
+      {pwdModal.isOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
+            <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center text-amber-500 mx-auto mb-4">
+              <Lock size={24} />
+            </div>
+            <h3 className="text-xl font-black text-slate-800 mb-2">清除系統快取</h3>
+            <p className="text-xs text-slate-500 mb-6">這會清除本地所有的記憶金鑰</p>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setPwdModal({ isOpen: false, value: '', error: '' })} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-all">取消</button>
+              <button onClick={() => {
+                  setActiveApiKey('');
+                  workingModelRef.current = ""; 
+                  try { localStorage.removeItem('my_gemini_key'); } catch(e){}
+                  setPwdModal({ isOpen: false, value: '', error: '' });
+                  setError("已清除舊金鑰！");
+              }} className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold transition-all shadow-md">確認清除</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-md w-full border border-slate-100">
         <Brain className="text-indigo-600 w-12 h-12 mx-auto mb-4" />
         <h1 className="text-2xl font-black mb-6 text-slate-800">Killer Cards</h1>
@@ -723,7 +740,15 @@ const App = () => {
           <div className="flex-grow border-t border-slate-200"></div>
         </div>
 
-        <textarea value={input} onChange={e => setInput(e.target.value)} placeholder="貼上想背的單字..." className="w-full h-32 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" />
+        <textarea 
+          value={input} 
+          onChange={e => {
+            setInput(e.target.value);
+            setActiveCategory(null); // 💡 手動修改內容時，才清除闖關狀態
+          }} 
+          placeholder="貼上想背的單字..." 
+          className="w-full h-32 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" 
+        />
         
         {error && (
           <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed whitespace-pre-wrap ${error.includes('連線失敗') || error.includes('發現') || error.includes('錯誤') || error.includes('系統異常') || error.includes('異常') || error.includes('限制') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
@@ -737,7 +762,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-center">
-          <span>v13.15 兩階段闖關版 byKC</span>
+          <span>v13.16 編譯修復與分段優化版 byKC</span>
         </div>
       </div>
     </div>
@@ -775,7 +800,7 @@ const App = () => {
             <button onClick={() => {
                 loadPresetCategory(activeCategory, 2);
             }} className="w-full mb-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl hover:scale-[1.02] transition-all">
-              <Zap size={20} /> 進入下半關 (剩下的 25 個單字)
+              <Zap size={20} /> ⚡ 進入下半關 (第 26~50 個單字)
             </button>
           )}
 
@@ -926,7 +951,6 @@ const App = () => {
               )}
             </div>
 
-            {/* 💡 使用全新的渲染器，完美支援結構化資料、換行與例句切割 */}
             {renderCardBackText(card)}
 
             <div className="grid grid-cols-5 gap-2 mt-auto pt-3 border-t border-slate-100 shrink-0 items-end pb-1">
