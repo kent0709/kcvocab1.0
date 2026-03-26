@@ -53,36 +53,38 @@ const safePushState = (url) => {
   } catch (e) {}
 };
 
-// --- 💡 終極壓縮版 單字庫 ---
-const rawData = `zero,零|one,一|two,二|three,三|four,四|five,五|six,六|seven,七|eight,八|nine,九|ten,十|eleven,十一|twelve,十二|thirteen,十三|fourteen,十四|fifteen,十五|sixteen,十六|seventeen,十七|eighteen,十八|nineteen,十九|twenty,二十|thirty,三十|forty,四十|fifty,五十|sixty,六十|seventy,七十|eighty,八十|ninety,九十|hundred,百|I,我|You,你（你們）|We,我們|They,他們|He,他（男）|She,她（女）|It,它（牠）|my,我的|your,你的（你們的）|his,他的（男）|her,她的（女）|its,它的、牠的|grandmother,阿嬤|grandfather,阿公|mother,媽媽|father,爸爸|sister,姊妹|brother,兄弟|baby,嬰兒|girl,女孩|boy,男孩|woman,女人|man,男人|cook,廚師|teacher,老師|student,學生|farmer,農夫|doctor,醫生|nurse,護理師|driver,司機|head,頭|hair,頭髮|eye,眼睛|nose,鼻子|mouth,嘴巴|ear,耳朵|hand,手|leg,腿|foot,腳|hat,帽子|glasses,眼鏡|shirt,襯衫|shorts,短褲|pants,長褲|skirt,裙子|dress,洋裝|socks,襪子|shoes,鞋子|boots,靴子|bear,熊|dog,狗|cat,貓|bird,鳥|rabbit,兔|frog,青蛙|fish,魚|chicken,雞|turtle,烏龜|lion,獅子|tiger,虎|monkey,猴子|giraffe,長頸鹿|fox,狐狸|zebra,斑馬|pig,豬|elephant,大象|pen,原子筆|pencil,鉛筆|marker,麥克筆|eraser,橡皮擦|ruler,尺|book,書|bag,袋子|desk,書桌|table,餐桌|chair,椅子|crayon,蠟筆|box,箱子|door,門|window,窗戶|picture,圖片|TV,電視|sofa,沙發|light,光|bed,床|lamp,燈|clock,時鐘|cellphone,手機|videogame,電動|computer,電腦|cup,杯子|mug,馬克杯|bowl,碗|ball,球|yoyo,溜溜球|bat,球棒|robot,機器人|kite,風箏|doll,娃娃|mop,拖把|map,地圖|weather,天氣|sun,太陽|cloud,雲|wind,風|rain,雨|snow,雪|river,河|flower,花|grass,草|tree,樹|bike,腳踏車|car,車|bus,公車|train,火車|taxi,計程車|breakfast,早餐|lunch,午餐|dinner,晚餐|cookie,餅乾|icecream,冰淇淋|candy,糖果|hamburger,漢堡|hotdog,熱狗|pizza,比薩|bread,麵包|sandwich,三明治|cake,蛋糕|rice,飯|noodles,麵|spaghetti,義大利麵|tea,茶|coke,可樂|soda,汽水|water,水|juice,果汁|milk,牛奶|egg,蛋|ham,火腿|salad,沙拉|tomato,番茄|banana,香蕉|apple,蘋果|pear,梨子|grape,葡萄|peach,桃子|home,家|school,學校|park,公園|zoo,動物園|store,商店|shop,商店|house,房子|garage,車庫|livingroom,客廳|diningroom,飯廳|kitchen,廚房|bedroom,臥室|bathroom,浴室、廁所|yard,庭院|garden,花園、菜園|o'clock,點鐘|now,現在|morning,早上|afternoon,下午|evening,傍晚|night,晚上|today,今天|Sunday,星期天|Monday,星期一|Tuesday,星期二|Wednesday,星期三|Thursday,星期四|Friday,星期五|Saturday,星期六|do,做|like,喜歡|love,愛|want,想要|have,擁有|run,跑|walk,走路|swim,游泳|jump,跳|ride,騎|dance,跳舞|sing,唱|write,寫|read,閱讀|draw,畫|color,上色|paint,畫|speak,說|say,說|eat,吃|drink,喝|look,看|watch,看|see,看|listen,聽|smile,微笑|laugh,大笑|cry,哭|hold,拿|put,放|take,拿|sit,坐|stand,站|fine,好的|good,好的|bad,壞的|favorite,最喜歡的|big,大的|small,小的|little,小的|old,老的、舊的|young,年輕的|tall,高的|long,長的|short,短的|thin,瘦的、薄的|fat,胖的|fast,快的|slow,慢的|clean,乾淨的|dirty,髒的|hungry,餓的|thirsty,渴的|happy,開心的|unhappy,不開心的|sad,傷心的|angry,生氣的|sick,生病的|tired,累的|hot,熱的|cold,冷的|rainy,下雨的|snowy,下雪的|sunny,晴朗的|cloudy,多雲的|windy,起風的|black,黑色的|white,白色的|gray,灰色的|brown,咖啡色的|red,紅色的|orange,橘色的|yellow,黃色的|green,綠色的|blue,藍色的|purple,紫色的|pink,粉紅色的|at,在…地點|in,在…裡面|on,在…上面|under,在…下面|by,在…旁邊|nextto,在…旁邊|beside,在…旁邊|infrontof,在…前面|behind,在…後面|who,誰|what,什麼|when,何時|where,哪裡|which,哪一個|why,為什麼|whattime,幾點|how,如何|howmuch,多少|howmany,多少|east,東方|Easter,復活節|easy,容易的|eat,吃|edge,邊緣|education,教育|effect,效果、影響|effort,努力|egg,蛋|eight,八|eighteen,十八|eighty,八十|either,也不、兩者之一|elder,長輩、較年長的|elect,選舉|element,元素|elephant,大象|eleven,十一|else,其他|email,電子郵件|embarrass,使困窘|emphasize,強調|employ,雇用|empty,空的|end,結束|enemy,敵人|energy,能源、能量|engine,引擎|engineer,工程師|enjoy,享受|enough,足夠的|enter,進入|entire,整個的|entrance,入口|envelope,信封|environment,環境|envy,嫉妒、羨慕|equal,相等的|eraser,橡皮擦|error,錯誤|escape,逃跑|especially,特別地|essay,論文、散文|Europe,歐洲|European,歐洲的|even,甚至|evening,傍晚|event,事件|ever,曾經|every,每個|everybody,每個人|everyday,每天的|everyone,每個人|everything,每件事|everywhere,到處|evidence,證據|evil,邪惡的|exact,精確的|examine,檢查、考試|example,例子|excellent,優秀的|except,除了...之外|excite,使興奮|excitement,興奮|excuse,藉口、原諒|exercise,運動、練習|exist,存在|exit,出口|expect,期待|expensive,昂貴的|experience,經驗|experiment,實驗|expert,專家|explain,解釋|explanation,解釋|explore,探險|express,表達|expression,表達、表情|extra,額外的|eye,眼睛|face,臉、面對|fact,事實|factory,工廠|fail,失敗、不及格|failure,失敗|fair,公平的|fall,落下、秋天|false,錯誤的|family,家庭|famous,有名的|fan,扇子、迷|fancy,精緻的、想像|fantastic,極好的|far,遠的|farm,農場|farmer,農夫|fashionable,流行的|fast,快的|fat,胖的|father,父親|faucet,水龍頭|fault,錯誤、缺點|favor,幫助、偏愛|favorite,最喜愛的|fear,害怕|February,二月|fee,費用|feed,餵食|feel,感覺|feeling,感覺|female,女性的|fence,籬笆|festival,節日|fever,發燒|few,很少|fiction,小說|field,田野、領域|fifteen,十五|fifty,五十|fight,戰鬥、打架|figure,數字、人物|fill,充滿|film,電影|final,最後的|finally,最後|find,找到|fine,好的|finger,手指|finish,完成|fire,火|fireengine,消防車|fireman,消防員|firm,堅定的|first,第一|fish,魚|fisherman,漁夫|fit,適合|five,五|fix,修理|flag,旗子|flash,閃光|flashlight,手電筒|flat,平坦的|flight,班機|float,漂浮|floor,地板|flour,麵粉|flow,流動|flower,花|flu,流感|flute,笛子|fly,飛|focus,焦點|fog,霧|foggy,有霧的|follow,跟隨|food,食物|fool,傻瓜|foolish,愚蠢的|foot,腳|football,足球|for,為了|force,力量|foreign,外國的|foreigner,外國人|forest,森林|forget,忘記|forgive,原諒|fork,叉子|form,表格|formal,正式的|former,前者的|forty,四十|forward,向前|fox,狐狸|France,法國|frank,率直的|free,自由的|freedom,自由|freezer,冷凍櫃|freezing,極冷的|French,法國的|Frenchfries,炸薯條|frequent,頻繁的|fresh,新鮮的|Friday,禮拜五|friedchicken,炸雞|friedrice,炒飯|friend,朋友|friendly,友善的|friendship,友誼|frighten,使驚恐|Frisbee,飛盤|frog,青蛙|from,從|front,前面|fruit,水果|fry,煎、炸|full,滿的|fun,樂趣|function,功能|funny,好笑的|furniture,傢俱|future,未來|gain,獲得|game,遊戲|garage,車庫|garden,花園|gas,瓦斯|gasstation,加油站|gate,大門|gather,聚集|general,一般的|generally,一般地|generation,世代|generous,慷慨的|genius,天才|gentle,溫和的|gentleman,紳士|geography,地理|gesture,手勢|get,得到|getin,進入|getoff,下車|geton,上車|ghost,鬼|giant,巨大的|gift,禮物|girl,女孩|girlfriend,女朋友|give,給|givenname,名字|glad,高興的|glass,玻璃|glasses,眼鏡|glove,手套|glue,膠水|go,去|goal,目標|goat,山羊|god,神|gold,黃金|golden,金色的|golf,高爾夫|good,好的|good-looking,美貌的|goodness,善良|goodbye,再見|goose,鵝|government,政府|grade,年級|gradual,逐漸的|graduate,畢業|gram,公克|grand,盛大的|granddaughter,孫女|grandfather,爺爺|grandmother,奶奶|grandson,孫子|grape,葡萄|grapefruit,葡萄柚|grass,草|gray,灰色的|great,棒的|greedy,貪婪的|green,綠色的|greet,問候|ground,地面|group,群組|grow,生長|growup,長大|guard,警衛|guava,蕃石榴|guess,猜|guest,客人|guide,嚮導|guitar,吉他|gun,槍|guy,傢伙|gym,體育館|habit,習慣|hair,頭髮|haircut,理髮|hairdresser,美髮師|half,一半|hall,大廳|Halloween,萬聖節|ham,火腿|hamburger,漢堡|hammer,槌子|hand,手|handkerchief,手帕|handle,把手|handsome,英俊的|hang,懸掛|hanger,衣架|happen,發生|happy,快樂的|hard,硬的、努力的|hardly,幾乎不|hat,帽子|hate,討厭|have,有|he,他|head,頭|headache,頭痛|health,健康|healthy,健康的|hear,聽見|heart,心|heat,熱|heater,暖氣機|heavy,重的|height,高度|helicopter,直升機|hello,哈囉|help,幫助|helpful,有幫助的|hen,母雞|her,她的|here,這裡|hero,英雄|hey,嘿|hi,嗨|hide,躲藏|high,高的|highway,公路|hike,遠足|hiking,徒步旅行|hill,小山|him,他|hip,臀部|hippo,河馬|hire,雇用|history,歷史|hit,打|hobby,嗜好|hold,拿|hole,洞|holiday,假期|home,家|homesick,想家的|homework,作業|honest,誠實的|honesty,誠實|honey,蜂蜜|HongKong,香港|hope,希望|hop,單腳跳|horrible,恐怖的|horse,馬|hospital,醫院|host,主人|hot,熱的|hotdog,熱狗|hotel,飯店|hour,小時|house,房子|housewife,家庭主婦|housework,家事|how,如何|however,然而|huge,巨大的|human,人類的|humble,謙遜的|humid,潮濕的|humor,幽默|humorous,幽默的|hundred,百|hunger,飢餓|hungry,飢餓的|hunt,狩獵|hunter,獵人|hurry,趕快|hurt,受傷|husband,丈夫|I,我|ice,冰|icecream,冰淇淋|idea,主意|if,如果|ill,生病的|imagine,想像|impolite,無禮的|importance,重要性|important,重要的|impossible,不可能的|improve,改善|in,在裡面|inbackof,在後面|infrontof,在前面|inch,英吋|include,包含|income,收入|increase,增加|independent,獨立的|indicate,指示|industry,工業|influence,影響|information,資訊|ink,墨水|insect,昆蟲|insist,堅持|inspire,鼓舞|instant,立即的|instantnoodle,泡麵|instead,代替|instrument,樂器|intelligent,聰明的|interest,興趣|interested,感興趣的|interesting,有趣的|international,國際的|internet,網路|interrupt,打斷|interview,面試|introduce,介紹|invent,發明|invention,發明|invitation,邀請|invite,邀請|iron,鐵|island,島嶼|Italy,義大利|item,項目|its,它的|jacket,夾克|jam,果醬|January,一月|Japan,日本|Japanese,日語|jar,罐子|jazz,爵士樂|jealous,嫉妒的|jeep,吉普車|job,工作|jog,慢跑|jogging,慢跑|join,加入|joke,玩笑|journalist,記者|joy,歡樂|judge,判斷|juice,果汁|July,七月|jump,跳|June,六月|junior,初級的|just,剛好|kangaroo,袋鼠|Kaohsiung,高雄|keep,保持|ketchup,番茄醬|key,鑰匙|keyboard,鍵盤|kick,踢|kid,小孩|kill,殺|kilo,公斤|kilogram,公斤|kilometer,公里|kind,種類|kindergarten,幼稚園|king,國王|kingdom,王國|kiss,親吻|kitchen,廚房|kite,風箏|kitten,小貓|kitty,小貓|knee,膝蓋|knife,刀子|knight,騎士`;
-
-const allVocab = rawData.split('|').map(item => {
+// --- 💡 幼兒園基礎單字庫 (保留原汁原味前300單) ---
+const kinderRawData = `zero,零|one,一|two,二|three,三|four,四|five,五|six,六|seven,七|eight,八|nine,九|ten,十|eleven,十一|twelve,十二|thirteen,十三|fourteen,十四|fifteen,十五|sixteen,十六|seventeen,十七|eighteen,十八|nineteen,十九|twenty,二十|thirty,三十|forty,四十|fifty,五十|sixty,六十|seventy,七十|eighty,八十|ninety,九十|hundred,百|I,我|You,你（你們）|We,我們|They,他們|He,他（男）|She,她（女）|It,它（牠）|my,我的|your,你的（你們的）|his,他的（男）|her,她的（女）|its,它的、牠的|grandmother,阿嬤|grandfather,阿公|mother,媽媽|father,爸爸|sister,姊妹|brother,兄弟|baby,嬰兒|girl,女孩|boy,男孩|woman,女人|man,男人|cook,廚師|teacher,老師|student,學生|farmer,農夫|doctor,醫生|nurse,護理師|driver,司機|head,頭|hair,頭髮|eye,眼睛|nose,鼻子|mouth,嘴巴|ear,耳朵|hand,手|leg,腿|foot,腳|hat,帽子|glasses,眼鏡|shirt,襯衫|shorts,短褲|pants,長褲|skirt,裙子|dress,洋裝|socks,襪子|shoes,鞋子|boots,靴子|bear,熊|dog,狗|cat,貓|bird,鳥|rabbit,兔|frog,青蛙|fish,魚|chicken,雞|turtle,烏龜|lion,獅子|tiger,虎|monkey,猴子|giraffe,長頸鹿|fox,狐狸|zebra,斑馬|pig,豬|elephant,大象|pen,原子筆|pencil,鉛筆|marker,麥克筆|eraser,橡皮擦|ruler,尺|book,書|bag,袋子|desk,書桌|table,餐桌|chair,椅子|crayon,蠟筆|box,箱子|door,門|window,窗戶|picture,圖片|TV,電視|sofa,沙發|light,光|bed,床|lamp,燈|clock,時鐘|cellphone,手機|videogame,電動|computer,電腦|cup,杯子|mug,馬克杯|bowl,碗|ball,球|yoyo,溜溜球|bat,球棒|robot,機器人|kite,風箏|doll,娃娃|mop,拖把|map,地圖|weather,天氣|sun,太陽|cloud,雲|wind,風|rain,雨|snow,雪|river,河|flower,花|grass,草|tree,樹|bike,腳踏車|car,車|bus,公車|train,火車|taxi,計程車|breakfast,早餐|lunch,午餐|dinner,晚餐|cookie,餅乾|icecream,冰淇淋|candy,糖果|hamburger,漢堡|hotdog,熱狗|pizza,比薩|bread,麵包|sandwich,三明治|cake,蛋糕|rice,飯|noodles,麵|spaghetti,義大利麵|tea,茶|coke,可樂|soda,汽水|water,水|juice,果汁|milk,牛奶|egg,蛋|ham,火腿|salad,沙拉|tomato,番茄|banana,香蕉|apple,蘋果|pear,梨子|grape,葡萄|peach,桃子|home,家|school,學校|park,公園|zoo,動物園|store,商店|shop,商店|house,房子|garage,車庫|livingroom,客廳|diningroom,飯廳|kitchen,廚房|bedroom,臥室|bathroom,浴室、廁所|yard,庭院|garden,花園、菜園|o'clock,點鐘|now,現在|morning,早上|afternoon,下午|evening,傍晚|night,晚上|today,今天|Sunday,星期天|Monday,星期一|Tuesday,星期二|Wednesday,星期三|Thursday,星期四|Friday,星期五|Saturday,星期六|do,做|like,喜歡|love,愛|want,想要|have,擁有|run,跑|walk,走路|swim,游泳|jump,跳|ride,騎|dance,跳舞|sing,唱|write,寫|read,閱讀|draw,畫|color,上色|paint,畫|speak,說|say,說|eat,吃|drink,喝|look,看|watch,看|see,看|listen,聽|smile,微笑|laugh,大笑|cry,哭|hold,拿|put,放|take,拿|sit,坐|stand,站|fine,好的|good,好的|bad,壞的|favorite,最喜歡的|big,大的|small,小的|little,小的|old,老的、舊的|young,年輕的|tall,高的|long,長的|short,短的|thin,瘦的、薄的|fat,胖的|fast,快的|slow,慢的|clean,乾淨的|dirty,髒的|hungry,餓的|thirsty,渴的|happy,開心的|unhappy,不開心的|sad,傷心的|angry,生氣的|sick,生病的|tired,累的|hot,熱的|cold,冷的|rainy,下雨的|snowy,下雪的|sunny,晴朗的|cloudy,多雲的|windy,起風的|black,黑色的|white,白色的|gray,灰色的|brown,咖啡色的|red,紅色的|orange,橘色的|yellow,黃色的|green,綠色的|blue,藍色的|purple,紫色的|pink,粉紅色的|at,在…地點|in,在…裡面|on,在…上面|under,在…下面|by,在…旁邊|nextto,在…旁邊|beside,在…旁邊|infrontof,在…前面|behind,在…後面|who,誰|what,什麼|when,何時|where,哪裡|which,哪一個|why,為什麼|whattime,幾點|how,如何|howmuch,多少|howmany,多少`;
+const kinderVocab = kinderRawData.split('|').map(item => {
   const [word, meaning] = item.split(',');
   return { word, meaning: meaning || word };
 });
 
-let fallbackIndex = 0;
-while (allVocab.length < 900) {
-  allVocab.push({
-    word: allVocab[fallbackIndex].word,
-    meaning: allVocab[fallbackIndex].meaning
-  });
-  fallbackIndex++;
-}
+// --- 💡 國中小 24 個群組全新單字庫 (每組 50 單字，共 24 組) ---
+const gradeRawData = `act,beautifully,bat,biology,ability,abroad,add,absent,accident,aim,achieve,active,ant,activity,actor,bar,actress,addition,bug,address,adjective,bun,admire,admit,CD,adopt,adult,dot,advance,advantage,far,adverb,advertisement,fit,advice,advise,flu,affair,affect,fog,against,ahead,fox,aid,aircraft,fry,airline,airmail,god,alarm|gun,album,alike,guy,alive,alley,gym,allow,alone,hen,aloud,alphabet,hip,altogether,ambulance,hop,among,amount,ill,ancient,angel,ink,anger,ankle,jam,anyway,anywhere,apologize,appearance,KTV,apply,appreciate,lay,area,argue,LD,armchair,army,lid,arrange,arrest,lot,article,artist,mad,assume,attack,mat,attend|mix,attention,audience,mop,auxiliary,available,MTV,avoid,awake,mud,aware,backward,nut,badminton,bake,ox,balcony,balloon,pan,banker,barbecue,pin,barber,bark,pot,base,basement,rat,basic,basis,rob,bean,beard,row,beat,beer,rub,beginner,beginning,set,behave,being,ski,belief,bench,tip,besides,best,top,better|tub,beyond,bill,bit,bitter,blame,blank,blanket,blood,blouse,board,boil,bomb,bone,bookcase,bother,bow,bowling,boyfriend,brain,branch,brave,brick,brief,broad,broadcast,brunch,bucket,buffet,building,bundle,burger,burst,butterfly,button,cabbage,cabinet,cable,cafeteria,cage,calendar,calm,camping,campus,cancel,cancer,candle,captain,career,carefully|cell,centimeter,cash,century,cause,character,chin,cheerleader,choice,chemical,clap,childhood,coin,comfortably,comb,congratulation,corn,connective,crab,conversation,cure,countryside,data,democratic,dawn,department,deaf,determiner,deal,difference,debt,difficulty,deep,direction,deer,discussion,dial,dishonest,diet,doughnut,dot,downstairs,drug,electricity,duck,eighteenth,dumb,emphasize,duty,environment|edge,careless,earn,carpet,eagle,carrot,drum,cartoon,cassette,castle,ceiling,doubt,central,donkey,cereal,dizzy,certain,divide,chairman,distance,channel,discover,chapter,direct,charge,dinosaur,chart,diligent,chase,diamond,chess,develop,chief,determine,childish,dessert,childlike,desire,children,design,choose,desert,chubby,describe,citizen,depend,claim,dentist,classic,deny|clerk,classical,cloth,clever,coach,climate,coast,climbing,delay,closet,degree,clothing,deliver,cockroach,decorate,collection,decision,college,debate,command,death,comment,danger,company,dancing,compare,damage,complain,daily,complete,customer,concern,custom,confident,curve,confirm,curtain,conflict,current,confuse,curious,consider,culture,contain,cruel,continue,crowded,contract,crowd,control|cookies,crisis,cooking,crime,corner,create,cotton,cream,cough,crayon,county,court,couple,course,courage,emotion,element,empty,eleventh,enemy,employ,energy,encourage,engine,engineer,entire,entrance,envelope,envy,equal,error,especially,event,everywhere,evil,exact,exam,examine,excite,exist,exit,expect,explain,express,extra,eyebrow,fail,drawing,dresser,drinks|gate,failure,fair,generation,fancy,fantastic,generally,fashionable,faucet,fault,gather,favor,fear,feather,feeling,garage,fellow,fence,furniture,fever,field,function,fifteenth,fight,Frisbee,figure,final,frighten,flashlight,flight,friendship,flour,flute,freezing,focus,foggy,freezer,foolish,football,freedom,force,forest,frank,forgive,fourteenth,former,forward,gentle,generous,general|hey,hippopotamus,hole,gentleman,hire,geographical,geography,gesture,hippo,ghost,glasses,hiking,gloves,goal,hike,gold,golden,highway,golf,goodness,hero,goose,government,helicopter,grand,granddaughter,height,grandson,grape,heater,grapefruit,greedy,hardly,greet,guard,hanger,guava,guest,hang,guide,guitar,handle,haircut,hairdresser,handkerchief,hall,hammer,honey,homesick,honesty|iron,impolite,huge,importance,host,impossible,horrible,improve,housewife,inch,housework,include,human,income,humble,increase,humid,indefinite,humor,independent,humorous,industry,hunger,influence,hunt,information,hunter,insect,imagine,insist,inspire,invitation,instant,invent,instrument,introduce,intelligent,interview,international,interrupt,invite,jazz,jealous,ketchup,jeep,kangaroo,jogging,judge,joke,journalist|koala,kindergarten,lack,kilometer,lady,kitty,lamb,kitten,lane,kingdom,lantern,leaf,law,lawyer,liquid,length,lettuce,link,level,lift,limit,lightning,loaf,local,mask,location,marry,lock,marriage,locker,marker,loser,manner,loss,mango,lovely,manager,lychee,mall,magazine,male,magician,major,main,meaning,mass,maximum,master,material,match|measure,newspaper,mechanic,niece,melon,nineteenth,member,ninetieth,memory,noisy,message,none,metal,noodles,meter,northern,method,note,microwave,obey,middle,object,midnight,occupation,minor,occur,minus,ocean,mirror,offer,missing,official,model,omit,monster,oneself,mosquito,onion,motion,operate,movement,operation,musician,opinion,nail,ordinary,napkin,organize,narrow,oven|overpass,owner,overseas,pain,painful,pale,painter,panda,pajamas,path,papaya,pear,pardon,pile,parrot,pipe,particular,plus,partner,poem,passenger,pond,paste,pool,patient,port,pattern,post,pause,pray,peace,pump,peaceful,quit,peach,quiz,pepper,race,perfect,rare,period,rent,personal,raise,photo,reach,photograph,reply,photographer,pigeon|pillow,plain,pineapple,plant,pingpong,plate,plastic,press,platform,print,pleasant,prize,pleased,prove,pleasure,purse,pocket,rapid,poison,rise,pollute,rob,pollution,rock,population,role,position,roll,positive,roof,possessive,root,potato,rope,power,row,praise,precious,prefer,preposition,president,priest,primary,prince,princess,principal,printer,prison,prisoner,private|probably,produce,product,production,professor,progress,project,promise,pronoun,pronounce,protect,provide,pumpkin,punish,puppy,purpose,puzzle,quality,quarter,quickly,railroad,raincoat,rather,reading,realize,reason,receive,recent,record,recover,rectangle,recycle,reflexive,refuse,regard,regret,regular,reject,relative,remind,repair,report,require,respect,responsible,result,return,review,revise,robot|rubber,secondary,skill,standard,tail,thus,tradition,type,verb,whatever,rude,secret,skillful,state,talkative,tidy,traditional,typewriter,vest,wheel,running,secretary,skin,stationery,tangerine,tie,transportation,ugly,victory,while,rush,section,skinny,steal,tank,till,trap,underlie,village,whole,safety,seed,sleepy,steam,task,tiny,travel,underpass,vinegar,whom|sail,seek,slender,step,teapot,tip,traveling,underwear,violin,wide,sailing,seem,slide,stick,tear,title,treasure,unfriendly,visitor,wild,sailor,seesaw,slim,stingy,temperature,toast,treat,unique,vocabulary,willing,salesman,select,slippers,stomachache,temple,toe,triangle,unit,volleyball,wine,sample,selfish,snail,stone,tent,tofu,trick,universe,vote,wing|sand,semester,sneakers,storm,term,toilet,trousers,university,voter,winner,satisfied,sense,sneaky,stormy,terrible,tongue,trumpet,upon,waist,within,satisfy,separate,snowman,stove,terrific,tool,trust,upstairs,walkman,wolf,saucer,servant,snowy,straight,textbook,toothache,truth,used,wallet,wonder,scared,serve,soap,straw,therefore,toothbrush,tub,usual,war,wood|scarf,service,soccer,strawberry,thick,topic,tummy,valley,waste,wooden,scene,seventeenth,social,stream,thief,total,tunnel,valuable,waterfall,woods,schoolmate,shake,society,strike,thirteenth,tour,turkey,value,watermelon,worried,science,shark,soda,struggle,thirtieth,toward,turtle,weekday,wave,worth,scientist,sharp,soft,style,thought,tower,twelfth,weight,wedding,wound|score,successfully,screen,success,seafood,succeed,search,subway,sheet,submarine,shelf,subject,shine,skiing,shock,skating,shoes,skate,shoot,sixteenth,shopping,sink,shore,single,shorts,singing,shot,sincere,shout,simply,shower,similar,shrimp,silver,shut,silly,sight,silent,sign,silence,such,sudden,suddenly,suggest,suit,suitcase,supper,support,surf,surface|surfing,measurement,survive,nationality,swallow,natural,swan,nature,sweep,naughty,swimming,nearly,swimsuit,necessary,swing,necklace,symbol,necktie,tableware,needle,thanksgiving,negative,throat,neighbor,through,neither,throughout,nephew,throw,nervous,thumb,nest,thunder,nor,trace,track,trade,twentieth,twice,weekday,western,whale,wrist,yard,youth,yucky,yummy,zebra,zero,false|pattern,passenger,paste,path,patient,partner,pause,peace,peaceful,peach,pear,pepper,perfect,period,personal,photo,photograph,photographer,pigeon,pile,pillow,pin,pineapple,pingpong,pipe,plain,plant,plastic,plate,platform,pleasant,pleased,pleasure,plus,pocket,poem,poison,pollute,pollution,pond,pool,population,port,position,positive,possessive,post,pot,potato,power|praise,pray,precious,prefer,preposition,president,press,priest,primary,prince,princess,principal,print,printer,prison,prisoner,private,prize,probably,produce,product,production,professor,progress,project,promise,pronoun,pronounce,protect,prove,provide,pump,pumpkin,punish,puppy,purpose,purse,puzzle,race,railroad,raincoat,raise,rapid,rare,rat,rather,reach,reading,realize,reason`;
+const gradeVocabList = gradeRawData.split('|').map(group => {
+  return group.split(',').map(word => ({ word, meaning: '' }));
+});
 
 const kinderCategories = [
-  { name: "小班", icon: "🍼", start: 0, end: 100 },
-  { name: "中班", icon: "🧸", start: 100, end: 200 },
-  { name: "大班", icon: "🖍️", start: 200, end: 300 }
+  { name: "小班", icon: "🍼", start: 0, end: 100, type: 'kinder' },
+  { name: "中班", icon: "🧸", start: 100, end: 200, type: 'kinder' },
+  { name: "大班", icon: "🖍️", start: 200, end: 300, type: 'kinder' }
 ];
 
-const gradeCategories = [
-  { name: "一上", icon: "👶", start: 0, end: 50 }, { name: "一中", icon: "👶", start: 50, end: 100 }, { name: "一下", icon: "👶", start: 100, end: 150 },
-  { name: "二上", icon: "🧒", start: 150, end: 200 }, { name: "二中", icon: "🧒", start: 200, end: 250 }, { name: "二下", icon: "🧒", start: 250, end: 300 },
-  { name: "三上", icon: "👦", start: 300, end: 350 }, { name: "三中", icon: "👦", start: 350, end: 400 }, { name: "三下", icon: "👦", start: 400, end: 450 },
-  { name: "四上", icon: "👧", start: 450, end: 500 }, { name: "四中", icon: "👧", start: 500, end: 550 }, { name: "四下", icon: "👧", start: 550, end: 600 },
-  { name: "五上", icon: "🧑", start: 600, end: 650 }, { name: "五中", icon: "🧑", start: 650, end: 700 }, { name: "五下", icon: "🧑", start: 700, end: 750 },
-  { name: "六上", icon: "👱", start: 750, end: 800 }, { name: "六中", icon: "👱", start: 800, end: 850 }, { name: "六下", icon: "👱", start: 850, end: 900 }
+const primaryCategories = [
+  { name: "一上", icon: "👶", index: 0, type: 'grade' }, { name: "一中", icon: "👶", index: 1, type: 'grade' }, { name: "一下", icon: "👶", index: 2, type: 'grade' },
+  { name: "二上", icon: "🧒", index: 3, type: 'grade' }, { name: "二中", icon: "🧒", index: 4, type: 'grade' }, { name: "二下", icon: "🧒", index: 5, type: 'grade' },
+  { name: "三上", icon: "👦", index: 6, type: 'grade' }, { name: "三中", icon: "👦", index: 7, type: 'grade' }, { name: "三下", icon: "👦", index: 8, type: 'grade' },
+  { name: "四上", icon: "👧", index: 9, type: 'grade' }, { name: "四中", icon: "👧", index: 10, type: 'grade' }, { name: "四下", icon: "👧", index: 11, type: 'grade' },
+  { name: "五上", icon: "🧑", index: 12, type: 'grade' }, { name: "五中", icon: "🧑", index: 13, type: 'grade' }, { name: "五下", icon: "🧑", index: 14, type: 'grade' },
+  { name: "六上", icon: "👱", index: 15, type: 'grade' }, { name: "六中", icon: "👱", index: 16, type: 'grade' }, { name: "六下", icon: "👱", index: 17, type: 'grade' }
+];
+
+const juniorCategories = [
+  { name: "國一上", icon: "🎓", index: 18, type: 'grade' }, { name: "國一下", icon: "🎓", index: 19, type: 'grade' },
+  { name: "國二上", icon: "🎓", index: 20, type: 'grade' }, { name: "國二下", icon: "🎓", index: 21, type: 'grade' },
+  { name: "國三上", icon: "🎓", index: 22, type: 'grade' }, { name: "國三下", icon: "🎓", index: 23, type: 'grade' }
 ];
 
 const App = () => {
@@ -256,7 +258,6 @@ const App = () => {
     const nextH = { ...history, [type]: history[type] + 1 };
     setHistory(nextH);
 
-    // 💡 強制重置選項狀態，避免顏色殘留到下一題
     setSelectedChoice(null);
     setIsChoiceCorrect(false);
 
@@ -284,7 +285,6 @@ const App = () => {
     setQueue(newQueue);
     setIsFlipped(false);
     
-    // 💡 強制重置選項狀態
     setSelectedChoice(null);
     setIsChoiceCorrect(false);
 
@@ -306,7 +306,6 @@ const App = () => {
       setActiveCategory(null);
       setActivePart(1);
       
-      // 💡 強制重置選項狀態
       setSelectedChoice(null);
       setIsChoiceCorrect(false);
 
@@ -369,7 +368,6 @@ const App = () => {
     setGenLoading(true); 
     setError('🔍 正在請 AI 為單字擴充詞性與例句...');
     
-    // 💡 強制重置選項狀態
     setSelectedChoice(null);
     setIsChoiceCorrect(false);
 
@@ -502,26 +500,29 @@ const App = () => {
     setGenLoading(false);
   };
 
+  // 💡 v13.21 核心：透過傳入的 cat 屬性來判斷要擷取哪一段資料庫，並維持 25 個單字的兩階段模式
   const loadPresetCategory = (cat, part = 1) => {
     setActiveCategory(cat);
     setActivePart(part);
     
-    // 💡 強制重置選項狀態
     setSelectedChoice(null);
     setIsChoiceCorrect(false);
 
     let vocabList = [];
     let useAI = true;
 
-    if (cat.name.includes('班')) {
+    if (cat.type === 'kinder') {
+       // 幼兒園維持秒速載入 100 個單字
        useAI = false;
-       vocabList = allVocab.slice(cat.start, cat.end);
+       vocabList = kinderVocab.slice(cat.start, cat.end);
     } else {
        useAI = true;
+       // 取出該年級的 50 個單字，根據階段 (part) 切割前 25 還是後 25
+       const fullList = gradeVocabList[cat.index];
        if (part === 1) {
-          vocabList = allVocab.slice(cat.start, cat.start + 25);
+          vocabList = fullList.slice(0, 25);
        } else {
-          vocabList = allVocab.slice(cat.start + 25, cat.end);
+          vocabList = fullList.slice(25);
        }
     }
 
@@ -773,11 +774,13 @@ const App = () => {
             免輸入！一鍵請 AI 擴充詞性與例句
           </div>
           
-          <div className="max-h-[260px] overflow-y-auto custom-scrollbar pr-2 pb-1">
-            <div className="grid grid-cols-3 gap-2.5">
-              {[...kinderCategories, ...gradeCategories].map((cat, index) => (
+          <div className="max-h-[300px] overflow-y-auto custom-scrollbar pr-2 pb-1">
+            
+            {/* 幼兒園：1 列 3 顆 */}
+            <div className="grid grid-cols-3 gap-2.5 mb-2.5">
+              {kinderCategories.map((cat, index) => (
                 <button 
-                  key={`cat-${index}`}
+                  key={`kinder-${index}`}
                   onClick={() => loadPresetCategory(cat, 1)} 
                   className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
                 >
@@ -786,6 +789,35 @@ const App = () => {
                 </button>
               ))}
             </div>
+
+            {/* 國小：6 列 3 顆 (共 18 顆) */}
+            <div className="grid grid-cols-3 gap-2.5 mb-2.5">
+              {primaryCategories.map((cat, index) => (
+                <button 
+                  key={`primary-${index}`}
+                  onClick={() => loadPresetCategory(cat, 1)} 
+                  className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
+                >
+                  <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
+                  <span>{cat.name}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* 國中：3 列 2 顆 (共 6 顆) */}
+            <div className="grid grid-cols-2 gap-2.5">
+              {juniorCategories.map((cat, index) => (
+                <button 
+                  key={`junior-${index}`}
+                  onClick={() => loadPresetCategory(cat, 1)} 
+                  className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
+                >
+                  <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
+                  <span>{cat.name}</span>
+                </button>
+              ))}
+            </div>
+
           </div>
         </div>
 
@@ -817,7 +849,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-center">
-          <span>v13.20 選項顏色修復版 byKC</span>
+          <span>v13.21 國中小九百單字陣列版 byKC</span>
         </div>
       </div>
     </div>
@@ -850,7 +882,7 @@ const App = () => {
             </div>
           </div>
           
-          {activeCategory && !activeCategory.name.includes('班') && activePart === 1 && (
+          {activeCategory && activeCategory.type !== 'kinder' && activePart === 1 && (
             <button 
               onClick={() => loadPresetCategory(activeCategory, 2)} 
               disabled={genLoading}
@@ -867,7 +899,6 @@ const App = () => {
                 setHistory({again:0, hard:0, good:0, easy:0}); 
                 setIsFinished(false); 
                 lastMilestoneRef.current = 0; 
-                // 💡 強制重置選項狀態
                 setSelectedChoice(null);
                 setIsChoiceCorrect(false);
             }} disabled={genLoading} className="flex-1 bg-slate-200 text-slate-700 font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-md hover:bg-slate-300 transition-all disabled:opacity-50">
@@ -881,7 +912,6 @@ const App = () => {
                 }
                 setQueue(newQ); setHistory({again:0, hard:0, good:0, easy:0}); setIsFinished(false); 
                 lastMilestoneRef.current = 0; 
-                // 💡 強制重置選項狀態
                 setSelectedChoice(null);
                 setIsChoiceCorrect(false);
             }} disabled={genLoading} className="flex-1 bg-slate-900 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl hover:bg-black transition-all disabled:opacity-50">
@@ -1010,7 +1040,6 @@ const App = () => {
 
             <div className="w-full flex flex-col gap-2.5 mb-4 shrink-0">
               {currentChoices.map((choice, idx) => {
-                // 💡 修正：移除容易在手機上殘留的 hover，改用 active (按壓時才變色)，並加上 sm:hover 確保電腦版正常
                 let btnClass = "bg-slate-50 text-slate-600 active:bg-indigo-50 active:text-indigo-700 border-slate-200 active:border-indigo-200 sm:hover:bg-indigo-50 sm:hover:text-indigo-700 sm:hover:border-indigo-200";
                 if (selectedChoice !== null) {
                   if (choice === card.meaning) {
@@ -1024,7 +1053,6 @@ const App = () => {
 
                 return (
                   <button
-                    // 💡 修正：給每一個選項加上獨一無二的 key，強迫 React 每一題都重新產生按鈕，徹底消滅狀態殘留！
                     key={`${card.word}-${idx}`}
                     onClick={(e) => {
                       e.stopPropagation();
