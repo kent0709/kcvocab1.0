@@ -205,6 +205,37 @@ const App = () => {
     window.speechSynthesis.speak(u);
   };
 
+  const playWordAndFirstMeaning = (c) => {
+    if (!c) return;
+    window.speechSynthesis.cancel();
+    if (speechTimeoutRef.current) clearTimeout(speechTimeoutRef.current);
+
+    const wordUtterance = new SpeechSynthesisUtterance(c.word);
+    wordUtterance.lang = 'en-US';
+    wordUtterance.rate = 0.85;
+
+    let cleanMeaning = "";
+    if (c.meaning) {
+       const firstLine = c.meaning.split('\n')[0];
+       cleanMeaning = firstLine.replace(/\([a-zA-Z]+\.?\)|\[.*?\]/g, '').split(/[；;,，]/)[0].trim();
+    } else {
+       cleanMeaning = c.info ? c.info.split(' ')[0] : '';
+    }
+
+    const meaningUtterance = new SpeechSynthesisUtterance(cleanMeaning);
+    meaningUtterance.lang = 'zh-TW';
+    meaningUtterance.rate = 0.85;
+
+    wordUtterance.onend = () => {
+       if (cleanMeaning) {
+          speechTimeoutRef.current = setTimeout(() => {
+             window.speechSynthesis.speak(meaningUtterance);
+          }, 500); 
+       }
+    };
+    window.speechSynthesis.speak(wordUtterance);
+  };
+
   const playCardSequence = (c) => {
     if (!c) return;
     window.speechSynthesis.cancel();
@@ -376,7 +407,7 @@ const App = () => {
     const isEn = hasEnglish && !hasKana;
     
     const prompt = isEn 
-      ? `請分析以下文字：\n"""${targetText}"""\n這是一份「英文學習清單」。請提取出所有英文單字（務必完整包含輸入的所有單字，不可遺漏！）。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」，請務必自動將其「翻譯成英文單字」。\n請為每個單字提供更廣泛且結構化的解釋：\n1. 包含不同「詞性」的意思，並換行顯示。例如：\n(n.) 書；卷\n(v.) 預訂; 預約 (To reserve/order)\n2. 補充類似的「同類詞、同義詞」或相反的「反義詞」。例如：[同義詞] reserve, order / [反義詞] cancel\n3. 提供對應的英文例句，若有多個詞性請提供多句，並用「 / 」隔開。\n4. 提供對應的中文翻譯，多句請用「 / 」隔開。\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "不同詞性與意思(務必使用 \\n 換行)", "breakdown": "同義詞/反義詞補充", "example": "英文例句1 / 英文例句2", "example_kana": "", "example_zh": "中文翻譯1 / 中文翻譯2", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字"}]。請只回傳 JSON。`
+      ? `請分析以下文字：\n"""${targetText}"""\n這是一份「英文學習清單」。請提取出所有英文單字（務必完整包含輸入的所有單字，不可遺漏！）。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」，請務必自動將其「翻譯成英文單字」。\n請為每個單字提供更廣泛且結構化的解釋：\n1. 包含不同「詞性」的意思，並換行顯示。⚠️【最重要】：請務必把最簡單、最常用的中文意思放在第一行的最前面（例如：書；(n.) 書本），幫助國小學童快速記憶。\n2. 補充類似的「同類詞、同義詞」或相反的「反義詞」。例如：[同義詞] reserve, order / [反義詞] cancel\n3. 提供對應的英文例句，若有多個詞性請提供多句，並用「 / 」隔開。\n4. 提供對應的中文翻譯，多句請用「 / 」隔開。\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "不同詞性與意思(務必使用 \\n 換行，最簡單的意思放最前)", "breakdown": "同義詞/反義詞補充", "example": "英文例句1 / 英文例句2", "example_kana": "", "example_zh": "中文翻譯1 / 中文翻譯2", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字"}]。請只回傳 JSON。`
       : `請分析以下文字：\n"""${targetText}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`;
 
     let modelToUse = isCanvas ? "gemini-2.5-flash-preview-09-2025" : workingModelRef.current;
@@ -577,7 +608,14 @@ const App = () => {
   useEffect(() => {
     if (queue.length > 0 && !isFinished && cards.length > 0) {
       if (isFlipped) {
-        playCardSequence(cards[queue[0]]);
+        const currentCard = cards[queue[0]];
+        const isEnglishCard = /[a-zA-Z]/.test(currentCard.word) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(currentCard.word);
+        
+        if (isEnglishCard) {
+           playWordAndFirstMeaning(currentCard);
+        } else {
+           playCardSequence(currentCard);
+        }
       }
     }
   }, [queue, isFlipped, isFinished, cards]);
@@ -586,7 +624,15 @@ const App = () => {
     const handleKeyDown = (e) => {
       if (e.key === 'Enter' && cards.length > 0 && !isFinished) {
         if (!isFlipped) setIsFlipped(true);
-        else playCardSequence(cards[queue[0]]);
+        else {
+           const currentCard = cards[queue[0]];
+           const isEnglishCard = /[a-zA-Z]/.test(currentCard.word) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(currentCard.word);
+           if (isEnglishCard) {
+              playWordAndFirstMeaning(currentCard);
+           } else {
+              playCardSequence(currentCard);
+           }
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -666,9 +712,13 @@ const App = () => {
     return (
       <div className="flex-1 overflow-y-auto pr-1 pb-2 custom-scrollbar flex flex-col text-left">
         <div className="font-bold text-slate-800 border-b border-slate-100 pb-3 mb-3 leading-tight">
-          <div className="flex items-baseline gap-2 mb-2">
+          
+          <div className="flex items-center flex-wrap gap-2 mb-2 w-full">
             <span className="text-3xl font-black text-indigo-900 tracking-wide">{card.word}</span>
             {reading && <span className="text-sm text-indigo-600 font-bold bg-indigo-50 px-2 py-1 rounded-md">{reading}</span>}
+            <button onClick={(e) => { e.stopPropagation(); playSimpleText(card.word); }} className="ml-auto w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 hover:bg-indigo-100 hover:scale-110 transition-all shadow-sm shrink-0">
+              <Volume2 size={20} />
+            </button>
           </div>
           
           <div className="text-slate-700 text-lg mb-2 whitespace-pre-line leading-snug font-bold">
@@ -773,7 +823,6 @@ const App = () => {
           
           <div className="max-h-[300px] overflow-y-auto custom-scrollbar pr-2 pb-1">
             
-            {/* 幼兒園：1 列 3 顆 */}
             <div className="grid grid-cols-3 gap-2.5 mb-2.5">
               {kinderCategories.map((cat, index) => (
                 <button 
@@ -787,7 +836,6 @@ const App = () => {
               ))}
             </div>
 
-            {/* 國小：6 列 3 顆 (共 18 顆) */}
             <div className="grid grid-cols-3 gap-2.5 mb-2.5">
               {primaryCategories.map((cat, index) => (
                 <button 
@@ -801,7 +849,6 @@ const App = () => {
               ))}
             </div>
 
-            {/* 國中：3 列 2 顆 (共 6 顆) */}
             <div className="grid grid-cols-2 gap-2.5">
               {juniorCategories.map((cat, index) => (
                 <button 
@@ -846,7 +893,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-center">
-          <span>v13.22 打散單字升級版 byKC</span>
+          <span>v13.25 修正 ReferenceError 版 byKC</span>
         </div>
       </div>
     </div>
@@ -1062,7 +1109,7 @@ const App = () => {
                         setIsFlipped(true);
                       }, 600);
                     }}
-                    className={`w-full p-3.5 rounded-xl border text-[13px] sm:text-[14px] font-bold transition-all text-left overflow-hidden text-ellipsis line-clamp-2 ${btnClass}`}
+                    className={`w-full p-4 sm:py-4 rounded-xl border text-[16px] sm:text-[18px] font-black transition-all text-left overflow-hidden text-ellipsis line-clamp-2 leading-relaxed ${btnClass}`}
                   >
                     {choice}
                   </button>
