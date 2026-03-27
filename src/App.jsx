@@ -937,7 +937,7 @@ const App = () => {
             </button>
           )}
 
-          <div className="flex gap-3 w-full">
+          <div className="flex gap-3 w-full mb-3">
             <button onClick={() => { 
                 setQueue(Array.from({length: cards.length}, (_, i) => i)); 
                 setHistory({again:0, hard:0, good:0, easy:0}); 
@@ -962,6 +962,19 @@ const App = () => {
               <Shuffle size={18} />洗牌重來
             </button>
           </div>
+
+          <button onClick={() => { 
+              setCards([]); setQueue([]); setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
+              setIsFinished(false); setIsFlipped(false); setDeckId(null); setInput('');
+              lastMilestoneRef.current = 0;
+              setActiveCategory(null);
+              setActivePart(1);
+              setSelectedChoice(null);
+              setIsChoiceCorrect(false);
+              safePushState(window.location.pathname);
+          }} disabled={genLoading} className="w-full bg-indigo-50 text-indigo-600 border border-indigo-100 font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-sm hover:bg-indigo-100 transition-all disabled:opacity-50">
+            <Home size={18} />回到首頁
+          </button>
         </div>
       </div>
     );
