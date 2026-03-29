@@ -651,6 +651,7 @@ const App = () => {
     }
   };
 
+  // 全新優化版：確保高穩定度的圖片自動載入
   useEffect(() => {
     if (cards.length === 0 || isFinished) return;
 
@@ -659,11 +660,17 @@ const App = () => {
       for (const card of nextCards) {
         if (!card || imageUrls[card.word]) continue;
         
-        let imgQuery = card.image_keyword || "study";
-        if (!/[a-zA-Z]/.test(imgQuery)) imgQuery = "study";
+        let imgQuery = card.image_keyword || card.word || "study";
         
-        // 加上亂數種子，避免瀏覽器將失敗的圖檔死存快取
-        const url = `https://loremflickr.com/400/300/${encodeURIComponent(imgQuery)}?lock=${card.word.length + Math.floor(Math.random() * 100)}`;
+        // 若單字包含中文/日文，則附加攝影相關英文，確保 AI 產圖準確
+        if (!/[a-zA-Z]/.test(imgQuery)) {
+            imgQuery = card.word + " photography object";
+        } else {
+            imgQuery = imgQuery + " photography";
+        }
+        
+        // 使用 Pollinations AI (高度穩定免費產圖 API)
+        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(imgQuery)}?width=400&height=300&nologo=true`;
         setImageUrls(prev => ({ ...prev, [card.word]: url }));
       }
     };
@@ -964,7 +971,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-center">
-          <span>v14.1 圖片優化與常用機制版 byKC</span>
+          <span>v14.2 圖片穩定版 byKC</span>
         </div>
       </div>
     </div>
@@ -1222,9 +1229,9 @@ const App = () => {
                   alt="" 
                   onLoad={() => setImgLoaded(prev => ({ ...prev, [card.word]: true }))}
                   onError={e => {
-                    // 若原圖庫請求失敗，切換至更穩定的備用圖片服務，並帶上單字文字
-                    if (!e.target.src.includes('placehold.co')) {
-                      e.target.src = `https://placehold.co/400x300/e2e8f0/475569?text=${encodeURIComponent(card.word)}`;
+                    // 若原圖庫請求失敗，切換至更穩定的真實風景圖，避免出現醜醜的英文字替代圖
+                    if (!e.target.src.includes('picsum.photos')) {
+                      e.target.src = `https://picsum.photos/seed/${encodeURIComponent(card.word)}/400/300`;
                     }
                     setImgLoaded(prev => ({ ...prev, [card.word]: true }));
                   }} 
