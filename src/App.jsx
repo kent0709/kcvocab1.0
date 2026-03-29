@@ -53,17 +53,11 @@ const safePushState = (url) => {
   } catch (e) {}
 };
 
-// --- 💡 幼兒園基礎單字庫 (保留原汁原味前300單) ---
+// --- 💡 幼兒園基礎單字庫 ---
 const kinderRawData = `zero,零|one,一|two,二|three,三|four,四|five,五|six,六|seven,七|eight,八|nine,九|ten,十|eleven,十一|twelve,十二|thirteen,十三|fourteen,十四|fifteen,十五|sixteen,十六|seventeen,十七|eighteen,十八|nineteen,十九|twenty,二十|thirty,三十|forty,四十|fifty,五十|sixty,六十|seventy,七十|eighty,八十|ninety,九十|hundred,百|I,我|You,你（你們）|We,我們|They,他們|He,他（男）|She,她（女）|It,它（牠）|my,我的|your,你的（你們的）|his,他的（男）|her,她的（女）|its,它的、牠的|grandmother,阿嬤|grandfather,阿公|mother,媽媽|father,爸爸|sister,姊妹|brother,兄弟|baby,嬰兒|girl,女孩|boy,男孩|woman,女人|man,男人|cook,廚師|teacher,老師|student,學生|farmer,農夫|doctor,醫生|nurse,護理師|driver,司機|head,頭|hair,頭髮|eye,眼睛|nose,鼻子|mouth,嘴巴|ear,耳朵|hand,手|leg,腿|foot,腳|hat,帽子|glasses,眼鏡|shirt,襯衫|shorts,短褲|pants,長褲|skirt,裙子|dress,洋裝|socks,襪子|shoes,鞋子|boots,靴子|bear,熊|dog,狗|cat,貓|bird,鳥|rabbit,兔|frog,青蛙|fish,魚|chicken,雞|turtle,烏龜|lion,獅子|tiger,虎|monkey,猴子|giraffe,長頸鹿|fox,狐狸|zebra,斑馬|pig,豬|elephant,大象|pen,原子筆|pencil,鉛筆|marker,麥克筆|eraser,橡皮擦|ruler,尺|book,書|bag,袋子|desk,書桌|table,餐桌|chair,椅子|crayon,蠟筆|box,箱子|door,門|window,窗戶|picture,圖片|TV,電視|sofa,沙發|light,光|bed,床|lamp,燈|clock,時鐘|cellphone,手機|videogame,電動|computer,電腦|cup,杯子|mug,馬克杯|bowl,碗|ball,球|yoyo,溜溜球|bat,球棒|robot,機器人|kite,風箏|doll,娃娃|mop,拖把|map,地圖|weather,天氣|sun,太陽|cloud,雲|wind,風|rain,雨|snow,雪|river,河|flower,花|grass,草|tree,樹|bike,腳踏車|car,車|bus,公車|train,火車|taxi,計程車|breakfast,早餐|lunch,午餐|dinner,晚餐|cookie,餅乾|icecream,冰淇淋|candy,糖果|hamburger,漢堡|hotdog,熱狗|pizza,比薩|bread,麵包|sandwich,三明治|cake,蛋糕|rice,飯|noodles,麵|spaghetti,義大利麵|tea,茶|coke,可樂|soda,汽水|water,水|juice,果汁|milk,牛奶|egg,蛋|ham,火腿|salad,沙拉|tomato,番茄|banana,香蕉|apple,蘋果|pear,梨子|grape,葡萄|peach,桃子|home,家|school,學校|park,公園|zoo,動物園|store,商店|shop,商店|house,房子|garage,車庫|livingroom,客廳|diningroom,飯廳|kitchen,廚房|bedroom,臥室|bathroom,浴室、廁所|yard,庭院|garden,花園、菜園|o'clock,點鐘|now,現在|morning,早上|afternoon,下午|evening,傍晚|night,晚上|today,今天|Sunday,星期天|Monday,星期一|Tuesday,星期二|Wednesday,星期三|Thursday,星期四|Friday,星期五|Saturday,星期六|do,做|like,喜歡|love,愛|want,想要|have,擁有|run,跑|walk,走路|swim,游泳|jump,跳|ride,騎|dance,跳舞|sing,唱|write,寫|read,閱讀|draw,畫|color,上色|paint,畫|speak,說|say,說|eat,吃|drink,喝|look,看|watch,看|see,看|listen,聽|smile,微笑|laugh,大笑|cry,哭|hold,拿|put,放|take,拿|sit,坐|stand,站|fine,好的|good,好的|bad,壞的|favorite,最喜歡的|big,大的|small,小的|little,小的|old,老的、舊的|young,年輕的|tall,高的|long,長的|short,短的|thin,瘦的、薄的|fat,胖的|fast,快的|slow,慢的|clean,乾淨的|dirty,髒的|hungry,餓的|thirsty,渴的|happy,開心的|unhappy,不開心的|sad,傷心的|angry,生氣的|sick,生病的|tired,累的|hot,熱的|cold,冷的|rainy,下雨的|snowy,下雪的|sunny,晴朗的|cloudy,多雲的|windy,起風的|black,黑色的|white,白色的|gray,灰色的|brown,咖啡色的|red,紅色的|orange,橘色的|yellow,黃色的|green,綠色的|blue,藍色的|purple,紫色的|pink,粉紅色的|at,在…地點|in,在…裡面|on,在…上面|under,在…下面|by,在…旁邊|nextto,在…旁邊|beside,在…旁邊|infrontof,在…前面|behind,在…後面|who,誰|what,什麼|when,何時|where,哪裡|which,哪一個|why,為什麼|whattime,幾點|how,如何|howmuch,多少|howmany,多少`;
 const kinderVocab = kinderRawData.split('|').map(item => {
   const [word, meaning] = item.split(',');
   return { word, meaning: meaning || word };
-});
-
-// --- 💡 國中小 24 個群組全新單字庫 (已套用打散字母順序版，每組 50 單字，共 24 組) ---
-const gradeRawData = `accept,basic,calm,daily,earn,failure,gather,haircut,ill,jam,koala,lady,mad,nail,obey,pain,quality,race,safety,tail,ugly,valley,waist,yard,zebra,accident,basis,campus,dawn,edge,fair,gentle,handle,imagine,jar,kitten,leaf,main,narrow,ocean,painter,quarter,railroad,sail,task,unit,value,wallet,youth,zero|achieve,bean,cancel,deaf,effect,fancy,ghost,hang,inch,jazz,lack,length,major,nation,offer,panda,quickly,raincoat,sample,tear,universe,verb,war,yucky,absent,beard,cancer,deal,effort,far,gloves,hardly,include,jealous,lamb,level,male,nature,official,pardon,quit,raise,sand,temple,university,vest,waste,yummy,abroad,beat|ability,beer,candle,death,either,faucet,glue,heater,income,jeep,lane,lid,mall,nearly,omit,parrot,quiz,rapid,satisfied,tent,upon,victory,waterfall,action,behave,captain,debate,elder,fault,goal,height,increase,jogging,lantern,lift,manager,necessary,onion,partner,rare,satisfy,term,upstairs,village,watermelon,active,belief,career,debt,elect|actor,bench,careless,decision,electric,favor,god,helicopter,industry,joke,law,lightning,manner,negative,operate,passenger,rat,saucer,terrible,used,vinegar,wave,address,backward,carpet,decorate,element,fear,gold,hen,influence,journalist,lawyer,limit,marker,neighbor,operation,paste,rather,scared,terrific,usual,violin,wedding,admire,badminton,carrot,deep,emotion,feather|adult,base,cabbage,damage,eagle,fail,gain,hall,impolite,jar,kangaroo,law,magazine,napkin,occupation,painful,quarter,receive,salesman,talkative,underlie,valuable,waste,willing,addition,basement,cabinet,dancing,earrings,fair,garage,hammer,importance,jazz,ketchup,lawyer,magician,narrow,occur,pale,quickly,recent,sample,tangerine,underpass,verb,waterfall,wolf,advance,bat|advantage,beginner,cable,danger,eastern,fancy,gate,handkerchief,impossible,jealous,kilometer,lay,male,nationality,offer,pan,quit,record,sand,tank,underwear,vest,wave,wonder,adverb,beginning,cafeteria,data,edge,fantastic,gather,handle,improve,jeep,kindergarten,leaf,manager,natural,official,papaya,quiz,recover,satisfied,task,unfriendly,victory,wedding,wood,advice,behave|advise,being,cage,dawn,education,fashionable,general,hang,inch,jogging,kingdom,length,mango,nature,omit,pardon,race,recycle,satisfy,teapot,unique,village,weekday,affair,belief,calendar,deaf,effect,fault,generally,hanger,include,joke,kitty,lettuce,manner,naughty,oneself,parrot,railroad,refuse,saucer,tear,universe,vinegar,weight,affect,bench,calm,wooden|against,besides,camping,deal,effective,favor,generation,hardly,income,journalist,koala,level,marker,nearly,onion,particular,raincoat,regard,scared,temperature,university,violin,western,ahead,best,campus,death,effort,fear,generous,heater,increase,judge,lack,lid,marriage,necessary,operate,partner,raise,regret,scarf,tent,upon,visitor,whale,aid,better,cancel,debate|ahead,bomb,century,design,electricity,flight,golf,hunter,invent,ketchup,lift,minor,needle,oven,pipe,quiz,rope,spider,thief,underwear,voter,wood,airmail,bone,cereal,dessert,element,flour,goodness,humid,invitation,kilometer,lightning,minus,nephew,overpass,plain,race,rub,spirit,thirteenth,unfriendly,waist,wooden,alarm,bookcase,certain,detect,eleventh,flow|goose,humor,invite,kindergarten,limit,mirror,nervous,overseas,plant,railroad,rubber,sport,thirtieth,unique,wallet,woods,alike,bother,certainly,determine,emotion,flu,government,humorous,iron,kingdom,link,missing,nest,owner,plastic,raincoat,rude,spread,thought,unit,war,worried,alive,bow,chairman,determiner,emphasize,flute,grand,hunger,jam,kitten,liquid,mix|newspaper,ox,plate,raise,running,stage,throat,universe,waste,worth,alley,bowling,channel,develop,employ,focus,granddaughter,hunt,Japanese,kitty,loaf,model,niece,pain,platform,rapid,rush,stairs,through,university,waterfall,wound,allow,boyfriend,chapter,dial,empty,fog,grandson,human,jar,koala,local,monster,nineteenth,painful,pleasant,rare,Russian,stamp|throughout,upon,watermelon,wrist,alone,brain,character,diamond,encourage,foggy,grape,ill,jazz,lack,location,mop,ninetieth,painter,pleased,rat,safety,standard,throw,upstairs,wave,yard,aloud,branch,charge,diary,enemy,fool,grapefruit,imagine,jealous,lady,lock,mosquito,noisy,pajamas,pleasure,rather,sail,state,thumb,used,wedding,youth,alphabet,brave|altogether,brick,chief,divide,equal,freezer,guitar,instant,lane,loaf,mall,neither,pardon,pocket,reach,rubber,shore,state,thus,valley,ambulance,brief,childhood,division,error,freezing,gun,instrument,lantern,local,manager,nephew,parrot,poem,reading,rude,shorts,steal,subway,toward,amount,childish,dizzy,especially,guy,intelligent,lock,mango,nervous,paste|poison,realize,running,shout,succeed,tower,ancient,broad,childlike,document,event,haircut,interrupt,locker,manner,nest,path,pollute,reason,reject,shower,success,trace,angel,broadcast,children,dolphin,everywhere,hairdresser,interview,loser,marriage,newspaper,pattern,pollution,receive,relative,shrimp,successfully,track,anger,brunch,chin,donkey,exact,hall,introduce,loss,marry,none|pause,pond,recent,safety,shut,such,trade,ankle,bucket,choice,dot,exam,hammer,invent,lot,mask,noodles,peace,pool,record,sail,sight,sudden,tradition,anyway,buffet,choose,double,examine,handkerchief,invite,lovely,mass,northern,peaceful,port,recover,sailing,sign,suddenly,traditional,anywhere,bug,chubby,doubt,excite,handle,iron,lychee,master|note,peach,position,rectangle,sailor,silence,suggest,treasure,apologize,building,citizen,downstairs,exist,hang,jam,mad,mat,nut,pear,positive,recycle,salesman,silent,suit,trap,appearance,bun,claim,downtown,exit,hanger,jar,magazine,match,obey,pepper,possessive,reflexive,sample,silly,suitcase,travel,apply,bundle,clap,dragon,expect,heater,jazz,magician|deliver,argue,blanket,exact,coast,everywhere,frighten,guide,humble,insect,judge,kitten,liquid,metal,naughty,omit,platform,quarter,refuse,single,total,ugly,victory,western,youth,zebra,arrest,blood,closet,dentist,frog,hall,hunter,insist,jeep,koala,loaf,meter,necklace,onion,pocket,review,sink,toward,underwear,value,wound,artist,blouse,cloth|hammer,exit,asleep,board,method,clothing,describe,fry,imagine,interrupt,joke,lady,local,needle,ordinary,poem,rapid,relative,skill,tower,underpass,village,whatever,yucky,assistant,boil,coach,desert,expect,function,handkerchief,ill,introduce,journalist,lamb,location,middle,negative,organize,poison,rare,remind,skillful,trace,unit,vinegar,wheel,yummy,assume,bomb|sand,semester,sneakers,storm,term,toilet,trousers,university,voter,winner,satisfied,sense,sneaky,stormy,terrible,tongue,trumpet,upon,waist,within,satisfy,separate,snowman,stove,terrific,tool,trust,upstairs,walkman,wolf,saucer,servant,snowy,straight,textbook,toothache,truth,used,wallet,wonder,scared,serve,soap,straw,therefore,toothbrush,tub,usual,war,wood|scarf,service,soccer,strawberry,thick,topic,tummy,valley,waste,wooden,scene,seventeenth,social,stream,thief,total,tunnel,valuable,waterfall,woods,schoolmate,shake,society,strike,thirteenth,tour,turkey,value,watermelon,worried,science,shark,soda,struggle,thirtieth,toward,turtle,weekday,wave,worth,scientist,sharp,soft,style,thought,tower,twelfth,weight,wedding,wound|score,successfully,screen,success,seafood,succeed,search,subway,sheet,submarine,shelf,subject,shine,skiing,shock,skating,shoes,skate,shoot,sixteenth,shopping,sink,shore,single,shorts,singing,shot,sincere,shout,simply,shower,similar,shrimp,silver,shut,silly,sight,silent,sign,silence,such,sudden,suddenly,suggest,suit,suitcase,supper,support,surf,surface|surfing,measurement,survive,nationality,swallow,natural,swan,nature,sweep,naughty,swimming,nearly,swimsuit,necessary,swing,necklace,symbol,necktie,tableware,needle,thanksgiving,negative,throat,neighbor,through,neither,throughout,nephew,throw,nervous,thumb,nest,thunder,nor,trace,track,trade,twentieth,twice,weekday,western,whale,wrist,yard,youth,yucky,yummy,zebra,zero,false|pattern,passenger,paste,path,patient,partner,pause,peace,peaceful,peach,pear,pepper,perfect,period,personal,photo,photograph,photographer,pigeon,pile,pillow,pin,pineapple,pingpong,pipe,plain,plant,plastic,plate,platform,pleasant,pleased,pleasure,plus,pocket,poem,poison,pollute,pollution,pond,pool,population,port,position,positive,possessive,post,pot,potato,power|praise,pray,precious,prefer,preposition,president,press,priest,primary,prince,princess,principal,print,printer,prison,prisoner,private,prize,probably,produce,product,production,professor,progress,project,promise,pronoun,pronounce,protect,prove,provide,pump,pumpkin,punish,puppy,purpose,purse,puzzle,race,railroad,raincoat,raise,rapid,rare,rat,rather,reach,reading,realize,reason`;
-const gradeVocabList = gradeRawData.split('|').map(group => {
-  return group.split(',').map(word => ({ word, meaning: '' }));
 });
 
 const kinderCategories = [
@@ -72,20 +66,75 @@ const kinderCategories = [
   { name: "大班", icon: "🖍️", start: 200, end: 300, type: 'kinder' }
 ];
 
+// --- 💡 全新國小字庫 ---
+const primaryDataRaw = {
+  "一上": "act ; around ; ball ; basket ; between ; book ; brave ; but ; camp ; chicken ; clock ; copy ; cross ; deep ; door ; drum ; enemy ; eye ; farm ; final ; form ; free ; giant ; grape ; hall ; heart ; him ; history ; hungry ; idea ; join ; kick ; lake ; left ; listen ; luck ; magic ; meat ; mom ; monkey ; mud ; neck ; never ; nobody ; noon ; officer ; over ; paint ; perfect ; planet",
+  "一中": "about ; apple ; bag ; beach ; blue ; born ; bread ; butterfly ; candy ; choice ; close ; corn ; crow ; deer ; dot ; dry ; energy ; face ; fat ; find ; forty ; Friday ; gift ; grass ; hallway ; heat ; himself ; hit ; hunt ; if ; joke ; kid ; lamb ; leg ; little ; lucky ; magnet ; medicine ; moment ; month ; museum ; need ; new ; noise ; north ; often ; owl ; pair ; period ; plant",
+  "一下": "above ; are ; banana ; bean ; board ; both ; break ; buy ; cap ; choose ; clothes ; corner ; crowd ; desk ; double ; duck ; enjoy ; fact ; father ; fine ; forward ; friend ; giraffe ; gray ; ham ; heavy ; hip ; hobby ; hurry ; ill ; joy ; kill ; lamp ; lemon ; live ; lunch ; mail ; meet ; Monday ; moon ; music ; needle ; news ; noisy ; nose ; oh ; own ; pajamas ; person ; plate",
+  "二上": "across ; arm ; bank ; bear ; boat ; bottom ; breakfast ; by ; car ; chores ; cloud ; cost ; cry ; detective ; down ; dump ; enough ; factory ; favorite ; finger ; found ; frog ; girl ; great ; hammer ; helicopter ; his ; hold ; hurt ; important ; juice ; kind ; land ; lend ; lizard ; machine ; mailbox ; meeting ; money ; more ; must ; neighbor ; newspaper ; none ; not ; oil ; pack ; palace ; pet ; play",
+  "二中": "add ; arrive ; base ; beautiful ; body ; box ; bridge ; cake ; card ; church ; clown ; couch ; cup ; did ; draw ; during ; enter ; fall ; fear ; finish ; four ; front ; give ; green ; hand ; hello ; hole ; holiday ; husband ; in ; July ; king ; large ; length ; lock ; mad ; main ; melody ; morning ; mother ; my ; neighborhood ; next ; notebook ; nothing ; old ; package ; pan ; phone ; playground",
+  "二下": "after ; art ; bath ; because ; bone ; boy ; bright ; calendar ; care ; circle ; club ; count ; cupboard ; die ; dream ; dust ; environment ; family ; feed ; fire ; fourteen ; fruit ; glad ; grew ; happen ; help ; home ; honest ; ice ; inch ; jump ; kiss ; last ; less ; locker ; make ; man ; melt ; most ; mountain ; myself ; nervous ; nice ; notice ; now ; on ; page ; panda ; piano ; please",
+  "三上": "chalk ; lazy ; ground ; interest ; map ; dark ; fell ; of ; a ; baby ; early ; hat ; instead ; knife ; number ; paper ; cereal ; dance ; felt ; grow ; jaw ; knee ; law ; nut ; parent ; alone ; bad ; danger ; east ; fur ; hard ; jar ; lay ; March ; ocean ; age ; back ; chair ; earth ; funny ; inside ; knew ; mark ; October ; fast ; fun ; group ; has ; January ; nurse",
+  "三中": "jeans ; learn ; once ; guard ; part ; date ; easy ; knock ; against ; backpack ; change ; few ; head ; iron ; lead ; off ; race ; ago ; bathtub ; chart ; daughter ; edge ; field ; have ; jelly ; knot ; market ; office ; radio ; again ; be ; cherry ; dash ; eat ; fence ; future ; he ; into ; jet ; leaf ; marry ; park ; party ; name ; mask ; invite ; furniture ; nap ; nail ; knight",
+  "三下": "island ; game ; eighteen ; bed ; chest ; dear ; fifty ; guitar ; just ; least ; matter ; one ; past ; agree ; child ; day ; egg ; fight ; garage ; hook ; is ; kangaroo ; leave ; May ; onion ; pass ; all ; become ; children ; dead ; eight ; fifteen ; garden ; hop ; it ; know ; led ; narrow ; only ; path ; air ; bedroom ; guest ; guide ; hope ; junk ; knowledge ; match ; nature ; near",
+  "四上": "pie ; safe ; decide ; elephant ; half ; question ; quiet ; rain ; chips ; gave ; fire ; raise ; sail ; eighty ; general ; said ; gas ; fish ; chocolate ; safety ; ran ; piece ; picnic ; dinner ; hair ; hear ; diet ; pick ; either ; happy ; quick ; queen ; five ; else ; chin ; cheese ; rabbit ; quit ; sad ; heard ; different ; city ; fill ; eleven ; gentle ; dig ; fireplace ; picture ; rainbow ; clean",
+  "四中": "empty ; read ; dish ; hero ; dirt ; climb ; quite ; evening ; classroom ; get ; her ; color ; flashlight ; reason ; glass ; pin ; flat ; every ; salad ; distance ; ready ; real ; flag ; sand ; clear ; doctor ; floor ; helpful ; end ; do ; clap ; salt ; everyone ; hers ; flash ; reach ; same ; pilot ; glove ; pillow ; go ; pig ; flower ; glasses ; here ; dinosaur ; pine ; class ; ever ; glue",
+  "四下": "everywhere ; foot ; high ; relax ; donkey ; pink ; everything ; red ; coffee ; goose ; repair ; good ; hide ; football ; plate ; pipe ; remember ; gone ; comb ; hill ; forget ; for ; follow ; done ; dollar ; cold ; computer ; food ; coin ; forest ; honey ; doll ; plan ; goat ; dog ; place ; pizza ; plane ; fly ; homework ; golden ; plant ; coat ; come ; goodbye ; dolphin ; gold ; repeat ; remove ; recess",
+  "五上": "almost ; bell ; call ; poison ; report ; many ; also ; belong ; came ; police ; rest ; maybe ; always ; below ; camera ; polite ; restaurant ; me ; am ; belt ; can ; pond ; return ; meal ; an ; bench ; candle ; pool ; rice ; mean ; and ; beside ; catch ; poor ; rich ; measure ; animal ; best ; cause ; popcorn ; ride ; member ; another ; better ; cave ; popular ; right ; memory ; answer ; big",
+  "五中": "any ; bike ; celebrate ; positive ; ring ; men ; anyone ; bird ; center ; post ; river ; message ; anything ; birthday ; check ; pot ; road ; metal ; area ; bit ; country ; potato ; robot ; method ; as ; black ; course ; pound ; rock ; middle ; ask ; blanket ; cousin ; pour ; rocket ; might ; at ; blind ; cover ; power ; roller ; mile ; aunt ; block ; cow ; practice ; roof ; milk ; autumn ; blood",
+  "五下": "away ; boot ; crayon ; pray ; room ; mind ; dress ; brush ; create ; present ; root ; mine ; drop ; build ; pretty ; rope ; minute ; dry ; building ; price ; rose ; mirror ; early ; burn ; prince ; rough ; miss ; earth ; bus ; princess ; round ; mistake ; east ; busy ; principal ; row ; mitt ; edge ; butter ; print ; rub ; mix ; egg ; president ; prize ; rubber ; model ; press ; problem ; modern",
+  "六上": "rude ; brother ; careful ; loud ; mad ; rug ; brown ; carrot ; love ; magic ; rule ; brush ; carry ; low ; magnet ; ruler ; cookie ; case ; luck ; mail ; run ; cool ; cat ; lucky ; mailbox ; proud ; machine ; lunch ; main ; pull ; March ; make ; mark ; pumpkin ; man ; market ; puppy ; many ; marry ; purple ; map ; mask ; push ; matter ; match ; put ; May ; puzzle ; maybe ; me",
+  "六中": "meal ; middle ; moment ; mouse ; mean ; might ; Monday ; mouth ; measure ; mile ; money ; move ; meat ; milk ; monkey ; movie ; medicine ; mind ; month ; much ; meet ; mine ; moon ; mud ; meeting ; minute ; more ; museum ; melody ; mirror ; morning ; music ; melt ; miss ; most ; must ; member ; mistake ; mother ; mountain ; memory ; mitt ; mix ; men ; model ; message ; modern ; metal ; mom ; method",
+  "六下": "my ; neat ; news ; none ; nothing ; myself ; neck ; newspaper ; noon ; notice ; nail ; need ; next ; north ; now ; name ; needle ; nice ; nose ; number ; nap ; neighbor ; night ; not ; nurse ; napkin ; neighborhood ; nine ; notebook ; nut ; narrow ; nervous ; nineteen ; ocean ; nature ; nest ; ninety ; October ; near ; net ; no ; of ; never ; nobody ; off ; new ; noise ; office ; noisy ; officer"
+};
+
+// --- 💡 全新國中與進階字庫 ---
+const juniorDataRaw = {
+  "國一上1": "accept、basic、calm、daily、earn、failure、gather、haircut、ill、jam、koala、lady、mad、nail、obey、pain、quality、race、safety、tail、ugly、valley、waist、yard、zebra、accident、basis、campus、dawn、edge、fair、gentle、handle、imagine、jar、kitten、leaf、main、narrow、ocean、painter、quarter、railroad、sail、task、unit、value、wallet、youth、zero",
+  "國一上2": "achieve、bean、cancel、deaf、effect、fancy、ghost、hang、inch、jazz、lack、length、major、nation、offer、panda、quickly、raincoat、sample、tear、universe、verb、war、yucky、absent、beard、cancer、deal、effort、far、gloves、hardly、include、jealous、lamb、level、male、nature、official、pardon、quit、raise、sand、temple、university、vest、waste、yummy、abroad、beat",
+  "國一上3": "ability、beer、candle、death、either、faucet、glue、heater、income、jeep、lane、lid、mall、nearly、omit、parrot、quiz、rapid、satisfied、tent、upon、victory、waterfall、action、behave、captain、debate、elder、fault、goal、height、increase、jogging、lantern、lift、manager、necessary、onion、partner、rare、satisfy、term、upstairs、village、watermelon、active、belief、career、debt、elect",
+  "國一下1": "actor、bench、careless、decision、electric、favor、god、helicopter、industry、joke、law、lightning、manner、negative、operate、passenger、rat、saucer、terrible、used、vinegar、wave、address、backward、carpet、decorate、element、fear、gold、hen、influence、journalist、lawyer、limit、marker、neighbor、operation、paste、rather、scared、terrific、usual、violin、wedding、admire、badminton、carrot、deep、emotion、feather",
+  "國一下2": "adult、base、cabbage、damage、eagle、fail、gain、hall、impolite、jar、kangaroo、law、magazine、napkin、occupation、painful、quarter、receive、salesman、talkative、underlie、valuable、waste、willing、addition、basement、cabinet、dancing、earrings、fair、garage、hammer、importance、jazz、ketchup、lawyer、magician、narrow、occur、pale、quickly、recent、sample、tangerine、underpass、verb、waterfall、wolf、advance、bat",
+  "國一下3": "advantage、beginner、cable、danger、eastern、fancy、gate、handkerchief、impossible、jealous、kilometer、lay、male、nationality、offer、pan、quit、record、sand、tank、underwear、vest、wave、wonder、adverb、beginning、cafeteria、data、edge、fantastic、gather、handle、improve、jeep、kindergarten、leaf、manager、natural、official、papaya、quiz、recover、satisfied、task、unfriendly、victory、wedding、wood、advice、behave",
+  "國二上1": "advise、being、cage、dawn、education、fashionable、general、hang、inch、jogging、kingdom、length、mango、nature、omit、pardon、race、recycle、satisfy、teapot、unique、village、weekday、affair、belief、calendar、deaf、effect、fault、generally、hanger、include、joke、kitty、lettuce、manner、naughty、oneself、parrot、railroad、refuse、saucer、tear、universe、vinegar、weight、affect、bench、calm、wooden",
+  "國二上2": "against、besides、camping、deal、effective、favor、generation、hardly、income、journalist、koala、level、marker、nearly、onion、particular、raincoat、regard、scared、temperature、university、violin、western、ahead、best、campus、death、effort、fear、generous、heater、increase、judge、lack、lid、marriage、necessary、operate、partner、raise、regret、scarf、tent、upon、visitor、whale、aid、better、cancel、debate",
+  "國二上3": "ahead、bomb、century、design、electricity、flight、golf、hunter、invent、ketchup、lift、minor、needle、oven、pipe、quiz、rope、spider、thief、underwear、voter、wood、airmail、bone、cereal、dessert、element、flour、goodness、humid、invitation、kilometer、lightning、minus、nephew、overpass、plain、race、rub、spirit、thirteenth、unfriendly、waist、wooden、alarm、bookcase、certain、detect、eleventh、flow",
+  "國二下1": "goose、humor、invite、kindergarten、limit、mirror、nervous、overseas、plant、railroad、rubber、sport、thirtieth、unique、wallet、woods、alike、bother、certainly、determine、emotion、flu、government、humorous、iron、kingdom、link、missing、nest、owner、plastic、raincoat、rude、spread、thought、unit、war、worried、alive、bow、chairman、determiner、emphasize、flute、grand、hunger、jam、kitten、liquid、mix",
+  "國二下2": "newspaper、ox、plate、raise、running、stage、throat、universe、waste、worth、alley、bowling、channel、develop、employ、focus、granddaughter、hunt、Japanese、kitty、loaf、model、niece、pain、platform、rapid、rush、stairs、through、university、waterfall、wound、allow、boyfriend、chapter、dial、empty、fog、grandson、human、jar、koala、local、monster、nineteenth、painful、pleasant、rare、Russian、stamp",
+  "國二下3": "throughout、upon、watermelon、wrist、alone、brain、character、diamond、encourage、foggy、grape、ill、jazz、lack、location、mop、ninetieth、painter、pleased、rat、safety、standard、throw、upstairs、wave、yard、aloud、branch、charge、diary、enemy、fool、grapefruit、imagine、jealous、lady、lock、mosquito、noisy、pajamas、pleasure、rather、sail、state、thumb、used、wedding、youth、alphabet、brave",
+  "國三上1": "altogether、brick、chief、divide、equal、freezer、guitar、instant、lane、loaf、mall、neither、pardon、pocket、reach、rubber、shore、state、thus、valley、ambulance、brief、childhood、division、error、freezing、gun、instrument、lantern、local、manager、nephew、parrot、poem、reading、rude、shorts、steal、subway、toward、amount、childish、dizzy、especially、guy、intelligent、lock、mango、nervous、paste",
+  "國三上2": "poison、realize、running、shout、succeed、tower、ancient、broad、childlike、document、event、haircut、interrupt、locker、manner、nest、path、pollute、reason、reject、shower、success、trace、angel、broadcast、children、dolphin、everywhere、hairdresser、interview、loser、marriage、newspaper、pattern、pollution、receive、relative、shrimp、successfully、track、anger、brunch、chin、donkey、exact、hall、introduce、loss、marry、none",
+  "國三上3": "pause、pond、recent、safety、shut、such、trade、ankle、bucket、choice、dot、exam、hammer、invent、lot、mask、noodles、peace、pool、record、sail、sight、sudden、tradition、anyway、buffet、choose、double、examine、handkerchief、invite、lovely、mass、northern、peaceful、port、recover、sailing、sign、suddenly、traditional、anywhere、bug、chubby、doubt、excite、handle、iron、lychee、master",
+  "國三下1": "note、peach、position、rectangle、sailor、silence、suggest、treasure、apologize、building、citizen、downstairs、exist、hang、jam、mad、mat、nut、pear、positive、recycle、salesman、silent、suit、trap、appearance、bun、claim、downtown、exit、hanger、jar、magazine、match、obey、pepper、possessive、reflexive、sample、silly、suitcase、travel、apply、bundle、clap、dragon、expect、heater、jazz、magician",
+  "國三下2": "deliver、argue、blanket、exact、coast、everywhere、frighten、guide、humble、insect、judge、kitten、liquid、metal、naughty、omit、platform、quarter、refuse、single、total、ugly、victory、western、youth、zebra、arrest、blood、closet、dentist、frog、hall、hunter、insist、jeep、koala、loaf、meter、necklace、onion、pocket、review、sink、toward、underwear、value、wound、artist、blouse、cloth",
+  "國三下3": "hammer、exit、asleep、board、method、clothing、describe、fry、imagine、interrupt、joke、lady、local、needle、ordinary、poem、rapid、relative、skill、tower、underpass、village、whatever、yucky、assistant、boil、coach、desert、expect、function、handkerchief、ill、introduce、journalist、lamb、location、middle、negative、organize、poison、rare、remind、skillful、trace、unit、vinegar、wheel、yummy、assume、bomb",
+  "暑假上1": "impolite、attack、bone、cockroach、furniture、extra、attention、design、handle、lock、midnight、invent、neighbor、ketchup、oven、pollute、lane、rat、rent、skin、bother、track、universe、violin、while、yard、attend、collection、bookcase、coin、desire、hang、eyebrow、gain、importance、kingdom、invitation、lantern、locker、minor、neither、overpass、pollution、rather、repair、skinny、trade、upon、visitor、whole",
+  "暑假上2": "diet、available、traditional、reach、develop、upstairs、nervous、bow、detect、whom、fail、diamond、overseas、vocabulary、slender、garage、diary、loss、volleyball、hanger、difference、mirror、used、impossible、difficulty、pool、invite、reading、leaf、determine、report、loser、auxiliary、minus、bowling、nephew、fair、pond、gate、reply、hardly、sleepy、iron、tradition、length、owner、wide、dessert、boyfriend、audience",
+  "暑假上3": "actress、brave、control、effort、figure、guest、handle、ill、jogging、kitten、loaf、method、note、object、period、quarter、reach、search、tool、unique、vest、weight、youth、admit、broad、empty、hike、message、plastic、wave、seem、adopt、cancel、danger、exact、final、guard、insect、kingdom、location、narrow、occur、passenger、rapid、screen、trace、unit、wheel、zero、adult",
+  "暑假下1": "advance、brick、cooking、elect、firm、guitar、heater、jam、koala、lock、midnight、obey、opinion、pineapple、quit、reason、secret、toothache、universe、visitor、whale、yard、affair、brief、cotton、electricity、fishing、gun、height、ink、lack、lovely、minus、ocean、onion、pigeon、race、record、select、tower、upstairs、vocabulary、whom、yummy、ahead、broadcast、cough、element、fit、guy",
+  "暑假下2": "aim、brunch、courage、engine、flat、haircut、hippo、instant、lamb、magazine、mirror、offer、ordinary、pile、railroad、reject、separate、track、valuable、willing、zebra、aircraft、bucket、course、engineer、flight、hairdresser、hire、instrument、lane、magician、missing、official、organize、pingpong、rare、relative、servant、trade、value、wine、alive、buffet、court、entire、flour、hole、intelligent、lantern、mall",
+  "暑假下3": "allow、bundle、crab、entrance、flow、hammer、homesick、international、liquid、mango、mix、operate、oven、platform、rather、remind、service、tradition、verb、wing、aloud、burger、cream、envelope、flute、handkerchief、honesty、interrupt、loaf、manner、model、operation、owner、pleasant、reading、rent、sheet、transportation、valley、winner、alphabet、burst、crime、environment、focus、hang、honey、interview、local、mass"
+};
+
 const primaryCategories = [
-  { name: "一上", icon: "👶", index: 0, type: 'grade' }, { name: "一中", icon: "👶", index: 1, type: 'grade' }, { name: "一下", icon: "👶", index: 2, type: 'grade' },
-  { name: "二上", icon: "🧒", index: 3, type: 'grade' }, { name: "二中", icon: "🧒", index: 4, type: 'grade' }, { name: "二下", icon: "🧒", index: 5, type: 'grade' },
-  { name: "三上", icon: "👦", index: 6, type: 'grade' }, { name: "三中", icon: "👦", index: 7, type: 'grade' }, { name: "三下", icon: "👦", index: 8, type: 'grade' },
-  { name: "四上", icon: "👧", index: 9, type: 'grade' }, { name: "四中", icon: "👧", index: 10, type: 'grade' }, { name: "四下", icon: "👧", index: 11, type: 'grade' },
-  { name: "五上", icon: "🧑", index: 12, type: 'grade' }, { name: "五中", icon: "🧑", index: 13, type: 'grade' }, { name: "五下", icon: "🧑", index: 14, type: 'grade' },
-  { name: "六上", icon: "👱", index: 15, type: 'grade' }, { name: "六中", icon: "👱", index: 16, type: 'grade' }, { name: "六下", icon: "👱", index: 17, type: 'grade' }
-];
+  { name: "一上", icon: "👶" }, { name: "一中", icon: "👶" }, { name: "一下", icon: "👶" },
+  { name: "二上", icon: "🧒" }, { name: "二中", icon: "🧒" }, { name: "二下", icon: "🧒" },
+  { name: "三上", icon: "👦" }, { name: "三中", icon: "👦" }, { name: "三下", icon: "👦" },
+  { name: "四上", icon: "👧" }, { name: "四中", icon: "👧" }, { name: "四下", icon: "👧" },
+  { name: "五上", icon: "🧑" }, { name: "五中", icon: "🧑" }, { name: "五下", icon: "🧑" },
+  { name: "六上", icon: "👱" }, { name: "六中", icon: "👱" }, { name: "六下", icon: "👱" }
+].map(c => ({ ...c, type: 'primary', words: primaryDataRaw[c.name].split(/\s*;\s*/) }));
 
 const juniorCategories = [
-  { name: "國一上", icon: "🎓", index: 18, type: 'grade' }, { name: "國一下", icon: "🎓", index: 19, type: 'grade' },
-  { name: "國二上", icon: "🎓", index: 20, type: 'grade' }, { name: "國二下", icon: "🎓", index: 21, type: 'grade' },
-  { name: "國三上", icon: "🎓", index: 22, type: 'grade' }, { name: "國三下", icon: "🎓", index: 23, type: 'grade' }
-];
+  { name: "國一上1", icon: "🎓" }, { name: "國一上2", icon: "🎓" }, { name: "國一上3", icon: "🎓" },
+  { name: "國一下1", icon: "🎓" }, { name: "國一下2", icon: "🎓" }, { name: "國一下3", icon: "🎓" },
+  { name: "國二上1", icon: "🎓" }, { name: "國二上2", icon: "🎓" }, { name: "國二上3", icon: "🎓" },
+  { name: "國二下1", icon: "🎓" }, { name: "國二下2", icon: "🎓" }, { name: "國二下3", icon: "🎓" },
+  { name: "國三上1", icon: "🎓" }, { name: "國三上2", icon: "🎓" }, { name: "國三上3", icon: "🎓" },
+  { name: "國三下1", icon: "🎓" }, { name: "國三下2", icon: "🎓" }, { name: "國三下3", icon: "🎓" },
+  { name: "暑假上1", icon: "☀️" }, { name: "暑假上2", icon: "☀️" }, { name: "暑假上3", icon: "☀️" },
+  { name: "暑假下1", icon: "☀️" }, { name: "暑假下2", icon: "☀️" }, { name: "暑假下3", icon: "☀️" }
+].map(c => ({ ...c, type: 'junior', words: juniorDataRaw[c.name].split(/、/) }));
 
 const App = () => {
   const [activeApiKey, setActiveApiKey] = useState(() => isCanvas ? "" : (getEnvKey() || getLocalKey()));
@@ -101,7 +150,11 @@ const App = () => {
   const [isFinished, setIsFinished] = useState(false);
   const [loading, setLoading] = useState(true);
   const [copyOk, setCopyOk] = useState(false);
+  
+  // 優化圖片載入狀態
   const [imageUrls, setImageUrls] = useState({});
+  const [imgLoaded, setImgLoaded] = useState({});
+
   const [deckId, setDeckId] = useState(null);
   const [input, setInput] = useState('');
   const [genLoading, setGenLoading] = useState(false);
@@ -119,7 +172,6 @@ const App = () => {
   const [encouragement, setEncouragement] = useState('');
   const lastMilestoneRef = useRef(0);
 
-  const translatingRef = useRef(new Set());
   const workingModelRef = useRef(isCanvas ? "gemini-2.5-flash-preview-09-2025" : "");
   const speechTimeoutRef = useRef(null);
 
@@ -395,6 +447,7 @@ const App = () => {
     }
 
     setCards([]);
+    setImgLoaded({});
     setIsFinished(false);
     setGenLoading(true); 
     setError('🔍 正在請 AI 為單字擴充詞性與例句...');
@@ -402,13 +455,26 @@ const App = () => {
     setSelectedChoice(null);
     setIsChoiceCorrect(false);
 
+    // 智能語系判別邏輯
+    const engWordCount = (targetText.match(/[a-zA-Z]+/g) || []).length;
     const hasKana = /[\u3040-\u309F\u30A0-\u30FF]/.test(targetText);
-    const hasEnglish = /[a-zA-Z]/.test(targetText);
-    const isEn = hasEnglish && !hasKana;
+    const hasChinese = /[\u4E00-\u9FFF]/.test(targetText);
+
+    let isEn = false;
+    if (hasKana) {
+        isEn = false; // "有出現日文 是背日文"
+    } else if (engWordCount >= 10) {
+        isEn = true;  // "輸入10個以上的英文單字，也是背英文單字"
+    } else if (engWordCount > 0 && !hasChinese) {
+        isEn = true;  // "只有英文，就是背英文單字"
+    } else {
+        isEn = false; // "只有中文 是背日文" (混雜少量英文也判定為日文)
+    }
     
+    // 移除特定投資/攝影提示，改為通用的生動比喻說明
     const prompt = isEn 
-      ? `請分析以下文字：\n"""${targetText}"""\n這是一份「英文學習清單」。請提取出所有英文單字（務必完整包含輸入的所有單字，不可遺漏！）。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」，請務必自動將其「翻譯成英文單字」。\n請為每個單字提供更廣泛且結構化的解釋：\n1. 包含不同「詞性」的意思，並換行顯示。⚠️【最重要】：請務必把最簡單、最常用的中文意思放在第一行的最前面（例如：書；(n.) 書本），幫助國小學童快速記憶。\n2. 補充類似的「同類詞、同義詞」或相反的「反義詞」。例如：[同義詞] reserve, order / [反義詞] cancel\n3. 提供對應的英文例句，若有多個詞性請提供多句，並用「 / 」隔開。\n4. 提供對應的中文翻譯，多句請用「 / 」隔開。\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "不同詞性與意思(務必使用 \\n 換行，最簡單的意思放最前)", "breakdown": "同義詞/反義詞補充", "example": "英文例句1 / 英文例句2", "example_kana": "", "example_zh": "中文翻譯1 / 中文翻譯2", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字"}]。請只回傳 JSON。`
-      : `請分析以下文字：\n"""${targetText}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象說明 (請用生動通用的比喻幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`;
+      ? `請分析以下文字：\n"""${targetText}"""\n這是一份「英文學習清單」。請提取出所有英文單字（務必完整包含輸入的所有單字，不可遺漏！）。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」，請務必自動將其「翻譯成英文單字」。\n請為每個單字提供更廣泛且結構化的解釋：\n1. 包含不同「詞性」的意思，並換行顯示。⚠️【最重要】：請務必把最簡單、最常用的中文意思放在第一行的最前面（例如：書；(n.) 書本），幫助快速記憶。\n2. 補充類似的「同類詞、同義詞」或相反的「反義詞」。例如：[同義詞] reserve, order / [反義詞] cancel\n3. 提供對應的英文例句，若有多個詞性請提供多句，並用「 / 」隔開。\n4. 提供對應的中文翻譯，多句請用「 / 」隔開。\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "不同詞性與意思(務必使用 \\n 換行，最簡單的意思放最前)", "breakdown": "同義詞/反義詞補充", "example": "英文例句1 / 英文例句2", "example_kana": "", "example_zh": "中文翻譯1 / 中文翻譯2", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字"}]。請只回傳 JSON。`
+      : `請分析以下文字：\n"""${targetText}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象化連結說明 (💡請提供生動、好記的比喻或字根字首解析來幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`;
 
     let modelToUse = isCanvas ? "gemini-2.5-flash-preview-09-2025" : workingModelRef.current;
 
@@ -546,7 +612,8 @@ const App = () => {
        vocabList = kinderVocab.slice(cat.start, cat.end);
     } else {
        useAI = true;
-       const fullList = gradeVocabList[cat.index];
+       // 國小、國中與進階字庫：保留「先挑戰前 25 個單字，過了再挑戰下半關 25 個單字」機制
+       const fullList = cat.words.map(w => ({ word: w, meaning: '' }));
        if (part === 1) {
           vocabList = fullList.slice(0, 25);
        } else {
@@ -573,6 +640,7 @@ const App = () => {
       }));
       
       setCards(newCards);
+      setImgLoaded({});
       setQueue(Array.from({length: newCards.length}, (_, i) => i));
       setTotal(newCards.length);
       setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
@@ -591,14 +659,11 @@ const App = () => {
       for (const card of nextCards) {
         if (!card || imageUrls[card.word]) continue;
         
-        let imgQuery = card.image_keyword || "study,japan";
-        if (!/[a-zA-Z]/.test(imgQuery)) imgQuery = "study,japan";
+        let imgQuery = card.image_keyword || "study";
+        if (!/[a-zA-Z]/.test(imgQuery)) imgQuery = "study";
         
-        const url = `https://loremflickr.com/400/300/${encodeURIComponent(imgQuery)}`;
-        
-        const img = new Image();
-        img.src = url;
-
+        // 加上亂數種子，避免瀏覽器將失敗的圖檔死存快取
+        const url = `https://loremflickr.com/400/300/${encodeURIComponent(imgQuery)}?lock=${card.word.length + Math.floor(Math.random() * 100)}`;
         setImageUrls(prev => ({ ...prev, [card.word]: url }));
       }
     };
@@ -836,7 +901,7 @@ const App = () => {
               ))}
             </div>
 
-            <div className="grid grid-cols-3 gap-2.5 mb-2.5">
+            <div className="grid grid-cols-3 gap-2.5">
               {primaryCategories.map((cat, index) => (
                 <button 
                   key={`primary-${index}`}
@@ -849,7 +914,13 @@ const App = () => {
               ))}
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="w-full h-px bg-indigo-200 my-5 relative">
+              <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-indigo-50 px-3 text-[11px] font-black tracking-widest text-indigo-400 uppercase rounded-full border border-indigo-100">
+                國中與進階挑戰區
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2.5">
               {juniorCategories.map((cat, index) => (
                 <button 
                   key={`junior-${index}`}
@@ -888,12 +959,12 @@ const App = () => {
           </div>
         )}
 
-        <button onClick={generate} disabled={genLoading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50">
+        <button onClick={() => generate(input)} disabled={genLoading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50">
           {genLoading ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {genLoading ? '處理中...' : 'AI 智慧生成單字卡'}
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-center">
-          <span>v13.25 修正 ReferenceError 版 byKC</span>
+          <span>v14.1 圖片優化與常用機制版 byKC</span>
         </div>
       </div>
     </div>
@@ -1138,10 +1209,26 @@ const App = () => {
           <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white rounded-[2rem] shadow-xl flex flex-col p-4 sm:p-5 overflow-hidden border border-slate-100">
             
             <div className="w-full h-36 sm:h-40 bg-slate-100 rounded-xl mb-3 overflow-hidden relative flex items-center justify-center shadow-inner shrink-0">
-              {imageUrls[card.word] ? (
-                <img src={imageUrls[card.word]} className="w-full h-full object-cover z-10" alt="" onError={e => e.target.src='https://loremflickr.com/400/300/japan'} />
-              ) : (
-                <div className="flex flex-col items-center text-indigo-400"><Loader2 className="w-6 h-6 animate-spin mb-1" /><span className="text-[10px] font-black uppercase">Loading...</span></div>
+              {!imgLoaded[card.word] && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-indigo-400 bg-slate-100 z-0">
+                  <Loader2 className="w-6 h-6 animate-spin mb-1" />
+                  <span className="text-[10px] font-black uppercase">Loading...</span>
+                </div>
+              )}
+              {imageUrls[card.word] && (
+                <img 
+                  src={imageUrls[card.word]} 
+                  className={`w-full h-full object-cover z-10 transition-opacity duration-300 ${imgLoaded[card.word] ? 'opacity-100' : 'opacity-0'}`} 
+                  alt="" 
+                  onLoad={() => setImgLoaded(prev => ({ ...prev, [card.word]: true }))}
+                  onError={e => {
+                    // 若原圖庫請求失敗，切換至更穩定的備用圖片服務，並帶上單字文字
+                    if (!e.target.src.includes('placehold.co')) {
+                      e.target.src = `https://placehold.co/400x300/e2e8f0/475569?text=${encodeURIComponent(card.word)}`;
+                    }
+                    setImgLoaded(prev => ({ ...prev, [card.word]: true }));
+                  }} 
+                />
               )}
             </div>
 
