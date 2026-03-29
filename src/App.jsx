@@ -908,6 +908,12 @@ const App = () => {
               ))}
             </div>
 
+            <div className="w-full h-px bg-indigo-200 my-5 relative">
+              <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-indigo-50 px-3 text-[11px] font-black tracking-widest text-indigo-400 uppercase rounded-full border border-indigo-100">
+                Tier 1核心單字
+              </span>
+            </div>
+
             <div className="grid grid-cols-3 gap-2.5">
               {primaryCategories.map((cat, index) => (
                 <button 
@@ -971,7 +977,7 @@ const App = () => {
         </button>
         
         <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-center">
-          <span>v14.2 圖片穩定版 byKC</span>
+          <span>v14.2 圖片穩定版 for Chloe byKC</span>
         </div>
       </div>
     </div>
