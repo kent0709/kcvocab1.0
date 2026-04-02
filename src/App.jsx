@@ -355,8 +355,12 @@ const App = () => {
     else if (type === 'hard') nextQ.splice(Math.floor(nextQ.length/2), 0, curr);
     else if (type === 'good') nextQ.push(curr);
     
-    if (nextQ.length === 0) setIsFinished(true);
-    else { setQueue(nextQ); setIsFlipped(false); }
+    setQueue(nextQ);
+    if (nextQ.length === 0) {
+      setIsFinished(true);
+    } else {
+      setIsFlipped(false);
+    }
     
     if (deckId && user) {
       try {
@@ -753,7 +757,7 @@ const App = () => {
            if (!user) return;
            
            // 送出成績
-           if (playerName && total > 0 && queue.length === 0) {
+           if (playerName && total > 0) {
                const r = getRating();
                const docId = Date.now().toString() + Math.random().toString(36).substring(2);
                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'global_leaderboard', docId), {
