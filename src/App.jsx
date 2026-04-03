@@ -37,7 +37,7 @@ const app = initializeApp(isCanvas ? JSON.parse(__firebase_config) : firebaseCon
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-const appId = typeof __app_id !== 'undefined' ? String(__app_id).replace(/\//g, '_') : (firebaseConfig.projectId !== '請在此填入新的_projectId' ? firebaseConfig.projectId : 'kcvocabapp');
+const appId = typeof __app_id !== 'undefined' ? __app_id : (firebaseConfig.projectId !== '請在此填入新的_projectId' ? firebaseConfig.projectId : 'default-app-id');
 
 const safePushState = (url) => {
   try {
@@ -760,12 +760,18 @@ const App = () => {
            if (playerName && total > 0) {
                const r = getRating();
                const docId = Date.now().toString() + Math.random().toString(36).substring(2);
-               await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'global_leaderboard', docId), {
-                  name: playerName,
-                  score: r.score,
-                  category: activeCategory ? activeCategory.name : '自訂單字',
-                  timestamp: new Date().toISOString()
-               });
+               
+               // 加入逾時防呆，避免英雄榜無限轉圈
+               const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("英雄榜資料庫連線逾時")), 8000));
+               await Promise.race([
+                   setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'global_leaderboard', docId), {
+                      name: playerName,
+                      score: r.score,
+                      category: activeCategory ? activeCategory.name : '自訂單字',
+                      timestamp: new Date().toISOString()
+                   }),
+                   timeoutPromise
+               ]);
            }
 
            // 取得最新英雄榜 (遵循安全規則：全抓後在本地排序)
@@ -777,6 +783,7 @@ const App = () => {
 
         } catch (err) {
            console.error("Leaderboard error", err);
+           if (isMounted) setError("英雄榜權限異常：" + (err.message || "請確認 Firebase 規則已開放讀寫"));
         } finally {
            if (isMounted) setIsSubmittingScore(false);
         }
@@ -784,7 +791,7 @@ const App = () => {
       fetchAndSubmit();
     }
     return () => { isMounted = false; };
-  }, [isFinished]);
+  }, [isFinished, user, playerName, activeCategory, total]);
 
   const renderCardBackText = (card) => {
     if (!card) return null;
@@ -1273,18 +1280,34 @@ const App = () => {
           </div>
           
           <button onClick={async () => {
-            if (!user) return setError("尚未連線資料庫");
+            if (!user) return setError("尚未連線 Firebase 資料庫，請確認設定");
             if (isSaving) return;
             setIsSaving(true);
             try {
               let shareId = deckId || crypto.randomUUID();
-              await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', shareId), { cards, queue, history, creator: user.uid, createdAt: new Date().toISOString() });
+              const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'decks', shareId);
+              
+              // 加入 8 秒防呆機制，避免 Firebase 沒設好導致無限轉圈
+              const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("資料庫連線逾時！請確認 Firebase Firestore 是否已建立，且安全性規則已開放讀寫。")), 8000));
+              
+              await Promise.race([
+                 setDoc(docRef, { cards, queue, history, creator: user.uid, createdAt: new Date().toISOString() }),
+                 timeoutPromise
+              ]);
+
               setDeckId(shareId); safePushState(`?deckId=${shareId}`);
-              const url = `${window.location.origin}${window.location.pathname}?deckId=${shareId}`;
+              
+              // 確保產生正確的專屬網址
+              const baseUrl = (window.location.hostname.includes('webcontainer') || window.location.hostname.includes('stackblitz')) ? 'https://您部署後的Vercel網址' : window.location.origin + window.location.pathname;
+              const url = `${baseUrl}?deckId=${shareId}`;
+              
               try { await navigator.clipboard.writeText(url); } catch(e) {}
               setCopyOk(true); setTimeout(() => setCopyOk(false), 2000);
               setShareModal({ isOpen: true, url });
-            } catch (err) { setError("儲存失敗"); } 
+            } catch (err) { 
+              console.error("儲存詳細錯誤:", err);
+              setError(err.message || "儲存失敗，請檢查 Firebase 設定"); 
+            } 
             finally { setIsSaving(false); }
           }} disabled={isSaving} className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${copyOk ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
             {isSaving ? <Loader2 size={16} className="animate-spin" /> : copyOk ? <Check size={16} /> : <Share2 size={16} />}
