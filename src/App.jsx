@@ -1,1549 +1,1493 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Card Card Love v4.3</title>
-    <style>
-        /* 針對長螢幕手機優化，確保全畫面不捲動 */
-        :root {
-            --safe-top: env(safe-area-inset-top, 20px);
-            --safe-bottom: env(safe-area-bottom, 20px);
-        }
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Volume2, RefreshCcw, Brain, Zap, Star, Flame, Share2, Check, Loader2, AlertTriangle, ChevronRight, Clock, Home, Trophy, Lock, Trash2, Shuffle
+} from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 
-        body {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: space-between;
-            height: 100dvh;
-            background-color: #f0f8ff;
-            font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif;
-            margin: 0;
-            padding: var(--safe-top) 15px var(--safe-bottom) 15px;
-            box-sizing: border-box;
-            overflow: hidden;
-        }
-
-        /* 升級版：更大更有氣勢的標題 */
-        .app-title {
-            font-size: clamp(38px, 11vw, 55px);
-            font-weight: 900;
-            color: #ff9f43;
-            text-shadow: 3px 3px 0px #ffeaa7;
-            margin: 8px 0;
-            letter-spacing: 2px;
-            cursor: pointer;
-            flex-shrink: 0;
-            transition: transform 0.2s;
-        }
-        .app-title:active { transform: scale(0.95); }
-
-        .home-subtitle {
-            font-size: 16px;
-            color: #a4b0be;
-            font-weight: bold;
-            margin-bottom: 15px;
-            flex-shrink: 0;
-        }
-
-        .main-wrapper {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-            min-height: 0;
-        }
-
-        .btn-group {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            width: 95%;
-            max-width: 350px;
-            max-height: 60vh;
-            overflow-y: auto;
-            padding: 5px;
-        }
-
-        .lang-btn {
-            padding: 15px;
-            font-size: clamp(15px, 5vw, 20px);
-            font-weight: bold;
-            border: none;
-            border-radius: 18px;
-            cursor: pointer;
-            color: white;
-            box-shadow: 0 5px 0 rgba(0,0,0,0.1);
-            transition: 0.2s;
-            flex-shrink: 0;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .lang-btn:active { transform: translateY(3px); box-shadow: none; }
-        .btn-zhuyin { background-color: #00a8ff; }
-        .btn-hiragana { background-color: #ff4757; }
-        .btn-katakana { background-color: #2ed573; }
-        .btn-math { background-color: #e67e22; }
-
-        /* 單元選擇畫面 */
-        .unit-select-wrapper {
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            width: 100%;
-            height: 100%;
-            overflow-y: auto;
-            padding-bottom: 20px;
-        }
-
-        .top-bars {
-            display: none; 
-            flex-direction: column; 
-            gap: 8px; 
-            margin-bottom: 10px; 
-            width: 100%; 
-            max-width: 350px;
-        }
-
-        .mode-switch { 
-            display: flex; 
-            gap: 6px; 
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-        .mode-btn {
-            padding: 8px 12px;
-            border-radius: 12px;
-            border: none;
-            background: #fff;
-            color: #a4b0be;
-            font-weight: bold;
-            font-size: 14px;
-            cursor: pointer;
-            flex: 1;
-            min-width: 60px;
-            text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            transition: all 0.2s;
-        }
-        .mode-btn:active { transform: scale(0.95); }
-        .mode-btn.active { color: white; }
-
-        /* 字卡本體 */
-        .card {
-            display: none;
-            background: white;
-            width: 100%;
-            max-width: 320px;
-            height: clamp(340px, 50vh, 440px);
-            border-radius: 25px;
-            box-shadow: 0 8px 15px rgba(0,0,0,0.1);
-            padding: 15px 18px;
-            flex-direction: column;
-            align-items: center;
-            justify-content: space-between;
-            box-sizing: border-box;
-            border: 6px solid #00a8ff;
-            position: relative;
-        }
-
-        .main-sym { 
-            font-size: clamp(65px, 14vh, 90px); 
-            font-weight: bold; 
-            color: #4a148c; 
-            text-align: center;
-            word-break: break-word;
-            line-height: 1.2;
-        }
-        .emoji { font-size: clamp(50px, 10vh, 70px); margin: 5px 0;}
-        
-        .word-box {
-            background: #f1f2f6;
-            padding: 10px 15px;
-            border-radius: 15px;
-            width: 95%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 45px;
-        }
-
-        .controls { display: none; margin-top: 10px; gap: 8px; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 320px; }
-        .ctrl-btn { padding: 10px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; transition: 0.2s;}
-        .ctrl-btn:active { transform: scale(0.95); }
-        .btn-p { background: #dfe4ea; flex: 1; min-width: 60px; color:#2f3542; }
-        .btn-s { background: #ff9f43; color: white; flex: 2; min-width: 120px; }
-        .btn-math-reveal { background: #e67e22; color: white; flex: 2; min-width: 120px; }
-
-        /* 升級版：專屬放大的下一題按鈕 */
-        #nextQBtn {
-            font-size: 22px;
-            font-weight: 900;
-            padding: 16px 20px;
-            width: 100%;
-            border: none;
-            border-radius: 18px;
-            background-color: #2ed573;
-            color: white;
-            cursor: pointer;
-            box-shadow: 0 6px 0 #27ae60;
-            margin-top: 10px;
-            letter-spacing: 2px;
-            transition: all 0.1s;
-        }
-        #nextQBtn:active {
-            transform: translateY(6px);
-            box-shadow: none;
-        }
-
-        .quiz-view { display: none; width: 100%; flex-direction: column; align-items: center; overflow-y: auto; padding-bottom: 10px;}
-        .opt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; margin-top: 10px; }
-        
-        .opt-btn { 
-            background: white; border: 2px solid #f1f2f6; border-radius: 15px; 
-            font-weight: bold; padding: 10px 5px; border-bottom: 4px solid #dfe4ea; 
-            cursor: pointer; word-break: break-word; line-height: 1.2; min-height: 50px;
-            transition: all 0.1s;
-        }
-        .opt-btn:active { transform: translateY(2px); border-bottom: 0; }
-        .opt-btn.correct { border-color: #2ed573; color: #2ed573; background: #e8fcf1; }
-        .opt-btn.wrong { border-color: #ff4757; color: #ff4757; background: #ffeaea; animation: shake 0.4s; } 
-
-        .app-footer {
-            font-size: 12px;
-            color: #a4b0be;
-            margin-top: 5px;
-            font-weight: bold;
-            flex-shrink: 0;
-        }
-
-        .zh-char-row { display: flex; align-items: center; margin: 0 2px; }
-        .zh-text { font-size: 28px; font-weight: bold; color: #4a148c; margin-right: 2px;}
-        .zy-stack { display: flex; flex-direction: column; font-size: 12px; line-height: 1; font-weight: bold; color: #4a148c;}
-        .jp-text { font-size: 26px; font-weight: bold; color: #4a148c; }
-        .jp-mean { font-size: 14px; color: #ff4757; font-weight: bold; margin-top: 2px; }
-        
-        .math-formula { font-size: 20px; font-weight: bold; color: #e67e22; font-family: monospace; text-align: center; transition: all 0.3s ease;}
-        .math-hint { font-size: 14px; color: #666; font-weight: bold; margin-top: 4px; text-align: center; transition: all 0.3s ease;}
-        .math-exp { margin-top:8px; padding-top:8px; border-top:1px dashed #ccc; font-size:14px; color:#27ae60; font-weight:bold; width: 100%; text-align: center; }
-
-        .blur-content { filter: blur(8px); opacity: 0.5; user-select: none; }
-
-        /* 排行榜專屬樣式 */
-        .lb-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: #f8f9fa;
-            padding: 10px 15px;
-            border-radius: 12px;
-            font-weight: bold;
-            border: 1px solid #eee;
-        }
-        .lb-rank-1 { background: #fff8e1; border-color: #ffeaa7; color: #d35400; }
-        .lb-rank-2 { background: #f1f2f6; border-color: #dfe4ea; color: #576574; }
-        .lb-rank-3 { background: #ffebd2; border-color: #f3cc9a; color: #a0522d; }
-
-        @keyframes bounce { 0%, 20%, 50%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-12px); } 60% { transform: translateY(-6px); } }
-        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
-    </style>
-</head>
-<body>
-
-<!-- Firebase 設定引導精靈 (當權限被阻擋時彈出) -->
-<div id="firebaseSetupWizard" style="display:none; position:fixed; top:0; left:0; width:100%; height:100dvh; background:rgba(0,0,0,0.85); z-index:9999; justify-content:center; align-items:center; flex-direction:column; padding:20px; box-sizing:border-box;">
-    <div style="background:white; padding:30px; border-radius:25px; max-width:400px; width:100%; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
-        <div style="font-size:40px; text-align:center; margin-bottom:10px;">🛑</div>
-        <h2 style="color:#ff4757; font-size:24px; font-weight:900; text-align:center; margin-top:0; margin-bottom:15px;">資料庫權限被阻擋！</h2>
-        <p style="color:#2f3542; font-weight:bold; font-size:15px; line-height:1.6; margin-bottom:15px;">
-            您的網站已成功連上 Firebase，但被<b>安全規則 (Rules)</b> 擋在門外了。<br><br>
-            請親自前往 Firebase 控制台完成最後一步：
-        </p>
-        <div style="background:#f1f2f6; padding:15px; border-radius:15px; margin-bottom:20px;">
-            <ol style="margin:0; padding-left:20px; color:#2f3542; font-size:14px; font-weight:bold; line-height:1.8;">
-                <li>點擊左側 <b>Firestore Database</b></li>
-                <li>點擊上方的 <b>規則 (Rules)</b> 標籤</li>
-                <li>將代碼修改為下方<span style="color:#27ae60;">綠色框框</span>的內容</li>
-                <li>點擊 <b>發布 (Publish)</b></li>
-            </ol>
-        </div>
-        <div style="background:#e8fcf1; border:2px solid #2ed573; padding:15px; border-radius:15px; font-family:monospace; font-size:13px; color:#27ae60; font-weight:bold; overflow-x:auto;">
-            rules_version = '2';<br>
-            service cloud.firestore {<br>
-            &nbsp;&nbsp;match /databases/{database}/documents {<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;match /{document=**} {<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;allow read, write: if true;<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;}<br>
-            &nbsp;&nbsp;}<br>
-            }
-        </div>
-        <button onclick="document.getElementById('firebaseSetupWizard').style.display='none'" style="margin-top:20px; width:100%; padding:15px; background:#2ed573; color:white; border:none; border-radius:15px; font-size:18px; font-weight:900; cursor:pointer; box-shadow:0 4px 0 #27ae60; transition:0.2s;">我知道了，我這就去改！</button>
-    </div>
-</div>
-
-<div class="app-title" onclick="goHome()">Card Card Love</div>
-
-<div class="main-wrapper">
-    <!-- 首頁 -->
-    <div id="homeUI" style="display: flex; flex-direction: column; align-items: center;">
-        <div class="home-subtitle">今天你想來點什麼字卡?</div>
-        <div class="btn-group">
-            <button class="lang-btn btn-zhuyin" onclick="startApp('zhuyin')">ㄅ 注音符號</button>
-            <button class="lang-btn btn-hiragana" onclick="startApp('hiragana')">あ 平假名</button>
-            <button class="lang-btn btn-katakana" onclick="startApp('katakana')">ア 片假名</button>
-            <button class="lang-btn btn-math" onclick="startApp('math')">📐 數學不卡卡</button>
-        </div>
-    </div>
-
-    <!-- 精細單元選擇選單 -->
-    <div id="unitSelectUI" class="unit-select-wrapper"></div>
-
-    <!-- 結算與排行榜專屬版面 (新滿版版面) -->
-    <div id="resultBoardUI" class="unit-select-wrapper" style="background-color: #f8f9fa;">
-        <div style="width:95%; max-width:400px; display:flex; flex-direction:column; align-items:center; margin-top:20px;">
-            <div style="font-size:45px; margin-bottom:10px;">🏆</div>
-            <h2 style="font-size:28px; font-weight:900; color:#ff9f43; margin:0 0 5px 0;">挑戰完成！</h2>
-            <div style="color:#a4b0be; font-weight:bold; margin-bottom:15px;">挑戰者：<span id="resultNameDisp" style="color:#2f3542;"></span></div>
-            
-            <div style="background:white; border-radius:25px; padding:20px; width:100%; box-shadow:0 8px 15px rgba(0,0,0,0.05); border:4px solid #f1f2f6; display:flex; flex-direction:column; align-items:center; margin-bottom:20px;">
-                <span style="font-size:14px; font-weight:bold; color:#a4b0be; text-transform:uppercase; letter-spacing:1px;">Total Score</span>
-                <div style="font-size:60px; font-weight:900; color:#4a148c; line-height:1.2;" id="finalScoreText">100</div>
-                <span style="font-size:14px; font-weight:bold; color:#a4b0be;">分</span>
-            </div>
-
-            <div style="width:100%; background:white; border-radius:25px; padding:15px; box-shadow:0 8px 15px rgba(0,0,0,0.05); border:2px solid #f1f2f6; margin-bottom:20px; box-sizing: border-box;">
-                <div id="leaderboardTitle" style="font-size:18px; font-weight:900; color:#e67e22; margin-bottom:12px; text-align:center; display:flex; align-items:center; justify-content:center; gap:8px;">
-                    <span>🌍</span> <span id="leaderboardTitleText">英雄榜</span>
-                </div>
-                <div id="leaderboardList" style="display:flex; flex-direction:column; gap:8px; max-height:35vh; overflow-y:auto; padding-right:5px;">
-                    <div style="text-align:center; color:#999; font-size:14px;">載入榜單中...</div>
-                </div>
-            </div>
-
-            <div style="display:flex; flex-direction:column; gap:10px; width:100%; padding-bottom:20px;">
-                <button onclick="retryQuiz()" style="background:#ff9f43; color:white; padding:15px; border:none; border-radius:18px; font-weight:bold; cursor:pointer; font-size:16px; box-shadow:0 4px 0 #d35400; transition:0.2s;">🔄 重新測驗</button>
-                <div style="display:flex; gap:10px;">
-                    <button onclick="goBackToUnits()" style="flex:1; background:#dfe4ea; color:#2f3542; padding:15px; border:none; border-radius:18px; font-weight:bold; cursor:pointer; font-size:15px; box-shadow:0 4px 0 #ced6e0; transition:0.2s;">🔙 返回單元</button>
-                    <button onclick="goHome()" style="flex:1; background:#fff; border:2px solid #dfe4ea; color:#2f3542; padding:15px; border-radius:18px; font-weight:bold; cursor:pointer; font-size:15px; box-shadow:0 4px 0 #f1f2f6; transition:0.2s;">🏠 返回首頁</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 頂部工具列 -->
-    <div class="top-bars" id="topBars">
-        <div class="mode-switch">
-            <button class="mode-btn" onclick="goBackToUnits()">🔙 返回</button>
-            <button class="mode-btn" onclick="triggerTopShuffle()" style="color:#e67e22;">🔀 洗牌</button>
-            <button class="mode-btn active" id="mLearn" onclick="setMode('learn')">📖 學習</button>
-            <button class="mode-btn" id="mQuiz" onclick="setMode('quiz')">🎮 測驗</button>
-        </div>
-    </div>
-
-    <!-- 字卡區 -->
-    <div class="card" id="cardArea">
-        <div id="learnView" onclick="handleCardClick()" style="display:flex; flex-direction:column; align-items:center; height:100%; justify-content:space-between; width:100%; cursor:pointer;" title="點擊可聆聽發音">
-            <div class="main-sym" id="symDisp"></div>
-            <!-- 新增羅馬拼音顯示區 -->
-            <div id="romajiDisp" style="display:none; font-size: 32px; font-weight: 900; color: #ff9f43; font-family: 'Courier New', Courier, monospace; margin-top: -15px; margin-bottom: 5px;"></div>
-            <div class="emoji" id="emoDisp"></div>
-            <div class="word-box" id="wordDisp"></div>
-        </div>
-
-        <div id="quizStartView" class="quiz-view">
-            <div style="font-size:45px;">🏆</div>
-            <div style="font-weight:bold; margin-bottom:8px;">高手挑戰賽</div>
-            <div style="display:flex; flex-direction:column; gap:8px; width:85%;">
-                <select id="qLen" style="padding:10px; border-radius:10px; border:1px solid #ddd; text-align:center; font-weight:bold;">
-                    <option value="5">挑戰 5 題</option>
-                    <option value="10" selected>挑戰 10 題</option>
-                    <option value="20">挑戰 20 題</option>
-                    <option value="25">挑戰 25 題</option>
-                    <option value="0">全範圍特訓</option>
-                </select>
-                <input type="text" id="playerNameInputStart" placeholder="輸入大名留念..." maxlength="10" style="padding:10px; border-radius:10px; border:2px solid #dfe4ea; text-align:center; font-weight:bold; font-size:16px;">
-                <div style="display:flex; gap: 8px;">
-                    <button onclick="startQuizWithName()" style="flex:2; background:#ff9f43; color:white; padding:12px; border:none; border-radius:15px; font-weight:bold; cursor:pointer;">🚀 開始測驗！</button>
-                    <button onclick="startQuizSkipName()" style="flex:1; background:#dfe4ea; color:#2f3542; padding:12px; border:none; border-radius:15px; font-weight:bold; cursor:pointer;">略過 ⏭️</button>
-                </div>
-            </div>
-        </div>
-
-        <div id="quizPlayView" class="quiz-view">
-            <div id="qStat" style="font-size:13px; font-weight:bold; color:#00a8ff; margin-bottom:5px;">第 1 題 | 目前得分: 0 分</div>
-            <div style="font-size:40px; cursor:pointer; animation: bounce 2s infinite;" id="quizSoundBtn" onclick="playQuizVoice()">🔊</div>
-            <div class="opt-grid" id="optGrid"></div>
-        </div>
-    </div>
-
-    <!-- 下方控制 -->
-    <div class="controls" id="learnCtrls">
-        <button class="ctrl-btn btn-p" onclick="nav(-1)">◀ 上一張</button>
-        <button class="ctrl-btn btn-s" id="soundBtn" onclick="handlePrimaryAction()">🔊 聽發音</button>
-        <button class="ctrl-btn btn-p" onclick="nav(1)">下一張 ▶</button>
-    </div>
-    
-    <div class="controls" id="quizCtrls">
-        <button id="nextQBtn" style="display:none;" onclick="nextQuestion()">⭐ 下一題</button>
-    </div>
-
-    <div class="prog" id="progText" style="display:none; margin-top: 5px; font-size: 13px; color: #a4b0be; font-weight:bold;"></div>
-</div>
-
-<div class="app-footer">byKC v4.3 (Netlify正式雲端版)</div>
-
-<!-- 你的原始應用程式邏輯 -->
-<script>
-// ==================== 基礎導覽機制 ====================
-let currentPlayerName = '無名英雄';
-let currentStreak = 0; // 記錄連續答對次數
-
-// 新增：用來記錄現在是哪一個單元的變數
-let currentBoardId = 'default';
-let currentBoardName = '總榜單';
-
-function getLangName(lang) {
-    if (lang === 'zhuyin') return 'ㄅ 注音';
-    if (lang === 'hiragana') return 'あ 平假名';
-    if (lang === 'katakana') return 'ア 片假名';
-    if (lang === 'math') return '📐 數學';
-    return lang;
-}
-
-function goHome() {
-    document.getElementById('unitSelectUI').style.display = 'none';
-    document.getElementById('resultBoardUI').style.display = 'none';
-    document.getElementById('topBars').style.display = 'none';
-    document.getElementById('cardArea').style.display = 'none';
-    document.getElementById('quizStartView').style.display = 'none';
-    document.getElementById('quizPlayView').style.display = 'none';
-    document.getElementById('homeUI').style.display = 'flex';
-}
-
-function shuffleArray(array) {
-    for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-    }
-    return array;
-}
-
-function formatQuadratic(a, b, c) {
-    let terms = [];
-    if (a === 1) terms.push("x²"); else if (a === -1) terms.push("-x²"); else if (a !== 0) terms.push(`${a}x²`);
-    if (b === 1) terms.push("+ x"); else if (b === -1) terms.push("- x"); else if (b > 0) terms.push(`+ ${b}x`); else if (b < 0) terms.push(`- ${-b}x`);
-    if (c > 0) terms.push(`+ ${c}`); else if (c < 0) terms.push(`- ${-c}`);
-    let res = terms.join(" ");
-    if (res.startsWith("+ ")) res = res.substring(2); 
-    if (res.trim() === "") return "0";
-    return res;
-}
-
-// ==================== 語言資料庫 (完整保留) ====================
-const zhData = [
-    {s:'ㄅ',e:'👨',w:'爸爸',z:'ㄅㄚˋ ㄅㄚ˙'}, {s:'ㄆ',e:'🍇',w:'葡萄',z:'ㄆㄨˊ ㄊㄠˊ'}, {s:'ㄇ',e:'🐱',w:'貓咪',z:'ㄇㄠ ㄇㄧ'}, {s:'ㄈ',e:'✈️',w:'飛機',z:'ㄈㄟ ㄐㄧ'},
-    {s:'ㄉ',e:'🐘',w:'大象',z:'ㄉㄚˋ ㄒㄧㄤˋ'}, {s:'ㄊ',e:'🐰',w:'兔子',z:'ㄊㄨˋ ㄗ˙'}, {s:'ㄋ',e:'🥛',w:'牛奶',z:'ㄋㄧㄡˊ ㄋㄞˇ'}, {s:'ㄌ',e:'🐯',w:'老虎',z:'ㄌㄠˇ ㄏㄨˇ'},
-    {s:'ㄍ',e:'🐶',w:'狗狗',z:'ㄍㄡˇ ㄍㄡ˙'}, {s:'ㄎ',e:'🦖',w:'恐龍',z:'ㄎㄨㄥˇ ㄌㄨㄥˊ'}, {s:'ㄏ',e:'🐒',w:'猴子',z:'ㄏㄡˊ ㄗ˙'}, {s:'ㄐ',e:'👮',w:'警察',z:'ㄐㄧㄥˇ ㄔㄚˊ'},
-    {s:'ㄑ',e:'🐧',w:'企鵝',z:'ㄑㄧˋ ㄜˊ'}, {s:'ㄒ',e:'🍉',w:'西瓜',z:'ㄒㄧ ㄍㄨㄚ'}, {s:'ㄓ',e:'🕷️',w:'蜘蛛',z:'ㄓ ㄓㄨ'}, {s:'ㄔ',e:'🚗',w:'車子',z:'ㄔㄜ ㄗ˙'},
-    {s:'ㄕ',e:'🦁',w:'獅子',z:'ㄕ ㄗ˙'}, {s:'ㄖ',e:'📅',w:'日曆',z:'ㄖˋ ㄌㄧˋ'}, {s:'ㄗ',e:'👄',w:'嘴巴',z:'ㄗㄨㄟˇ ㄅㄚ˙'}, {s:'ㄘ',e:'🍓',w:'草莓',z:'ㄘㄠˇ ㄇㄟˊ'},
-    {s:'ㄙ',e:'🐿️',w:'松鼠',z:'ㄙㄨㄥ ㄕㄨˇ'}, {s:'ㄧ',e:'👕',w:'衣服',z:'ㄧ ㄈㄨˊ'}, {s:'ㄨ',e:'🐢',w:'烏龜',z:'ㄨ ㄍㄨㄟ'}, {s:'ㄩ',e:'☔',w:'雨傘',z:'ㄩˇ ㄙㄢˇ'},
-    {s:'ㄚ',e:'🦆',w:'鴨子',z:'ㄧㄚ ㄗ˙'}, {s:'ㄛ',e:'👵',w:'婆婆',z:'ㄆㄛˊ ㄆㄛ˙'}, {s:'ㄜ',e:'🦢',w:'天鵝',z:'ㄊㄧㄢ ㄜˊ'}, {s:'ㄝ',e:'👞',w:'鞋子',z:'ㄒㄧㄝˊ ㄗ˙'},
-    {s:'ㄞ',e:'❤️',w:'愛心',z:'ㄞˋ ㄒㄧㄣ'}, {s:'ㄟ',e:'🥤',w:'杯子',z:'ㄅㄟ ㄗ˙'}, {s:'ㄠ',e:'🧢',w:'帽子',z:'ㄇㄠˋ ㄗ˙'}, {s:'ㄡ',e:'🕊️',w:'海鷗',z:'ㄏㄞˇ ㄡ'},
-    {s:'ㄢ',e:'🦓',w:'斑馬',z:'ㄅㄢ ㄇㄚˇ'}, {s:'ㄣ',e:'🌲',w:'森林',z:'ㄙㄣ ㄌㄧㄣˊ'}, {s:'ㄤ',e:'☀️',w:'太陽',z:'ㄊㄞˋ ㄧㄤˊ'}, {s:'ㄥ',e:'🐝',w:'蜜蜂',z:'ㄇㄧˋ ㄈㄥ'},
-    {s:'ㄦ',e:'👂',w:'耳朵',z:'ㄦˇ ㄉㄨㄛ˙'}
-];
-
-const jpHiData = [
-    {s:'あ',e:'🍬',w:'あめ',m:'糖果'}, {s:'い',e:'🐶',w:'いぬ',m:'狗'}, {s:'う',e:'🐄',w:'うし',m:'牛'}, {s:'え',e:'🚉',w:'えき',m:'車站'}, {s:'お',e:'🍙',w:'おにぎり',m:'飯糰'},
-    {s:'か',e:'☂️',w:'かさ',m:'傘'}, {s:'き',e:'🌳',w:'き',m:'樹木'}, {s:'く',e:'👞',w:'くつ',m:'鞋子'}, {s:'け',e:'🐛',w:'けむし',m:'毛毛蟲'}, {s:'こ',e:'🪀',w:'こま',m:'陀螺'},
-    {s:'さ',e:'🐒',w:'さる',m:'猴子'}, {s:'し',e:'🦌',w:'しか',m:'鹿'}, {s:'す',e:'🍉',w:'すいか',m:'西瓜'}, {s:'せ',e:'🐞',w:'せみ',m:'蟬'}, {s:'そ',e:'☁️',w:'そら',m:'天空'},
-    {s:'た',e:'🐙',w:'たこ',m:'章魚'}, {s:'ち',e:'🦋',w:'ちょうちょ',m:'蝴蝶'}, {s:'つ',e:'🌙',w:'つき',m:'月亮'}, {s:'て',e:'✋',w:'て',m:'手'}, {s:'と',e:'⌚',w:'とけい',m:'手錶'},
-    {s:'な',e:'🍆',w:'なす',m:'茄子'}, {s:'に',e:'🐔',w:'にわとり',m:'雞'}, {s:'ぬ',e:'🖍️',w:'ぬりえ',m:'塗鴉'}, {s:'ね',e:'🐱',w:'ねこ',m:'貓咪'}, {s:'の',e:'🌱',w:'のり',m:'海苔'},
-    {s:'は',e:'🌸',w:'はな',m:'花'}, {s:'ひ',e:'✈️',w:'ひこうき',m:'飛機'}, {s:'ふ',e:'🚢',w:'ふね',m:'船'}, {s:'へ',e:'🐍',w:'へび',m:'蛇'}, {s:'ほ',e:'⭐',w:'ほし',m:'星星'},
-    {s:'ま',e:'🪟',w:'まど',m:'窗戶'}, {s:'み',e:'🍊',w:'みかん',m:'橘子'}, {s:'む',e:'🐞',w:'むし',m:'蟲'}, {s:'め',e:'👓',w:'めがね',m:'眼鏡'}, {s:'も',e:'🍑',w:'もも',m:'桃子'},
-    {s:'や',e:'⛰️',w:'やま',m:'山'}, {s:'ゆ',e:'❄️',w:'ゆき',m:'雪'}, {s:'よ',e:'🌃',w:'よる',m:'夜晚'}, {s:'ら',e:'🎺',w:'らっぱ',m:'喇叭'}, {s:'り',e:'🍎',w:'りんご',m:'蘋果'},
-    {s:'る',e:'🏠',w:'るすばん',m:'看家'}, {s:'れ',e:'🧊',w:'れいぞうこ',m:'冰箱'}, {s:'ろ',e:'🕯️',w:'ろうそく',m:'蠟燭'}, {s:'わ',e:'🐊',w:'わに',m:'鱷魚'}, {s:'を',e:'💧',w:'を',m:'助詞'}, {s:'ん',e:'🍞',w:'ぱん',m:'麵包'}
-];
-
-const jpKaData = [
-    {s:'ア',e:'🍦',w:'アイス',m:'冰淇淋'}, {s:'イ',e:'🎧',w:'イヤホン',m:'耳機'}, {s:'ウ',e:'🎸',w:'ウクレレ',m:'烏克麗麗'}, {s:'エ',e:'🛗',w:'エレベーター',m:'電梯'}, {s:'オ',e:'🍊',w:'オレンジ',m:'柳橙'},
-    {s:'カ',e:'📷',w:'カメラ',m:'相機'}, {s:'キ',e:'🥝',w:'奇異果',m:'奇異果'}, {s:'ク',e:'🧁',w:'クリーム',m:'鮮奶油'}, {s:'ケ',e:'🍰',w:'ケーキ',m:'蛋糕'}, {s:'コ',e:'☕',w:'コーヒー',m:'咖啡'},
-    {s:'サ',e:'🥪',w:'サンドイッチ',m:'三明治'}, {s:'シ',e:'👕',w:'シャツ',m:'襯衫'}, {s:'ス',e:'🍲',w:'スープ',m:'湯'}, {s:'セ',e:'🧶',w:'セーター',m:'毛衣'}, {s:'ソ',e:'🌭',w:'ソーセージ',m:'香腸'},
-    {s:'タ',e:'🚕',w:'タクシー',m:'計程車'}, {s:'チ',e:'🧀',w:'チーズ',m:'起司'}, {s:'ツ',e:'🗺️',w:'ツアー',m:'旅行團'}, {s:'テ',e:'📺',w:'電視',m:'電視'}, {s:'ト',e:'🍅',w:'トマト',m:'番茄'},
-    {s:'ナ',e:'🔪',w:'刀子',m:'刀子'}, {s:'ニ',e:'📰',w:'新聞',m:'新聞'}, {s:'ヌ',e:'🍜',w:'麵條',m:'麵條'}, {s:'ネ',e:'👔',w:'領帶',m:'領帶'}, {s:'ノ',e:'📓',w:'筆記本',m:'筆記本'},
-    {s:'ハ',e:'🍔',w:'漢堡',m:'漢堡'}, {s:'ヒ',e:'♨️',w:'暖氣',m:'暖氣'}, {s:'フ',e:'🍴',w:'叉子',m:'叉子'}, {s:'ヘ',e:'🚁',w:'直升機',m:'直升機'}, {s:'ホ',e:'🏨',w:'飯店',m:'飯店'},
-    {s:'マ',e:'🎤',w:'麥克風',m:'麥克風'}, {s:'ミ',e:'🥛',w:'牛奶',m:'牛奶'}, {s:'ム',e:'🎬',w:'電影',m:'電影'}, {s:'メ',e:'🍈',w:'哈密瓜',m:'哈密瓜'}, {s:'モ',e:'🛵',w:'馬達',m:'馬達'},
-    {s:'ヤ',e:'🌴',w:'椰子',m:'椰子'}, {s:'ユ',e:'🥋',w:'制服',m:'制服'}, {s:'ヨ',e:'⛵',w:'遊艇',m:'遊艇'}, {s:'ラ',e:'🦁',w:'獅子',m:'獅子'}, {s:'リ',e:'🎀',w:'緞帶',m:'緞帶'},
-    {s:'ル',e:'💎',w:'寶石',m:'寶石'}, {s:'レ',e:'🍋',w:'檸檬',m:'檸檬'}, {s:'ロ',e:'🤖',w:'機器人',m:'機器人'}, {s:'ワ',e:'🍷',w:'葡萄酒',m:'葡萄酒'}, {s:'ン',e:'🖊️',w:'筆',m:'筆'}
-];
-
-const mathData = [
-  { volume: "第一冊", unit: "直線方程式", title: "直線斜率", front: { formula: "m = (y₂ - y₁) / (x₂ - x₁)", hint: "y變化量除以x變化量" }, variants: [{ question: "A(1, 2), B(3, 6) 的直線斜率為何？", options: ["2", "3", "4", "1"], correctAnswer: 0, explanation: "(6 - 2) / (3 - 1) = 2" }] },
-  { volume: "第一冊", unit: "直線方程式", title: "點斜式", front: { formula: "y - y₁ = m(x - x₁)", hint: "已知一點與斜率" }, variants: [{ question: "過點 (2, 3) 且斜率為 4 的直線方程式？", options: ["y = 4x - 5", "y = 4x + 5", "y = 2x - 3", "y = 4x"], correctAnswer: 0, explanation: "y - 3 = 4(x - 2) ⮕ y = 4x - 5" }] },
-  { volume: "第一冊", unit: "直線方程式", title: "平行斜率", front: { formula: "L₁ // L₂ ⇔ m₁ = m₂", hint: "兩平行線斜率相等" }, variants: [{ question: "若 L₁ 斜率為 3 且 L₁ // L₂，則 L₂ 斜率？", options: ["3", "-3", "1/3", "-1/3"], correctAnswer: 0, explanation: "平行線斜率相等" }] },
-  { volume: "第一冊", unit: "直線方程式", title: "垂直斜率", front: { formula: "L₁ ⊥ L₂ ⇔ m₁ × m₂ = -1", hint: "兩垂直線斜率相乘為 -1" }, variants: [{ question: "若 L₁ 斜率為 2 且 L₁ ⊥ L₂，則 L₂ 斜率？", options: ["-1/2", "1/2", "2", "-2"], correctAnswer: 0, explanation: "垂直斜率相乘為 -1 ⮕ m₂ = -1/2" }] },
-  { volume: "第一冊", unit: "坐標系與函數圖形", title: "兩點距離", front: { formula: "d = √((x₂-x₁)² + (y₂-y₁)²)", hint: "兩點直線距離" }, variants: [{ question: "A(-2, 1), B(4, 9) 距離為何？", options: ["8", "10", "12", "14"], correctAnswer: 1, explanation: "√(6² + 8²) = 10" }] },
-  { volume: "第一冊", unit: "坐標系與函數圖形", title: "中點座標", front: { formula: "M = ((x₁+x₂)/2, (y₁+y₂)/2)", hint: "相加除以 2" }, variants: [{ question: "A(-3, 5), B(7, -1) 中點？", options: ["(4, 4)", "(2, 2)", "(-5, 3)", "(5, -3)"], correctAnswer: 1, explanation: "((-3+7)/2, (5-1)/2) = (2, 2)" }] },
-  { volume: "第一冊", unit: "坐標系與函數圖形", title: "重心座標", front: { formula: "G = (Σx/3, Σy/3)", hint: "三個頂點相加除以 3" }, variants: [{ question: "頂點 (0,0), (6,0), (3,9) 重心？", options: ["(3, 4)", "(3, 3)", "(4, 3)", "(2, 2)"], correctAnswer: 1, explanation: "((0+6+3)/3, (0+0+9)/3) = (3, 3)" }] },
-  { volume: "第一冊", unit: "坐標系與函數圖形", title: "內分點公式", front: { formula: "P = (n·P₁ + m·P₂) / (m+n)", hint: "交叉相乘再相加" }, variants: [{ question: "A(-3), B(7)，P 在 AB 且 AP:PB=2:3，P=?", options: ["0", "1", "2", "3"], correctAnswer: 1, explanation: "(3*(-3) + 2*7)/5 = 1" }] },
-  { volume: "第一冊", unit: "坐標系與函數圖形", title: "二次函數頂點", front: { formula: "x = -b / 2a", hint: "拋物線對稱軸" }, variants: [{ question: "y = x² - 6x + 10 的頂點 x 座標？", options: ["-3", "3", "6", "-6"], correctAnswer: 1, explanation: "x = -(-6) / 2 = 3" }] },
-  { volume: "第一冊", unit: "三角函數", title: "弳度轉換", front: { formula: "180° = π (rad)", hint: "度數換弧度乘 π/180" }, variants: [{ question: "120° 等於多少弧度？", options: ["π/3", "2π/3", "3π/4", "5π/6"], correctAnswer: 1, explanation: "120 * (π/180) = 2π/3" }] },
-  { volume: "第一冊", unit: "三角函數", title: "特殊角", front: { formula: "sin 30° = 1/2", hint: "cos 60° 也是 1/2" }, variants: [{ question: "sin 45° + cos 45° = ?", options: ["1", "√2", "√3", "2"], correctAnswer: 1, explanation: "√2/2 + √2/2 = √2" }] },
-  { volume: "第一冊", unit: "三角函數", title: "平方關係", front: { formula: "sin²θ + cos²θ = 1", hint: "核心恆等式" }, variants: [{ question: "若 sin θ = 0.6，則 cos²θ = ?", options: ["0.36", "0.64", "0.8", "0.4"], correctAnswer: 1, explanation: "1 - 0.6² = 1 - 0.36 = 0.64" }] },
-  { volume: "第一冊", unit: "三角函數", title: "扇形弧長", front: { formula: "s = rθ", hint: "θ 須為弧度" }, variants: [{ question: "半徑 8，中心角 2 弧度的弧長？", options: ["10", "16", "32", "4"], correctAnswer: 1, explanation: "s = 8 * 2 = 16" }] },
-  { volume: "第一冊", unit: "三角函數", title: "商數關係", front: { formula: "tan θ = sin θ / cos θ", hint: "斜率即為 tan" }, variants: [{ question: "sin θ=8/17, cos θ=15/17，tan θ=?", options: ["15/8", "8/15", "8/17", "1"], correctAnswer: 1, explanation: "(8/17) / (15/17) = 8/15" }] },
-  { volume: "第一冊", unit: "平面向量", title: "向量長度", front: { formula: "|v| = √(x² + y²)", hint: "座標平方和開根號" }, variants: [{ question: "向量 (5, 12) 的長度？", options: ["11", "13", "15", "17"], correctAnswer: 1, explanation: "√(5² + 12²) = 13" }] },
-  { volume: "第一冊", unit: "平面向量", title: "向量垂直", front: { formula: "u · v = 0", hint: "內積等於 0 代表垂直" }, variants: [{ question: "u=(3, 4), v=(k, -6) 垂直，k=?", options: ["6", "8", "10", "12"], correctAnswer: 1, explanation: "3k - 24 = 0 ⮕ k=8" }] },
-  { volume: "第一冊", unit: "平面向量", title: "向量內積", front: { formula: "u · v = x₁x₂ + y₁y₂", hint: "分量相乘再相加" }, variants: [{ question: "u=(2, -3), v=(4, 5)，內積？", options: ["-7", "-5", "7", "23"], correctAnswer: 0, explanation: "8 + (-15) = -7" }] },
-  { volume: "第一冊", unit: "平面向量", title: "向量平行", front: { formula: "x₁/x₂ = y₁/y₂", hint: "分量成比例" }, variants: [{ question: "u=(2, k), v=(6, 15) 平行，k=?", options: ["3", "4", "5", "6"], correctAnswer: 2, explanation: "2/6 = k/15 ⮕ k=5" }] },
-  { volume: "第一冊", unit: "平面向量", title: "單位向量", front: { formula: "u = v / |v|", hint: "向量除以自己的長度" }, variants: [{ question: "向量 (6, 8) 的單位向量？", options: ["(0.8, 0.6)", "(0.6, 0.8)", "(3, 4)", "(1, 1)"], correctAnswer: 1, explanation: "長度 10 ⮕ (6/10, 8/10)" }] },
-  
-  { volume: "第二冊", unit: "式的運算", title: "餘式定理", front: { formula: "f(a) = r", hint: "除以 (x-a) 的餘式為 f(a)" }, variants: [{ question: "f(x)=x³-3x²+5 除以 x-2 的餘式？", options: ["1", "3", "5", "9"], correctAnswer: 0, explanation: "f(2) = 8 - 12 + 5 = 1" }] },
-  { volume: "第二冊", unit: "式的運算", title: "因式定理", front: { formula: "f(a)=0 ⇔ (x-a) 是因式", hint: "代入後等於 0 代表整除" }, variants: [{ question: "若 x-4 為 f(x) 因式，必有？", options: ["f(4)=0", "f(-4)=0", "f(0)=4", "f(4)=4"], correctAnswer: 0, explanation: "整除代表 f(4) = 0" }] },
-  { volume: "第二冊", unit: "式的運算", title: "平方差公式", front: { formula: "a² - b² = (a+b)(a-b)", hint: "常用分解" }, variants: [{ question: "16x² - 9 分解為？", options: ["(4x-3)²", "(16x-9)(16x+9)", "(4x+3)(4x-3)", "(4x-9)"], correctAnswer: 2, explanation: "(4x)² - 3² = (4x+3)(4x-3)" }] },
-  { volume: "第二冊", unit: "式的運算", title: "立方和", front: { formula: "a³+b³ = (a+b)(a²-ab+b²)", hint: "中間項是減號" }, variants: [{ question: "x³ + 27 分解包含？", options: ["x-3", "x²+3x+9", "x²-3x+9", "(x+3)³"], correctAnswer: 2, explanation: "x³ + 3³ = (x+3)(x²-3x+9)" }] },
-  { volume: "第二冊", unit: "式的運算", title: "雙重根號", front: { formula: "√(A ± 2√B)", hint: "相加 A，相乘 B" }, variants: [{ question: "√(6 - 2√8) = ?", options: ["√4+√2", "2-√2", "√6-√8", "3-√2"], correctAnswer: 1, explanation: "4+2=6, 4*2=8 ⮕ √4 - √2 = 2 - √2" }] },
-  { volume: "第二冊", unit: "直線與圓", title: "點到直線距離", front: { formula: "d = |ax₀+by₀+c| / √(a²+b²)", hint: "代入點，除以法向量長" }, variants: [{ question: "(1,1) 到 3x-4y+12=0 距離？", options: ["11/5", "2", "3", "12/5"], correctAnswer: 0, explanation: "|3-4+12| / √(3²+(-4)²) = 11/5" }] },
-  { volume: "第二冊", unit: "直線與圓", title: "兩平行線距離", front: { formula: "d = |c₁-c₂| / √(a²+b²)", hint: "常數項相減除以根號" }, variants: [{ question: "3x+4y-2=0 與 3x+4y+8=0 距離？", options: ["1", "2", "3", "4"], correctAnswer: 1, explanation: "|8 - (-2)| / 5 = 10/5 = 2" }] },
-  { volume: "第二冊", unit: "直線與圓", title: "圓心與半徑", front: { formula: "x²+y²+dx+ey+f=0", hint: "圓心(-d/2, -e/2)" }, variants: [{ question: "x²+y²-6x+8y=0 的圓心？", options: ["(3, -4)", "(-3, 4)", "(6, -8)", "(-6, 8)"], correctAnswer: 0, explanation: "x項除-2得3，y項除-2得-4" }] },
-  { volume: "第二冊", unit: "直線與圓", title: "圓標準式", front: { formula: "(x-h)²+(y-k)²=r²", hint: "圓心(h,k)，半徑r" }, variants: [{ question: "圓心(2,-3)半徑4的圓方程式？", options: ["(x-2)²+(y+3)²=4", "(x-2)²+(y+3)²=16", "(x+2)²+(y-3)²=16", "(x-2)²+(y-3)²=16"], correctAnswer: 1, explanation: "(x-2)² + (y-(-3))² = 4²" }] },
-  { volume: "第二冊", unit: "直線與圓", title: "切線段長", front: { formula: "t = √((x₀-h)²+(y₀-k)²-r²)", hint: "點代入圓方程式開根號" }, variants: [{ question: "點(4,5) 到 x²+y²=16 的切線段長？", options: ["3", "4", "5", "25"], correctAnswer: 2, explanation: "√(16 + 25 - 16) = √25 = 5" }] },
-  { volume: "第二冊", unit: "不等式", title: "二次不等式", front: { formula: "(x-α)(x-β) < 0", hint: "小於在兩根之間，大於在兩根之外" }, variants: [{ question: "解不等式：x² - 3x + 2 < 0", options: ["1 < x < 2", "x < 1 或 x > 2", "-1 < x < 2", "x < -2 或 x > -1"], correctAnswer: 0, explanation: "(x-1)(x-2) < 0 ⮕ 1 < x < 2" }] },
-  { volume: "第二冊", unit: "數列與級數", title: "等差第n項", front: { formula: "a_n = a₁ + (n-1)d", hint: "公差加 (n-1) 次" }, variants: [{ question: "a₁=3, d=5, a₈=?", options: ["33", "38", "43", "48"], correctAnswer: 1, explanation: "3 + 7*5 = 38" }] },
-  { volume: "第二冊", unit: "數列與級數", title: "等差求和", front: { formula: "S_n = n(a₁+a_n)/2", hint: "梯形公式：(上+下)*高/2" }, variants: [{ question: "首項4，末項16，共7項，總和？", options: ["60", "70", "80", "90"], correctAnswer: 1, explanation: "7*(4+16)/2 = 70" }] },
-  { volume: "第二冊", unit: "數列與級數", title: "等比第n項", front: { formula: "a_n = a₁ × rⁿ⁻¹", hint: "公比乘 (n-1) 次" }, variants: [{ question: "a₁=3, r=2, a₅=?", options: ["24", "48", "96", "192"], correctAnswer: 1, explanation: "3 * 2⁴ = 3 * 16 = 48" }] },
-  { volume: "第二冊", unit: "數列與級數", title: "無窮等比級數", front: { formula: "S = a₁ / (1-r)", hint: "收斂條件 |r| < 1" }, variants: [{ question: "2 + 1 + 1/2 + ... 總和？", options: ["3.5", "4", "4.5", "無限大"], correctAnswer: 1, explanation: "2 / (1 - 1/2) = 4" }] },
-  { volume: "第二冊", unit: "數列與級數", title: "Σ 運算性質", front: { formula: "Σ c = n×c", hint: "常數加 n 次" }, variants: [{ question: "Σ(k=1 to 15) 4 = ?", options: ["15", "19", "60", "64"], correctAnswer: 2, explanation: "15 * 4 = 60" }] },
-  { volume: "第二冊", unit: "統計", title: "算術平均數", front: { formula: "μ = (Σx) / n", hint: "總和除以個數" }, variants: [{ question: "五個數據：60, 70, 80, 90, 100 的平均數？", options: ["80", "70", "75", "85"], correctAnswer: 0, explanation: "400 / 5 = 80" }] },
-  
-  { volume: "第三冊", unit: "排列組合", title: "直線排列", front: { formula: "P(n, m) = n! / (n-m)!", hint: "排順序" }, variants: [{ question: "6人排成一列有幾種？", options: ["120", "360", "720", "1440"], correctAnswer: 2, explanation: "6! = 720" }] },
-  { volume: "第三冊", unit: "排列組合", title: "不盡相異物", front: { formula: "n! / (p!q!)", hint: "同類物除以階乘" }, variants: [{ question: "AAABB 五字母排列？", options: ["5", "10", "20", "120"], correctAnswer: 1, explanation: "5! / (3!2!) = 10" }] },
-  { volume: "第三冊", unit: "排列組合", title: "組合 C", front: { formula: "C(n, m) = n! / (m!(n-m)!)", hint: "不排順序" }, variants: [{ question: "8人中選2人？", options: ["16", "28", "56", "64"], correctAnswer: 1, explanation: "(8*7)/(2*1) = 28" }] },
-  { volume: "第三冊", unit: "排列組合", title: "重複組合 H", front: { formula: "H(n, m) = C(n+m-1, m)", hint: "不同種類選 m 個" }, variants: [{ question: "4種飲料任選2杯？", options: ["6", "8", "10", "12"], correctAnswer: 2, explanation: "H(4,2) = C(5,2) = 10" }] },
-  { volume: "第三冊", unit: "排列組合", title: "二項式定理", front: { formula: "C(n, r) a^(n-r) b^r", hint: "找特定次方係數" }, variants: [{ question: "(x+2)⁴ 中 x³ 的係數？", options: ["4", "8", "16", "32"], correctAnswer: 1, explanation: "C(4,1) * x³ * 2¹ = 8" }] },
-  { volume: "第三冊", unit: "機率", title: "數學期望值", front: { formula: "E = Σ (pᵢ × mᵢ)", hint: "機率乘上報酬的總和" }, variants: [{ question: "擲一骰子，出現奇數得 10 元，偶數得 20 元，期望值為？", options: ["15", "10", "20", "30"], correctAnswer: 0, explanation: "(1/2)*10 + (1/2)*20 = 15" }] },
-  { volume: "第三冊", unit: "三角函數的應用", title: "三角形面積", front: { formula: "Area = 1/2 ab sinC", hint: "兩邊一夾角" }, variants: [{ question: "a=5, b=6, ∠C=30°，面積？", options: ["7.5", "15", "15√3", "30"], correctAnswer: 0, explanation: "1/2 * 5 * 6 * 0.5 = 7.5" }] },
-  { volume: "第三冊", unit: "三角函數的應用", title: "正弦定理", front: { formula: "a / sinA = 2R", hint: "對邊對角，R為外接圓" }, variants: [{ question: "a=8, ∠A=45°，R=?", options: ["4", "4√2", "8", "8√2"], correctAnswer: 1, explanation: "8 / (1/√2) = 8√2 = 2R ⮕ R=4√2" }] },
-  { volume: "第三冊", unit: "三角函數的應用", title: "餘弦定理", front: { formula: "c² = a² + b² - 2ab cosC", hint: "已知兩邊一夾角求第三邊" }, variants: [{ question: "a=4, b=6, ∠C=60°，c=?", options: ["√28", "√52", "6", "√76"], correctAnswer: 0, explanation: "16+36 - 2*24*(0.5) = 28" }] },
-  { volume: "第三冊", unit: "三角函數的應用", title: "海龍公式", front: { formula: "Area = √s(s-a)(s-b)(s-c)", hint: "s = (a+b+c)/2" }, variants: [{ question: "三邊長 6, 8, 10，面積？", options: ["20", "24", "30", "48"], correctAnswer: 1, explanation: "s=12, √(12*6*4*2) = 24" }] },
-  { volume: "第三冊", unit: "三角函數的應用", title: "二倍角公式", front: { formula: "sin 2θ = 2 sinθ cosθ", hint: "化簡常用" }, variants: [{ question: "sinθ=4/5 (銳角)，sin 2θ=?", options: ["8/5", "12/25", "24/25", "1"], correctAnswer: 2, explanation: "2 * (4/5) * (3/5) = 24/25" }] },
-  { volume: "第三冊", unit: "指數與對數", title: "對數定義", front: { formula: "logₐ b = x ⇔ aˣ = b", hint: "底數不變" }, variants: [{ question: "log₂ 64 = ?", options: ["5", "6", "8", "32"], correctAnswer: 1, explanation: "2⁶ = 64" }] },
-  { volume: "第三冊", unit: "指數與對數", title: "對數相加", front: { formula: "log M + log N = log(MN)", hint: "真數相乘" }, variants: [{ question: "log₄ 2 + log₄ 8 = ?", options: ["log₄ 10", "2", "16", "4"], correctAnswer: 1, explanation: "log₄ 16 = 2" }] },
-  { volume: "第三冊", unit: "指數與對數", title: "換底公式", front: { formula: "logₐ b = (log b) / (log a)", hint: "變換底數" }, variants: [{ question: "log₉ 27 = ?", options: ["3", "1.5", "2", "1"], correctAnswer: 1, explanation: "(log 3³) / (log 3²) = 3/2 = 1.5" }] },
-  { volume: "第三冊", unit: "指數與對數", title: "指數律", front: { formula: "a⁻ⁿ = 1 / aⁿ", hint: "負次方代表倒數" }, variants: [{ question: "4⁻² = ?", options: ["-8", "-16", "1/8", "1/16"], correctAnswer: 3, explanation: "1 / 4² = 1/16" }] },
-  { volume: "第三冊", unit: "指數與對數", title: "對數次方", front: { formula: "log Mᵏ = k log M", hint: "提係數" }, variants: [{ question: "log 100000 = ?", options: ["4", "5", "6", "10"], correctAnswer: 1, explanation: "log 10⁵ = 5" }] },
-
-  { volume: "第四冊", unit: "空間向量", title: "空間兩點距離", front: { formula: "d = √(Δx² + Δy² + Δz²)", hint: "三維的畢氏定理" }, variants: [{ question: "(1,2,2) 到 (3,5,8) 距離？", options: ["5", "7", "9", "11"], correctAnswer: 1, explanation: "√(4+9+36) = √49 = 7" }] },
-  { volume: "第四冊", unit: "空間向量", title: "空間內積", front: { formula: "u · v = x₁x₂ + y₁y₂ + z₁z₂", hint: "各分量相乘再加總" }, variants: [{ question: "u=(2,1,-1), v=(3,0,4) 內積？", options: ["2", "4", "6", "8"], correctAnswer: 0, explanation: "6 + 0 - 4 = 2" }] },
-  { volume: "第四冊", unit: "空間向量", title: "空間垂直", front: { formula: "u · v = 0", hint: "空間中內積為 0 一樣是垂直" }, variants: [{ question: "u=(k,2,3), v=(1,-1,2) 垂直，k=?", options: ["-4", "-2", "2", "4"], correctAnswer: 0, explanation: "k - 2 + 6 = 0 ⮕ k=-4" }] },
-  { volume: "第四冊", unit: "空間向量", title: "空間平行", front: { formula: "x₁/x₂ = y₁/y₂ = z₁/z₂", hint: "所有分量成比例" }, variants: [{ question: "u=(1,k,4), v=(2,6,8) 平行，k=?", options: ["1", "2", "3", "4"], correctAnswer: 2, explanation: "1/2 = k/6 ⮕ k=3" }] },
-  { volume: "第四冊", unit: "空間向量", title: "外積求面積", front: { formula: "Area = |u × v|", hint: "外積向量長度即為平行四邊形面積" }, variants: [{ question: "若外積向量為 (3, 4, 12)，則圍成面積？", options: ["7", "13", "17", "19"], correctAnswer: 1, explanation: "√(9+16+144) = 13" }] },
-  { volume: "第四冊", unit: "一次聯立方程式與矩陣", title: "二階行列式", front: { formula: "|a b| \n|c d| = ad - bc", hint: "主對角乘積減副對角乘積" }, variants: [{ question: "第一列(4, 3), 第二列(2, 5) 的行列式？", options: ["10", "14", "20", "26"], correctAnswer: 1, explanation: "4*5 - 3*2 = 14" }] },
-  { volume: "第四冊", unit: "一次聯立方程式與矩陣", title: "矩陣加法", front: { formula: "A + B", hint: "對應位置直接相加" }, variants: [{ question: "[2, -1] + [4, 5] = ?", options: ["(6, 4)", "(6, 6)", "(8, -5)", "(2, 6)"], correctAnswer: 0, explanation: "[2+4, -1+5] = [6, 4]" }] },
-  { volume: "第四冊", unit: "一次聯立方程式與矩陣", title: "矩陣係積積", front: { formula: "k · A", hint: "每個元素都要乘上 k" }, variants: [{ question: "若 A=[1, -2]，則 4A = ?", options: ["(4, -2)", "(1, -8)", "(4, -8)", "(5, 2)"], correctAnswer: 2, explanation: "[4*1, 4*(-2)] = [4, -8]" }] },
-  { volume: "第四冊", unit: "一次聯立方程式與矩陣", title: "克拉瑪公式", front: { formula: "x = Δx / Δ", hint: "聯立方程解" }, variants: [{ question: "若 Δ=4, Δx=12，則 x=?", options: ["3", "8", "16", "48"], correctAnswer: 0, explanation: "12 / 4 = 3" }] },
-  { volume: "第四冊", unit: "一次聯立方程式與矩陣", title: "克拉瑪無解", front: { formula: "Δ=0 且 (Δx≠0 或 Δy≠0)", hint: "分母為0且分子不為0" }, variants: [{ question: "若 Δ=0, Δx=3，則聯立方程式？", options: ["唯一解", "無限多組解", "無解", "無法判斷"], correctAnswer: 2, explanation: "3/0 無意義 ⮕ 無解" }] },
-  { volume: "第四冊", unit: "二元一次不等式與線性規劃", title: "半平面判斷", front: { formula: "ax+by+c > 0 (a>0)", hint: "x係數為正時，>0 在右側" }, variants: [{ question: "4x - y + 2 > 0 的圖形在直線的哪一側？", options: ["左側", "右側", "上方", "下方"], correctAnswer: 1, explanation: "x 係數為正，大於 0 在右側" }] },
-  { volume: "第四冊", unit: "二元一次不等式與線性規劃", title: "同側異側", front: { formula: "L(A) × L(B) < 0", hint: "代入值一正一負代表在異側" }, variants: [{ question: "A點代入L得4，B點代入得5，兩點？", options: ["同側", "異側", "直線上", "無法判斷"], correctAnswer: 0, explanation: "4*5 > 0 ⮕ 同側" }] },
-  { volume: "第四冊", unit: "二元一次不等式與線性規劃", title: "極值發生點", front: { formula: "極值必發生在多邊形頂點", hint: "頂點代入目標函數" }, variants: [{ question: "f(x,y)=2x+3y，頂點為(0,0),(2,0),(0,2)，最大值？", options: ["0", "4", "6", "8"], correctAnswer: 2, explanation: "(0,2) 代入得 6 最大" }] },
-  { volume: "第四冊", unit: "二元一次不等式與線性規劃", title: "第一象限限制", front: { formula: "x ≥ 0, y ≥ 0", hint: "代表圖形被限制在第一象限" }, variants: [{ question: "若條件包含 x≤0, y≤0，則可行解在？", options: ["第一象限", "第二象限", "第三象限", "第四象限"], correctAnswer: 2, explanation: "x, y 皆負為第三象限" }] },
-  { volume: "第四冊", unit: "二元一次不等式與線性規劃", title: "聯立不等式交集", front: { formula: "滿足所有條件的區域", hint: "即可行解區域" }, variants: [{ question: "滿足 x+y≤3 且 x,y≥0 的區域形狀？", options: ["矩形", "三角形", "無限大區域", "圓形"], correctAnswer: 1, explanation: "由 (3,0), (0,3), (0,0) 圍成的三角形" }] },
-  { volume: "第四冊", unit: "二次曲線", title: "拋物線焦點", front: { formula: "x² = 4cy", hint: "焦點 F(0, c)" }, variants: [{ question: "x² = 16y 的焦點座標為何？", options: ["(4, 0)", "(0, 4)", "(0, -4)", "(16, 0)"], correctAnswer: 1, explanation: "4c = 16 ⮕ c = 4 ⮕ 焦點 (0, 4)" }] },
-  { volume: "第四冊", unit: "二次曲線", title: "拋物線正焦弦", front: { formula: "長度 = |4c|", hint: "通過焦點且垂直對稱軸的弦" }, variants: [{ question: "y² = 12x 的正焦弦長？", options: ["3", "-3", "12", "24"], correctAnswer: 2, explanation: "長度必為正，|12| = 12" }] },
-  { volume: "第四冊", unit: "二次曲線", title: "橢圓長短軸", front: { formula: "x²/a² + y²/b² = 1", hint: "大分母為 a²，長軸=2a，短軸=2b" }, variants: [{ question: "x²/36 + y²/16 = 1，長軸長度為何？", options: ["6", "8", "12", "20"], correctAnswer: 2, explanation: "a²=36 ⮕ a=6 ⮕ 長軸 2a = 12" }] },
-  { volume: "第四冊", unit: "二次曲線", title: "橢圓焦點關係", front: { formula: "a² = b² + c²", hint: "與畢氏定理類似，但 a 最大" }, variants: [{ question: "橢圓 a=10, b=6，焦點距離中心 c=?", options: ["4", "8", "16", "64"], correctAnswer: 1, explanation: "100 = 36 + c² ⮕ c²=64 ⮕ c=8" }] },
-  { volume: "第四冊", unit: "二次曲線", title: "雙曲線漸近線", front: { formula: "x²/a² - y²/b² = 1", hint: "把 1 換成 0 就是漸近線方程式" }, variants: [{ question: "x²/16 - y²/9 = 1 的漸近線為？", options: ["4x±3y=0", "3x±4y=0", "16x±9y=0", "9x±16y=0"], correctAnswer: 1, explanation: "x²/16 - y²/9 = 0 ⮕ x/4 = ±y/3 ⮕ 3x±4y=0" }] },
-  { volume: "第四冊", unit: "微分", title: "多項式微分", front: { formula: "(xⁿ)' = nxⁿ⁻¹", hint: "次方拿下來當係數，次方減 1" }, variants: [{ question: "f(x) = x³ - 5x 的導數？", options: ["3x² - 5", "3x² - 5x", "x² - 5", "3x³ - 5"], correctAnswer: 0, explanation: "3x² - 5" }] },
-  { volume: "第四冊", unit: "微分", title: "常數微分", front: { formula: "(c)' = 0", hint: "常數微分為 0" }, variants: [{ question: "f(x) = 100，則 f'(8) = ?", options: ["100", "8", "0", "1"], correctAnswer: 2, explanation: "常數微分為 0" }] },
-  { volume: "第四冊", unit: "微分", title: "微分加減法", front: { formula: "(f+g)' = f' + g'", hint: "分別微分再相加" }, variants: [{ question: "f(x) = 4x² - 3x，則 f'(x) = ?", options: ["8x", "8x - 3", "4x - 3", "8x² - 3"], correctAnswer: 1, explanation: "4(2x) - 3 = 8x - 3" }] },
-  { volume: "第四冊", unit: "微分", title: "切線斜率", front: { formula: "m = f'(a)", hint: "幾何意義" }, variants: [{ question: "y = x² + 2x 在點 (1, 3) 的切線斜率？", options: ["3", "4", "5", "6"], correctAnswer: 1, explanation: "y' = 2x + 2，代入 x=1 ⮕ 4" }] },
-  { volume: "第四冊", unit: "微分", title: "微分乘法", front: { formula: "f'g + fg'", hint: "可先展開再微分" }, variants: [{ question: "f(x) = x²(x-2) 的導數？", options: ["3x² - 4", "3x² - 4x", "2x(x-2)", "x² - 4x"], correctAnswer: 1, explanation: "展開為 x³ - 2x² ⮕ 3x² - 4x" }] },
-  { volume: "第四冊", unit: "微分", title: "圖形凹向", front: { formula: "f''(x) > 0 凹向上", hint: "二階導數判斷凹口方向" }, variants: [{ question: "若 f''(x) > 0 恆成立，則圖形凹向為何？", options: ["凹向上", "凹向下", "不一定", "直線"], correctAnswer: 0, explanation: "二階導數大於 0 表示凹口向上" }] },
-  { volume: "第四冊", unit: "微分", title: "極值判斷", front: { formula: "f'(c)=0 且 f''(c)<0", hint: "一階為0，二階為負，有極大值" }, variants: [{ question: "若 f'(c)=0 且 f''(c)<0，則 f(c) 為？", options: ["極大值", "極小值", "反曲點", "最小值"], correctAnswer: 0, explanation: "凹口向下，頂點為極大值" }] },
-  { volume: "第四冊", unit: "積分", title: "多項式積分", front: { formula: "∫xⁿ dx = (1/(n+1))xⁿ⁺¹ + C", hint: "次方加 1，再除以新次方" }, variants: [{ question: "∫ 6x² dx = ?", options: ["2x³ + C", "12x + C", "6x³ + C", "3x³ + C"], correctAnswer: 0, explanation: "6 * (1/3)x³ = 2x³ + C" }] },
-  { volume: "第四冊", unit: "積分", title: "常數積分", front: { formula: "∫ k dx = kx + C", hint: "補上 x" }, variants: [{ question: "∫ 4 dx = ?", options: ["4x + C", "4 + C", "0", "4x² + C"], correctAnswer: 0, explanation: "4x + C" }] },
-  { volume: "第四冊", unit: "積分", title: "定積分定義", front: { formula: "∫ₐᵇ f(x)dx = F(b) - F(a)", hint: "上界代入減下界代入" }, variants: [{ question: "∫₀² 3x² dx = ?", options: ["4", "6", "8", "12"], correctAnswer: 2, explanation: "[x³]₀² = 8 - 0 = 8" }] },
-  { volume: "第四冊", unit: "積分", title: "積分線性", front: { formula: "∫(f+g) = ∫f + ∫g", hint: "分開積再相加" }, variants: [{ question: "∫(4x - 1) dx = ?", options: ["2x² - x + C", "4x² - x + C", "2x² - 1 + C", "4 + C"], correctAnswer: 0, explanation: "2x² - x + C" }] },
-  { volume: "第四冊", unit: "積分", title: "積分面積", front: { formula: "A = ∫ₐᵇ f(x) dx", hint: "面積幾何意義" }, variants: [{ question: "y=2x 在 x=0 到 4 面積？", options: ["8", "12", "16", "32"], correctAnswer: 2, explanation: "∫₀⁴ 2x dx = [x²]₀⁴ = 16" }] }
-];
-
-let fullData = [], curData = [], curLang = '', curIdx = 0, curMode = 'learn';
-let quizPool = [], quizIdx = 0, quizMax = 0;
-let totalScore = 0, currentQuestionAttempts = 0, curQ = null;
-let mathFormulaVisible = false;
-let currentQuizLen = 10;
-
-// 🔥 升級：動態記錄目前所在的單元 ID，用來獨立顯示排行榜
-let currentBoardId = 'default';
-let currentBoardName = '總榜單';
-
-function getLangName(lang) {
-    if (lang === 'zhuyin') return 'ㄅ 注音';
-    if (lang === 'hiragana') return 'あ 平假名';
-    if (lang === 'katakana') return 'ア 片假名';
-    if (lang === 'math') return '📐 數學';
-    return lang;
-}
-
-const praises = ["太棒了！", "你真是背東西高手！", "你好厲害呀！", "很好哦，繼續努力！", "做得太好囉！"];
-
-// 建立羅馬拼音對照表
-const romajiMap = {
-    'あ':'a', 'い':'i', 'う':'u', 'え':'e', 'お':'o',
-    'か':'ka', 'き':'ki', 'く':'ku', 'け':'ke', 'こ':'ko',
-    'さ':'sa', 'し':'shi', 'す':'su', 'せ':'se', 'そ':'so',
-    'た':'ta', 'ち':'chi', 'つ':'tsu', 'て':'te', 'と':'to',
-    'な':'na', 'に':'ni', 'ぬ':'nu', 'ね':'ne', 'の':'no',
-    'は':'ha', 'ひ':'hi', 'ふ':'fu', 'へ':'he', 'ほ':'ho',
-    'ま':'ma', 'み':'mi', 'む':'mu', 'め':'me', 'も':'mo',
-    'や':'ya', 'ゆ':'yu', 'よ':'yo',
-    'ら':'ra', 'り':'ri', 'る':'ru', 'れ':'re', 'ろ':'ro',
-    'わ':'wa', 'を':'wo', 'ん':'n',
-    'ア':'a', 'イ':'i', 'ウ':'u', 'エ':'e', 'オ':'o',
-    'カ':'ka', 'キ':'ki', 'ク':'ku', 'ケ':'ke', 'コ':'ko',
-    'サ':'sa', 'シ':'shi', 'ス':'su', 'セ':'se', 'ソ':'so',
-    'タ':'ta', 'チ':'chi', 'ツ':'tsu', 'テ':'te', 'ト':'to',
-    'ナ':'na', 'ニ':'ni', 'ヌ':'nu', 'ネ':'ne', 'ノ':'no',
-    'ハ':'ha', 'ヒ':'hi', 'フ':'fu', 'ヘ':'he', 'ホ':'ho',
-    'マ':'ma', 'ミ':'mi', 'ム':'mu', 'メ':'me', 'モ':'mo',
-    'ヤ':'ya', 'ユ':'yu', 'ヨ':'yo',
-    'ラ':'ra', 'リ':'ri', 'ル':'ru', 'レ':'re', 'ロ':'ro',
-    'ワ':'wa', 'ン':'n'
+// --- 1. Firebase 資料庫專用配置 ---
+const firebaseConfig = {
+  apiKey: "AIzaSyD2dxrjW68kjR66RgeFdXl2o4jW2ooGwwU",
+  authDomain: "killercards.firebaseapp.com",
+  projectId: "killercards",
+  storageBucket: "killercards.firebasestorage.app",
+  messagingSenderId: "281065379733",
+  appId: "1:281065379733:web:06fc2160b85fae7579c89c",
+  measurementId: "G-PVFYPMRPH2"
 };
 
-// 🔥 完整修復：所有單元皆有動態亂數出題的超級數學引擎 🔥
-function generateDynamicMathVariant(topic) {
-    const M = {
-        r: (min, max) => Math.floor(Math.random()*(max-min+1)+min),
-        p: (arr) => arr[Math.floor(Math.random()*arr.length)],
-        s: (ans, ...wrongs) => {
-            let opts = [ans, ...wrongs].map(String);
-            opts = [...new Set(opts)]; 
-            while(opts.length < 4) {
-                let num = parseFloat(ans);
-                if(isNaN(num)) opts.push(String(M.r(1, 20)));
-                else opts.push(String(num + M.r(-5, 5)));
-                opts = [...new Set(opts)];
-            }
-            opts.sort(() => Math.random() - 0.5); 
-            return { options: opts, correctAnswer: opts.indexOf(String(ans)) };
+// --- 2. 金鑰自動讀取 ---
+const getEnvKey = () => {
+  try {
+    const env = typeof import.meta !== 'undefined' ? import.meta.env : (typeof process !== 'undefined' ? process.env : {});
+    const k = env?.VITE_GEMINI_API_KEY;
+    if (k && (k === firebaseConfig.apiKey || k === "AIzaSyBTcPWX29sXFY0dqzOpJn8We6uoJLwHv9U")) return ""; 
+    return k;
+  } catch(e) {}
+  return "";
+};
+
+const getLocalKey = () => {
+  try { return localStorage.getItem('my_gemini_key') || ""; } catch(e) { return ""; }
+};
+
+const isCanvas = typeof __firebase_config !== 'undefined';
+const app = initializeApp(isCanvas ? JSON.parse(__firebase_config) : firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const appId = typeof __app_id !== 'undefined' ? __app_id : (firebaseConfig.projectId !== '請在此填入新的_projectId' ? firebaseConfig.projectId : 'default-app-id');
+
+const safePushState = (url) => {
+  try {
+    const hostname = window.location.hostname;
+    if (
+      window.location.protocol === 'blob:' || 
+      window.origin === 'null' || 
+      hostname.includes('webcontainer') || 
+      hostname.includes('stackblitz') ||
+      hostname.includes('usercontent')
+    ) return;
+    window.history.pushState({}, '', url);
+  } catch (e) {}
+};
+
+// --- 💡 幼兒園基礎單字庫 ---
+const kinderRawData = `zero,零|one,一|two,二|three,三|four,四|five,五|six,六|seven,七|eight,八|nine,九|ten,十|eleven,十一|twelve,十二|thirteen,十三|fourteen,十四|fifteen,十五|sixteen,十六|seventeen,十七|eighteen,十八|nineteen,十九|twenty,二十|thirty,三十|forty,四十|fifty,五十|sixty,六十|seventy,七十|eighty,八十|ninety,九十|hundred,百|I,我|You,你（你們）|We,我們|They,他們|He,他（男）|She,她（女）|It,它（牠）|my,我的|your,你的（你們的）|his,他的（男）|her,她的（女）|its,它的、牠的|grandmother,阿嬤|grandfather,阿公|mother,媽媽|father,爸爸|sister,姊妹|brother,兄弟|baby,嬰兒|girl,女孩|boy,男孩|woman,女人|man,男人|cook,廚師|teacher,老師|student,學生|farmer,農夫|doctor,醫生|nurse,護理師|driver,司機|head,頭|hair,頭髮|eye,眼睛|nose,鼻子|mouth,嘴巴|ear,耳朵|hand,手|leg,腿|foot,腳|hat,帽子|glasses,眼鏡|shirt,襯衫|shorts,短褲|pants,長褲|skirt,裙子|dress,洋裝|socks,襪子|shoes,鞋子|boots,靴子|bear,熊|dog,狗|cat,貓|bird,鳥|rabbit,兔|frog,青蛙|fish,魚|chicken,雞|turtle,烏龜|lion,獅子|tiger,虎|monkey,猴子|giraffe,長頸鹿|fox,狐狸|zebra,斑馬|pig,豬|elephant,大象|pen,原子筆|pencil,鉛筆|marker,麥克筆|eraser,橡皮擦|ruler,尺|book,書|bag,袋子|desk,書桌|table,餐桌|chair,椅子|crayon,蠟筆|box,箱子|door,門|window,窗戶|picture,圖片|TV,電視|sofa,沙發|light,光|bed,床|lamp,燈|clock,時鐘|cellphone,手機|videogame,電動|computer,電腦|cup,杯子|mug,馬克杯|bowl,碗|ball,球|yoyo,溜溜球|bat,球棒|robot,機器人|kite,風箏|doll,娃娃|mop,拖把|map,地圖|weather,天氣|sun,太陽|cloud,雲|wind,風|rain,雨|snow,雪|river,河|flower,花|grass,草|tree,樹|bike,腳踏車|car,車|bus,公車|train,火車|taxi,計程車|breakfast,早餐|lunch,午餐|dinner,晚餐|cookie,餅乾|icecream,冰淇淋|candy,糖果|hamburger,漢堡|hotdog,熱狗|pizza,比薩|bread,麵包|sandwich,三明治|cake,蛋糕|rice,飯|noodles,麵|spaghetti,義大利麵|tea,茶|coke,可樂|soda,汽水|water,水|juice,果汁|milk,牛奶|egg,蛋|ham,火腿|salad,沙拉|tomato,番茄|banana,香蕉|apple,蘋果|pear,梨子|grape,葡萄|peach,桃子|home,家|school,學校|park,公園|zoo,動物園|store,商店|shop,商店|house,房子|garage,車庫|livingroom,客廳|diningroom,飯廳|kitchen,廚房|bedroom,臥室|bathroom,浴室、廁所|yard,庭院|garden,花園、菜園|o'clock,點鐘|now,現在|morning,早上|afternoon,下午|evening,傍晚|night,晚上|today,今天|Sunday,星期天|Monday,星期一|Tuesday,星期二|Wednesday,星期三|Thursday,星期四|Friday,星期五|Saturday,星期六|do,做|like,喜歡|love,愛|want,想要|have,擁有|run,跑|walk,走路|swim,游泳|jump,跳|ride,騎|dance,跳舞|sing,唱|write,寫|read,閱讀|draw,畫|color,上色|paint,畫|speak,說|say,說|eat,吃|drink,喝|look,看|watch,看|see,看|listen,聽|smile,微笑|laugh,大笑|cry,哭|hold,拿|put,放|take,拿|sit,坐|stand,站|fine,好的|good,好的|bad,壞的|favorite,最喜歡的|big,大的|small,小的|little,小的|old,老的、舊的|young,年輕的|tall,高的|long,長的|short,短的|thin,瘦的、薄的|fat,胖的|fast,快的|slow,慢的|clean,乾淨的|dirty,髒的|hungry,餓的|thirsty,渴的|happy,開心的|unhappy,不開心的|sad,傷心的|angry,生氣的|sick,生病的|tired,累的|hot,熱的|cold,冷的|rainy,下雨的|snowy,下雪的|sunny,晴朗的|cloudy,多雲的|windy,起風的|black,黑色的|white,白色的|gray,灰色的|brown,咖啡色的|red,紅色的|orange,橘色的|yellow,黃色的|green,綠色的|blue,藍色的|purple,紫色的|pink,粉紅色的|at,在…地點|in,在…裡面|on,在…上面|under,在…下面|by,在…旁邊|nextto,在…旁邊|beside,在…旁邊|infrontof,在…前面|behind,在…後面|who,誰|what,什麼|when,何時|where,哪裡|which,哪一個|why,為什麼|whattime,幾點|how,如何|howmuch,多少|howmany,多少`;
+const kinderVocab = kinderRawData.split('|').map(item => {
+  const [word, meaning] = item.split(',');
+  return { word, meaning: meaning || word };
+});
+
+const kinderCategories = [
+  { name: "小班", icon: "🍼", start: 0, end: 100, type: 'kinder' },
+  { name: "中班", icon: "🧸", start: 100, end: 200, type: 'kinder' },
+  { name: "大班", icon: "🖍️", start: 200, end: 300, type: 'kinder' }
+];
+
+// --- 💡 全新國小字庫 ---
+const primaryDataRaw = {
+  "一上": "act ; around ; ball ; basket ; between ; book ; brave ; but ; camp ; chicken ; clock ; copy ; cross ; deep ; door ; drum ; enemy ; eye ; farm ; final ; form ; free ; giant ; grape ; hall ; heart ; him ; history ; hungry ; idea ; join ; kick ; lake ; left ; listen ; luck ; magic ; meat ; mom ; monkey ; mud ; neck ; never ; nobody ; noon ; officer ; over ; paint ; perfect ; planet",
+  "一中": "about ; apple ; bag ; beach ; blue ; born ; bread ; butterfly ; candy ; choice ; close ; corn ; crow ; deer ; dot ; dry ; energy ; face ; fat ; find ; forty ; Friday ; gift ; grass ; hallway ; heat ; himself ; hit ; hunt ; if ; joke ; kid ; lamb ; leg ; little ; lucky ; magnet ; medicine ; moment ; month ; museum ; need ; new ; noise ; north ; often ; owl ; pair ; period ; plant",
+  "一下": "above ; are ; banana ; bean ; board ; both ; break ; buy ; cap ; choose ; clothes ; corner ; crowd ; desk ; double ; duck ; enjoy ; fact ; father ; fine ; forward ; friend ; giraffe ; gray ; ham ; heavy ; hip ; hobby ; hurry ; ill ; joy ; kill ; lamp ; lemon ; live ; lunch ; mail ; meet ; Monday ; moon ; music ; needle ; news ; noisy ; nose ; oh ; own ; pajamas ; person ; plate",
+  "二上": "across ; arm ; bank ; bear ; boat ; bottom ; breakfast ; by ; car ; chores ; cloud ; cost ; cry ; detective ; down ; dump ; enough ; factory ; favorite ; finger ; found ; frog ; girl ; great ; hammer ; helicopter ; his ; hold ; hurt ; important ; juice ; kind ; land ; lend ; lizard ; machine ; mailbox ; meeting ; money ; more ; must ; neighbor ; newspaper ; none ; not ; oil ; pack ; palace ; pet ; play",
+  "二中": "add ; arrive ; base ; beautiful ; body ; box ; bridge ; cake ; card ; church ; clown ; couch ; cup ; did ; draw ; during ; enter ; fall ; fear ; finish ; four ; front ; give ; green ; hand ; hello ; hole ; holiday ; husband ; in ; July ; king ; large ; length ; lock ; mad ; main ; melody ; morning ; mother ; my ; neighborhood ; next ; notebook ; nothing ; old ; package ; pan ; phone ; playground",
+  "二下": "after ; art ; bath ; because ; bone ; boy ; bright ; calendar ; care ; circle ; club ; count ; cupboard ; die ; dream ; dust ; environment ; family ; feed ; fire ; fourteen ; fruit ; glad ; grew ; happen ; help ; home ; honest ; ice ; inch ; jump ; kiss ; last ; less ; locker ; make ; man ; melt ; most ; mountain ; myself ; nervous ; nice ; notice ; now ; on ; page ; panda ; piano ; please",
+  "三上": "chalk ; lazy ; ground ; interest ; map ; dark ; fell ; of ; a ; baby ; early ; hat ; instead ; knife ; number ; paper ; cereal ; dance ; felt ; grow ; jaw ; knee ; law ; nut ; parent ; alone ; bad ; danger ; east ; fur ; hard ; jar ; lay ; March ; ocean ; age ; back ; chair ; earth ; funny ; inside ; knew ; mark ; October ; fast ; fun ; group ; has ; January ; nurse",
+  "三中": "jeans ; learn ; once ; guard ; part ; date ; easy ; knock ; against ; backpack ; change ; few ; head ; iron ; lead ; off ; race ; ago ; bathtub ; chart ; daughter ; edge ; field ; have ; jelly ; knot ; market ; office ; radio ; again ; be ; cherry ; dash ; eat ; fence ; future ; he ; into ; jet ; leaf ; marry ; park ; party ; name ; mask ; invite ; furniture ; nap ; nail ; knight",
+  "三下": "island ; game ; eighteen ; bed ; chest ; dear ; fifty ; guitar ; just ; least ; matter ; one ; past ; agree ; child ; day ; egg ; fight ; garage ; hook ; is ; kangaroo ; leave ; May ; onion ; pass ; all ; become ; children ; dead ; eight ; fifteen ; garden ; hop ; it ; know ; led ; narrow ; only ; path ; air ; bedroom ; guest ; guide ; hope ; junk ; knowledge ; match ; nature ; near",
+  "四上": "pie ; safe ; decide ; elephant ; half ; question ; quiet ; rain ; chips ; gave ; fire ; raise ; sail ; eighty ; general ; said ; gas ; fish ; chocolate ; safety ; ran ; piece ; picnic ; dinner ; hair ; hear ; diet ; pick ; either ; happy ; quick ; queen ; five ; else ; chin ; cheese ; rabbit ; quit ; sad ; heard ; different ; city ; fill ; eleven ; gentle ; dig ; fireplace ; picture ; rainbow ; clean",
+  "四中": "empty ; read ; dish ; hero ; dirt ; climb ; quite ; evening ; classroom ; get ; her ; color ; flashlight ; reason ; glass ; pin ; flat ; every ; salad ; distance ; ready ; real ; flag ; sand ; clear ; doctor ; floor ; helpful ; end ; do ; clap ; salt ; everyone ; hers ; flash ; reach ; same ; pilot ; glove ; pillow ; go ; pig ; flower ; glasses ; here ; dinosaur ; pine ; class ; ever ; glue",
+  "四下": "everywhere ; foot ; high ; relax ; donkey ; pink ; everything ; red ; coffee ; goose ; repair ; good ; hide ; football ; plate ; pipe ; remember ; gone ; comb ; hill ; forget ; for ; follow ; done ; dollar ; cold ; computer ; food ; coin ; forest ; honey ; doll ; plan ; goat ; dog ; place ; pizza ; plane ; fly ; homework ; golden ; plant ; coat ; come ; goodbye ; dolphin ; gold ; repeat ; remove ; recess",
+  "五上": "almost ; bell ; call ; poison ; report ; many ; also ; belong ; came ; police ; rest ; maybe ; always ; below ; camera ; polite ; restaurant ; me ; am ; belt ; can ; pond ; return ; meal ; an ; bench ; candle ; pool ; rice ; mean ; and ; beside ; catch ; poor ; rich ; measure ; animal ; best ; cause ; popcorn ; ride ; member ; another ; better ; cave ; popular ; right ; memory ; answer ; big",
+  "五中": "any ; bike ; celebrate ; positive ; ring ; men ; anyone ; bird ; center ; post ; river ; message ; anything ; birthday ; check ; pot ; road ; metal ; area ; bit ; country ; potato ; robot ; method ; as ; black ; course ; pound ; rock ; middle ; ask ; blanket ; cousin ; pour ; rocket ; might ; at ; blind ; cover ; power ; roller ; mile ; aunt ; block ; cow ; practice ; roof ; milk ; autumn ; blood",
+  "五下": "away ; boot ; crayon ; pray ; room ; mind ; dress ; brush ; create ; present ; root ; mine ; drop ; build ; pretty ; rope ; minute ; dry ; building ; price ; rose ; mirror ; early ; burn ; prince ; rough ; miss ; earth ; bus ; princess ; round ; mistake ; east ; busy ; principal ; row ; mitt ; edge ; butter ; print ; rub ; mix ; egg ; president ; prize ; rubber ; model ; press ; problem ; modern",
+  "六上": "rude ; brother ; careful ; loud ; mad ; rug ; brown ; carrot ; love ; magic ; rule ; brush ; carry ; low ; magnet ; ruler ; cookie ; case ; luck ; mail ; run ; cool ; cat ; lucky ; mailbox ; proud ; machine ; lunch ; main ; pull ; March ; make ; mark ; pumpkin ; man ; market ; puppy ; many ; marry ; purple ; map ; mask ; push ; matter ; match ; put ; May ; puzzle ; maybe ; me",
+  "六中": "meal ; middle ; moment ; mouse ; mean ; might ; Monday ; mouth ; measure ; mile ; money ; move ; meat ; milk ; monkey ; movie ; medicine ; mind ; month ; much ; meet ; mine ; moon ; mud ; meeting ; minute ; more ; museum ; melody ; mirror ; morning ; music ; melt ; miss ; most ; must ; member ; mistake ; mother ; mountain ; memory ; mitt ; mix ; men ; model ; message ; modern ; metal ; mom ; method",
+  "六下": "my ; neat ; news ; none ; nothing ; myself ; neck ; newspaper ; noon ; notice ; nail ; need ; next ; north ; now ; name ; needle ; nice ; nose ; number ; nap ; neighbor ; night ; not ; nurse ; napkin ; neighborhood ; nine ; notebook ; nut ; narrow ; nervous ; nineteen ; ocean ; nature ; nest ; ninety ; October ; near ; net ; no ; of ; never ; nobody ; off ; new ; noise ; office ; noisy ; officer"
+};
+
+// --- 💡 全新國中與進階字庫 ---
+const juniorDataRaw = {
+  "國一上1": "accept、basic、calm、daily、earn、failure、gather、haircut、ill、jam、koala、lady、mad、nail、obey、pain、quality、race、safety、tail、ugly、valley、waist、yard、zebra、accident、basis、campus、dawn、edge、fair、gentle、handle、imagine、jar、kitten、leaf、main、narrow、ocean、painter、quarter、railroad、sail、task、unit、value、wallet、youth、zero",
+  "國一上2": "achieve、bean、cancel、deaf、effect、fancy、ghost、hang、inch、jazz、lack、length、major、nation、offer、panda、quickly、raincoat、sample、tear、universe、verb、war、yucky、absent、beard、cancer、deal、effort、far、gloves、hardly、include、jealous、lamb、level、male、nature、official、pardon、quit、raise、sand、temple、university、vest、waste、yummy、abroad、beat",
+  "國一上3": "ability、beer、candle、death、either、faucet、glue、heater、income、jeep、lane、lid、mall、nearly、omit、parrot、quiz、rapid、satisfied、tent、upon、victory、waterfall、action、behave、captain、debate、elder、fault、goal、height、increase、jogging、lantern、lift、manager、necessary、onion、partner、rare、satisfy、term、upstairs、village、watermelon、active、belief、career、debt、elect",
+  "國一下1": "actor、bench、careless、decision、electric、favor、god、helicopter、industry、joke、law、lightning、manner、negative、operate、passenger、rat、saucer、terrible、used、vinegar、wave、address、backward、carpet、decorate、element、fear、gold、hen、influence、journalist、lawyer、limit、marker、neighbor、operation、paste、rather、scared、terrific、usual、violin、wedding、admire、badminton、carrot、deep、emotion、feather",
+  "國一下2": "adult、base、cabbage、damage、eagle、fail、gain、hall、impolite、jar、kangaroo、law、magazine、napkin、occupation、painful、quarter、receive、salesman、talkative、underlie、valuable、waste、willing、addition、basement、cabinet、dancing、earrings、fair、garage、hammer、importance、jazz、ketchup、lawyer、magician、narrow、occur、pale、quickly、recent、sample、tangerine、underpass、verb、waterfall、wolf、advance、bat",
+  "國一下3": "advantage、beginner、cable、danger、eastern、fancy、gate、handkerchief、impossible、jealous、kilometer、lay、male、nationality、offer、pan、quit、record、sand、tank、underwear、vest、wave、wonder、adverb、beginning、cafeteria、data、edge、fantastic、gather、handle、improve、jeep、kindergarten、leaf、manager、natural、official、papaya、quiz、recover、satisfied、task、unfriendly、victory、wedding、wood、advice、behave",
+  "國二上1": "advise、being、cage、dawn、education、fashionable、general、hang、inch、jogging、kingdom、length、mango、nature、omit、pardon、race、recycle、satisfy、teapot、unique、village、weekday、affair、belief、calendar、deaf、effect、fault、generally、hanger、include、joke、kitty、lettuce、manner、naughty、oneself、parrot、railroad、refuse、saucer、tear、universe、vinegar、weight、affect、bench、calm、wooden",
+  "國二上2": "against、besides、camping、deal、effective、favor、generation、hardly、income、journalist、koala、level、marker、nearly、onion、particular、raincoat、regard、scared、temperature、university、violin、western、ahead、best、campus、death、effort、fear、generous、heater、increase、judge、lack、lid、marriage、necessary、operate、partner、raise、regret、scarf、tent、upon、visitor、whale、aid、better、cancel、debate",
+  "國二上3": "ahead、bomb、century、design、electricity、flight、golf、hunter、invent、ketchup、lift、minor、needle、oven、pipe、quiz、rope、spider、thief、underwear、voter、wood、airmail、bone、cereal、dessert、element、flour、goodness、humid、invitation、kilometer、lightning、minus、nephew、overpass、plain、race、rub、spirit、thirteenth、unfriendly、waist、wooden、alarm、bookcase、certain、detect、eleventh、flow",
+  "國二下1": "goose、humor、invite、kindergarten、limit、mirror、nervous、overseas、plant、railroad、rubber、sport、thirtieth、unique、wallet、woods、alike、bother、certainly、determine、emotion、flu、government、humorous、iron、kingdom、link、missing、nest、owner、plastic、raincoat、rude、spread、thought、unit、war、worried、alive、bow、chairman、determiner、emphasize、flute、grand、hunger、jam、kitten、liquid、mix",
+  "國二下2": "newspaper、ox、plate、raise、running、stage、throat、universe、waste、worth、alley、bowling、channel、develop、employ、focus、granddaughter、hunt、Japanese、kitty、loaf、model、niece、pain、platform、rapid、rush、stairs、through、university、waterfall、wound、allow、boyfriend、chapter、dial、empty、fog、grandson、human、jar、koala、local、monster、nineteenth、painful、pleasant、rare、Russian、stamp",
+  "國二下3": "throughout、upon、watermelon、wrist、alone、brain、character、diamond、encourage、foggy、grape、ill、jazz、lack、location、mop、ninetieth、painter、pleased、rat、safety、standard、throw、upstairs、wave、yard、aloud、branch、charge、diary、enemy、fool、grapefruit、imagine、jealous、lady、lock、mosquito、noisy、pajamas、pleasure、rather、sail、state、thumb、used、wedding、youth、alphabet、brave",
+  "國三上1": "altogether、brick、chief、divide、equal、freezer、guitar、instant、lane、loaf、mall、neither、pardon、pocket、reach、rubber、shore、state、thus、valley、ambulance、brief、childhood、division、error、freezing、gun、instrument、lantern、local、manager、nephew、parrot、poem、reading、rude、shorts、steal、subway、toward、amount、childish、dizzy、especially、guy、intelligent、lock、mango、nervous、paste",
+  "國三上2": "poison、realize、running、shout、succeed、tower、ancient、broad、childlike、document、event、haircut、interrupt、locker、manner、nest、path、pollute、reason、reject、shower、success、trace、angel、broadcast、children、dolphin、everywhere、hairdresser、interview、loser、marriage、newspaper、pattern、pollution、receive、relative、shrimp、successfully、track、anger、brunch、chin、donkey、exact、hall、introduce、loss、marry、none",
+  "國三上3": "pause、pond、recent、safety、shut、such、trade、ankle、bucket、choice、dot、exam、hammer、invent、lot、mask、noodles、peace、pool、record、sail、sight、sudden、tradition、anyway、buffet、choose、double、examine、handkerchief、invite、lovely、mass、northern、peaceful、port、recover、sailing、sign、suddenly、traditional、anywhere、bug、chubby、doubt、excite、handle、iron、lychee、master",
+  "國三下1": "note、peach、position、rectangle、sailor、silence、suggest、treasure、apologize、building、citizen、downstairs、exist、hang、jam、mad、mat、nut、pear、positive、recycle、salesman、silent、suit、trap、appearance、bun、claim、downtown、exit、hanger、jar、magazine、match、obey、pepper、possessive、reflexive、sample、silly、suitcase、travel、apply、bundle、clap、dragon、expect、heater、jazz、magician",
+  "國三下2": "deliver、argue、blanket、exact、coast、everywhere、frighten、guide、humble、insect、judge、kitten、liquid、metal、naughty、omit、platform、quarter、refuse、single、total、ugly、victory、western、youth、zebra、arrest、blood、closet、dentist、frog、hall、hunter、insist、jeep、koala、loaf、meter、necklace、onion、pocket、review、sink、toward、underwear、value、wound、artist、blouse、cloth",
+  "國三下3": "hammer、exit、asleep、board、method、clothing、describe、fry、imagine、interrupt、joke、lady、local、needle、ordinary、poem、rapid、relative、skill、tower、underpass、village、whatever、yucky、assistant、boil、coach、desert、expect、function、handkerchief、ill、introduce、journalist、lamb、location、middle、negative、organize、poison、rare、remind、skillful、trace、unit、vinegar、wheel、yummy、assume、bomb",
+  "暑假上1": "impolite、attack、bone、cockroach、furniture、extra、attention、design、handle、lock、midnight、invent、neighbor、ketchup、oven、pollute、lane、rat、rent、skin、bother、track、universe、violin、while、yard、attend、collection、bookcase、coin、desire、hang、eyebrow、gain、importance、kingdom、invitation、lantern、locker、minor、neither、overpass、pollution、rather、repair、skinny、trade、upon、visitor、whole",
+  "暑假上2": "diet、available、traditional、reach、develop、upstairs、nervous、bow、detect、whom、fail、diamond、overseas、vocabulary、slender、garage、diary、loss、volleyball、hanger、difference、mirror、used、impossible、difficulty、pool、invite、reading、leaf、determine、report、loser、auxiliary、minus、bowling、nephew、fair、pond、gate、reply、hardly、sleepy、iron、tradition、length、owner、wide、dessert、boyfriend、audience",
+  "暑假上3": "actress、brave、control、effort、figure、guest、handle、ill、jogging、kitten、loaf、method、note、object、period、quarter、reach、search、tool、unique、vest、weight、youth、admit、broad、empty、hike、message、plastic、wave、seem、adopt、cancel、danger、exact、final、guard、insect、kingdom、location、narrow、occur、passenger、rapid、screen、trace、unit、wheel、zero、adult",
+  "暑假下1": "advance、brick、cooking、elect、firm、guitar、heater、jam、koala、lock、midnight、obey、opinion、pineapple、quit、reason、secret、toothache、universe、visitor、whale、yard、affair、brief、cotton、electricity、fishing、gun、height、ink、lack、lovely、minus、ocean、onion、pigeon、race、record、select、tower、upstairs、vocabulary、whom、yummy、ahead、broadcast、cough、element、fit、guy",
+  "暑假下2": "aim、brunch、courage、engine、flat、haircut、hippo、instant、lamb、magazine、mirror、offer、ordinary、pile、railroad、reject、separate、track、valuable、willing、zebra、aircraft、bucket、course、engineer、flight、hairdresser、hire、instrument、lane、magician、missing、official、organize、pingpong、rare、relative、servant、trade、value、wine、alive、buffet、court、entire、flour、hole、intelligent、lantern、mall",
+  "暑假下3": "allow、bundle、crab、entrance、flow、hammer、homesick、international、liquid、mango、mix、operate、oven、platform、rather、remind、service、tradition、verb、wing、aloud、burger、cream、envelope、flute、handkerchief、honesty、interrupt、loaf、manner、model、operation、owner、pleasant、reading、rent、sheet、transportation、valley、winner、alphabet、burst、crime、environment、focus、hang、honey、interview、local、mass"
+};
+
+const primaryCategories = [
+  { name: "一上", icon: "👶" }, { name: "一中", icon: "👶" }, { name: "一下", icon: "👶" },
+  { name: "二上", icon: "🧒" }, { name: "二中", icon: "🧒" }, { name: "二下", icon: "🧒" },
+  { name: "三上", icon: "👦" }, { name: "三中", icon: "👦" }, { name: "三下", icon: "👦" },
+  { name: "四上", icon: "👧" }, { name: "四中", icon: "👧" }, { name: "四下", icon: "👧" },
+  { name: "五上", icon: "🧑" }, { name: "五中", icon: "🧑" }, { name: "五下", icon: "🧑" },
+  { name: "六上", icon: "👱" }, { name: "六中", icon: "👱" }, { name: "六下", icon: "👱" }
+].map(c => ({ ...c, type: 'primary', words: primaryDataRaw[c.name].split(/\s*;\s*/) }));
+
+const juniorCategories = [
+  { name: "國一上1", icon: "🎓" }, { name: "國一上2", icon: "🎓" }, { name: "國一上3", icon: "🎓" },
+  { name: "國一下1", icon: "🎓" }, { name: "國一下2", icon: "🎓" }, { name: "國一下3", icon: "🎓" },
+  { name: "國二上1", icon: "🎓" }, { name: "國二上2", icon: "🎓" }, { name: "國二上3", icon: "🎓" },
+  { name: "國二下1", icon: "🎓" }, { name: "國二下2", icon: "🎓" }, { name: "國二下3", icon: "🎓" },
+  { name: "國三上1", icon: "🎓" }, { name: "國三上2", icon: "🎓" }, { name: "國三上3", icon: "🎓" },
+  { name: "國三下1", icon: "🎓" }, { name: "國三下2", icon: "🎓" }, { name: "國三下3", icon: "🎓" },
+  { name: "暑假上1", icon: "☀️" }, { name: "暑假上2", icon: "☀️" }, { name: "暑假上3", icon: "☀️" },
+  { name: "暑假下1", icon: "☀️" }, { name: "暑假下2", icon: "☀️" }, { name: "暑假下3", icon: "☀️" }
+].map(c => ({ ...c, type: 'junior', words: juniorDataRaw[c.name].split(/、/) }));
+
+const App = () => {
+  const [activeApiKey, setActiveApiKey] = useState(() => isCanvas ? "" : (getEnvKey() || getLocalKey()));
+  const [keyInput, setKeyInput] = useState('');
+  const [isValidatingKey, setIsValidatingKey] = useState(false);
+
+  const [user, setUser] = useState(null);
+  const [cards, setCards] = useState([]);
+  const [queue, setQueue] = useState([]);
+  const [history, setHistory] = useState({ again: 0, hard: 0, good: 0, easy: 0 });
+  const [wrongClicks, setWrongClicks] = useState(0); // 追蹤答錯次數，用來扣分
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [isFinished, setIsFinished] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [copyOk, setCopyOk] = useState(false);
+  
+  // 英雄榜專屬設定
+  const [playerName, setPlayerName] = useState('');
+  const [tempName, setTempName] = useState('');
+  const [isReadyToPlay, setIsReadyToPlay] = useState(false);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [isSubmittingScore, setIsSubmittingScore] = useState(false);
+
+  // 優化圖片載入狀態
+  const [imageUrls, setImageUrls] = useState({});
+  const [imgLoaded, setImgLoaded] = useState({});
+
+  const [deckId, setDeckId] = useState(null);
+  const [input, setInput] = useState('');
+  const [genLoading, setGenLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  
+  const [activeCategory, setActiveCategory] = useState(null);
+  const [activePart, setActivePart] = useState(1);
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [shareModal, setShareModal] = useState({ isOpen: false, url: '' });
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, type: '', message: '' });
+  const [pwdModal, setPwdModal] = useState({ isOpen: false, value: '', error: '' });
+
+  const [encouragement, setEncouragement] = useState('');
+  const lastMilestoneRef = useRef(0);
+
+  const workingModelRef = useRef(isCanvas ? "gemini-2.5-flash-preview-09-2025" : "");
+  const speechTimeoutRef = useRef(null);
+
+  const [currentChoices, setCurrentChoices] = useState([]);
+  const [selectedChoice, setSelectedChoice] = useState(null);
+  const [isChoiceCorrect, setIsChoiceCorrect] = useState(false);
+
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        if (isCanvas && typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
         }
+      } catch (err) {
+        console.error("登入錯誤", err);
+        setError("❌ Firebase 連線失敗，請檢查網路或專案設定。");
+        setLoading(false);
+      }
     };
-    const t = topic.title;
+    initAuth();
 
-    try {
-        if(t === "直線斜率") {
-            let x1 = M.r(-3, 3), y1 = M.r(-3, 3), dx = M.p([1, 2, 3, 4]), m = M.r(-3, 3);
-            let x2 = x1 + dx, y2 = y1 + m * dx;
-            return { question: `A(${x1}, ${y1}), B(${x2}, ${y2}) 的直線斜率為何？`, ...M.s(m, m+1, m-1, m+2), explanation: `(${y2} - (${y1})) / (${x2} - (${x1})) = ${m}` };
-        }
-        if(t === "點斜式") {
-            let x1 = M.r(-4, 4), y1 = M.r(-4, 4), m = M.r(-4, 4), c = y1 - m * x1;
-            let ans = `y = ${m===1?'':m===-1?'-':m}x ${c>=0?'+':''}${c}`;
-            if(m===0) ans = `y = ${c}`;
-            return { question: `過點 (${x1}, ${y1}) 且斜率為 ${m} 的直線方程式？`, ...M.s(ans, `y = ${m}x ${c+1>=0?'+':''}${c+1}`, `y = ${m+1}x ${c>=0?'+':''}${c}`, `y = ${m-1}x ${c-1>=0?'+':''}${c-1}`), explanation: `y - (${y1}) = ${m}(x - (${x1})) ⮕ ${ans}` };
-        }
-        if(t === "平行斜率") {
-            let m = M.r(-5, 5); if(m===0) m=2;
-            return { question: `若 L₁ 斜率為 ${m} 且 L₁ // L₂，則 L₂ 斜率為何？`, ...M.s(m, -m, `1/${m}`, `-1/${m}`), explanation: `平行線斜率相等，故 m₂ = ${m}` };
-        }
-        if(t === "垂直斜率") {
-            let m = M.r(2, 5) * M.p([1,-1]);
-            let ans = m > 0 ? `-1/${m}` : `1/${-m}`;
-            return { question: `若 L₁ 斜率為 ${m} 且 L₁ ⊥ L₂，則 L₂ 斜率為何？`, ...M.s(ans, m, -m, `1/${Math.abs(m)}`), explanation: `垂直斜率相乘為 -1，故 m₂ = ${ans}` };
-        }
-        if(t === "兩點距離" || t === "向量長度" || t === "空間兩點距離") {
-            let is3D = t === "空間兩點距離";
-            let py = M.p([[3,4,5],[5,12,13],[6,8,10],[8,15,17]]);
-            let dx=py[0]*M.p([1,-1]), dy=py[1]*M.p([1,-1]), ans=py[2];
-            if(M.r(0,1)) { let tmp=dx; dx=dy; dy=tmp; }
-            let x1 = M.r(-3,3), y1 = M.r(-3,3);
-            if(is3D) {
-                let dz = M.r(1,4); ans = Math.round(Math.hypot(dx,dy,dz)*10)/10;
-                return { question: `A(${x1},${y1},0), B(${x1+dx},${y1+dy},${dz}) 距離為何？`, ...M.s(ans, ans+1, ans-1, ans+2), explanation: `√(${dx}² + ${dy}² + ${dz}²) ≈ ${ans}` };
-            }
-            let q = t==="兩點距離" ? `A(${x1}, ${y1}), B(${x1+dx}, ${y1+dy}) 距離為何？` : `向量 (${dx}, ${dy}) 的長度？`;
-            return { question: q, ...M.s(ans, ans+1, ans-1, ans+2), explanation: `√(${Math.abs(dx)}² + ${Math.abs(dy)}²) = ${ans}` };
-        }
-        if(t === "中點座標") {
-            let x1=M.r(-5,5)*2, y1=M.r(-5,5)*2, x2=M.r(-5,5)*2, y2=M.r(-5,5)*2;
-            let mx=(x1+x2)/2, my=(y1+y2)/2, ans = `(${mx}, ${my})`;
-            return { question: `A(${x1}, ${y1}), B(${x2}, ${y2}) 中點？`, ...M.s(ans, `(${mx+1}, ${my})`, `(${mx}, ${my+1})`, `(${mx-1}, ${my-1})`), explanation: `((${x1}+${x2})/2, (${y1}+${y2})/2) = ${ans}` };
-        }
-        if(t === "重心座標") {
-            let mx=M.r(-2,2), my=M.r(-2,2), x1=M.r(-3,3), y1=M.r(-3,3), x2=M.r(-3,3), y2=M.r(-3,3);
-            let x3=3*mx-x1-x2, y3=3*my-y1-y2, ans = `(${mx}, ${my})`;
-            return { question: `頂點 (${x1},${y1}), (${x2},${y2}), (${x3},${y3}) 重心？`, ...M.s(ans, `(${mx+1}, ${my})`, `(${mx}, ${my+1})`, `(${mx-1}, ${my-1})`), explanation: `X、Y相加除以3 = ${ans}` };
-        }
-        if(t === "內分點公式") {
-            let a=M.r(-5,0), b=M.r(1,10), m=M.r(1,3), n=M.r(1,3);
-            let ans = (n*a + m*b) / (m+n);
-            return { question: `A(${a}), B(${b})，P 在 AB 上且 AP:PB=${m}:${n}，P=?`, ...M.s(ans, ans+1, ans-1, ans+2), explanation: `(${n}*(${a}) + ${m}*${b})/${m+n} = ${ans}` };
-        }
-        if(t === "二次函數頂點") {
-            let a = M.p([1,2,-1,-2]), vx = M.r(-3,3), b = -2*a*vx, c = M.r(1,10);
-            let eq = formatQuadratic(a, b, c);
-            return { question: `y = ${eq} 的頂點 x 座標？`, ...M.s(vx, vx+1, vx-1, vx+2), explanation: `x = -(${b}) / (2*${a}) = ${vx}` };
-        }
-        if(t === "弳度轉換") {
-            let deg = M.p([30,60,90,120,150,210,240,270,300,330]);
-            let gcd = (a,b)=>b?gcd(b,a%b):a; let g=gcd(deg,180);
-            let num=deg/g, den=180/g, ans = (num===1?"":num)+"π/"+den;
-            return { question: `${deg}° 等於多少弧度？`, ...M.s(ans, `${num+1}π/${den}`, `${num}π/${den-1}`, `${num-1}π/${den}`), explanation: `${deg} * (π/180) = ${ans}` };
-        }
-        if(t === "特殊角" || t === "平方關係" || t === "商數關係") {
-            let q = M.p(["sin 30° + cos 60° = ?", "tan 45° + sin 30° = ?", "sin 45° + cos 45° = ?"]);
-            if (q.includes("30")) return { question: q, ...M.s("1", "1/2", "√3/2", "1.5"), explanation: "1/2 + 1/2 = 1" };
-            if (q.includes("45")) return { question: q, ...M.s("√2", "1", "√3", "2"), explanation: "√2/2 + √2/2 = √2" };
-            let val = M.p([0.6, 0.8]); let ans = val === 0.6 ? "0.64" : "0.36";
-            return { question: `若 sin θ = ${val}，則 cos²θ = ?`, ...M.s(ans, "0.36", "0.64", "0.8", "0.4"), explanation: `1 - ${val}² = ${ans}` };
-        }
-        if(t === "扇形弧長") {
-            let r=M.r(2,10), th=M.r(2,5), ans = r*th;
-            return { question: `半徑 ${r}，中心角 ${th} 弧度的弧長？`, ...M.s(ans, ans+2, ans-2, ans+4), explanation: `s = ${r} * ${th} = ${ans}` };
-        }
-        if(t === "向量垂直" || t === "空間垂直") {
-            let pairs = [{u1: 2, v1: 3, u2: -3, k: 2}, {u1: 3, v1: 4, u2: -6, k: 2}, {u1: 4, v1: 2, u2: -1, k: 8}, {u1: 5, v1: 2, u2: -2, k: 5}];
-            let p = M.p(pairs);
-            return { question: `u=(${p.u1}, k), v=(${p.v1}, ${p.u2}) 垂直，k=?`, ...M.s(p.k, p.k+1, p.k-1, p.k+2), explanation: `${p.u1}*${p.v1} + k*(${p.u2}) = 0 ⮕ k=${p.k}` };
-        }
-        if(t === "向量內積" || t === "空間內積") {
-            let a=M.r(-4,4), b=M.r(-4,4), c=M.r(-4,4), d=M.r(-4,4);
-            let ans = a*c + b*d;
-            return { question: `u=(${a},${b}), v=(${c},${d}) 內積？`, ...M.s(ans, ans+2, ans-2, ans+4), explanation: `${a}*${c} + ${b}*${d} = ${ans}` };
-        }
-        if(t === "向量平行" || t === "空間平行") {
-            let a=M.r(1,4), b=M.r(1,4)*M.p([1,-1]), m=M.p([2,3,-2,-3]);
-            let c=a*m, d=b*m;
-            return { question: `u=(${a}, ${b}), v=(${c}, k) 平行，k=?`, ...M.s(d, d+1, d-1, d+2), explanation: `${a}/${c} = ${b}/k ⮕ k=${d}` };
-        }
-        if(t === "二階行列式") {
-            let a=M.r(2,5), b=M.r(2,5), c=M.r(2,5), d=M.r(2,5), ans = a*d - b*c;
-            return { question: `第一列(${a}, ${b}), 第二列(${c}, ${d}) 的行列式？`, ...M.s(ans, ans+1, ans-1, ans+2), explanation: `${a}*${d} - ${b}*${c} = ${ans}` };
-        }
-        if(t === "多項式微分" || t === "微分乘法" || t === "微分加減法") {
-            let a=M.r(2,5), b=M.r(2,5), ans = `${3*a}x² - ${b}`;
-            return { question: `f(x) = ${a}x³ - ${b}x 的導數？`, ...M.s(ans, `${3*a}x² - ${b}x`, `${a}x² - ${b}`, `${3*a}x³ - ${b}`), explanation: `${a}(3x²) - ${b} = ${ans}` };
-        }
-        if(t === "多項式積分" || t === "定積分定義") {
-            let a=M.r(2,4), ans = `${a*2}x³ + C`;
-            return { question: `∫ ${a*6}x² dx = ?`, ...M.s(ans, `${a*6}x³ + C`, `${a*3}x³ + C`, `${a*2}x² + C`), explanation: `${a*6} * (1/3)x³ = ${ans}` };
-        }
-        if(t === "餘式定理") {
-            let a=M.r(-3,3), b=M.r(-5,5), x=M.r(1,3);
-            let ans = x*x*x + a*x + b;
-            let eq = formatQuadratic(1, a, b).replace("x²", "x³"); 
-            return { question: `f(x)=${eq} 除以 x-${x} 的餘式？`, ...M.s(ans, ans+1, ans-2, ans+3), explanation: `f(${x}) = ${x}³ + (${a}*${x}) + (${b}) = ${ans}` };
-        }
-        if(t === "等差第n項") {
-            let a1=M.r(1,10), d=M.r(2,5)*M.p([1,-1]), n=M.r(5,15);
-            let ans = a1 + (n-1)*d;
-            return { question: `a₁=${a1}, d=${d}, a${n}=?`, ...M.s(ans, ans+d, ans-d, ans+2*d), explanation: `${a1} + ${n-1}*(${d}) = ${ans}` };
-        }
-        if(t === "算術平均數") {
-            let base = M.r(60, 80), d1=M.r(-5,5), d2=M.r(-5,5), d3=M.r(-5,5), d4=M.r(-5,5), d5=-(d1+d2+d3+d4);
-            let vals = [base+d1, base+d2, base+d3, base+d4, base+d5];
-            return { question: `五個數據：${vals.join(', ')} 的平均數？`, ...M.s(base, base+1, base-1, base+2), explanation: `總和為 ${base*5}，除以 5 等於 ${base}` };
-        }
-        if(t === "對數定義" || t === "對數相加") {
-            let b=M.r(2,5), x=M.r(2,4), ans = Math.pow(b, x);
-            return { question: `log_${b} ${ans} = ?`, ...M.s(x, x+1, x-1, x*2), explanation: `${b}^${x} = ${ans}` };
-        }
-        if(t === "平方差公式" || t === "立方和") {
-            let a = M.r(2,5), b = M.r(2,5);
-            return { question: `${a*a}x² - ${b*b} 分解為？`, ...M.s(`(${a}x+${b})(${a}x-${b})`, `(${a}x-${b})²`, `(${a*a}x-${b*b})²`, `(${a}x+${b})²`), explanation: `(${a}x)² - ${b}² = (${a}x+${b})(${a}x-${b})` };
-        }
-        if(t === "雙重根號") {
-            let a = M.r(3,6), b = M.r(1, a-1), A = a+b, B = a*b;
-            return { question: `√(${A} - 2√${B}) = ?`, ...M.s(`√${a}-√${b}`, `√${a}+√${b}`, `√${A}-√${B}`, `${a}-√${b}`), explanation: `${a}+${b}=${A}, ${a}*${b}=${B} ⮕ √${a} - √${b}` };
-        }
-        if(t === "點到直線距離" || t === "兩平行線距離") {
-            let a=3, b=4, c=M.r(5,15);
-            return { question: `(0,0) 到 ${a}x+${b}y-${c}=0 距離？`, ...M.s(c/5, c/5+1, c/5-1, c/5+2), explanation: `|-${c}| / 5 = ${c/5}` };
-        }
-        if(t === "圓心與半徑" || t === "圓標準式" || t === "切線段長") {
-            let h=M.r(-4,4), k=M.r(-4,4), r=M.r(2,5);
-            let hStr = h < 0 ? `+${-h}` : `-${h}`, kStr = k < 0 ? `+${-k}` : `-${k}`;
-            return { question: `圓心(${h},${k})半徑${r}的圓方程式？`, ...M.s(`(x${hStr})²+(y${kStr})²=${r*r}`, `(x${h>0?'+'+h:hStr})²+(y${kStr})²=${r*r}`, `(x${hStr})²+(y${k>0?'+'+k:kStr})²=${r*r}`, `(x${hStr})²+(y${kStr})²=${r}`), explanation: `(x-h)²+(y-k)²=r²` };
-        }
-        if(t === "拋物線焦點") {
-            let c = M.r(1, 8) * M.p([1,-1]), isX2 = M.r(0,1);
-            let q = isX2 ? `x² = ${4*c}y` : `y² = ${4*c}x`;
-            let ans = isX2 ? `(0, ${c})` : `(${c}, 0)`;
-            return { question: `${q} 的焦點座標為何？`, ...M.s(ans, `(0, ${-c})`, `(${-c}, 0)`, `(${4*c}, 0)`), explanation: `4c = ${4*c} ⮕ c = ${c} ⮕ 焦點 ${ans}` };
-        }
-        if(t === "拋物線正焦弦") {
-            let c = M.r(1, 12) * M.p([1,-1]), isX2 = M.r(0,1);
-            let q = isX2 ? `x² = ${4*c}y` : `y² = ${4*c}x`, ans = Math.abs(4*c);
-            return { question: `${q} 的正焦弦長？`, ...M.s(ans, -ans, ans*2, Math.abs(c)), explanation: `長度必為正，|4c| = |${4*c}| = ${ans}` };
-        }
-        if(t === "橢圓長短軸") {
-            let a = M.r(4, 10), b = M.r(2, a-1), a2 = a*a, b2 = b*b;
-            let isXLong = M.r(0,1), denX = isXLong ? a2 : b2, denY = isXLong ? b2 : a2;
-            let isLong = M.r(0,1), ans = isLong ? 2*a : 2*b, axisName = isLong ? "長軸" : "短軸";
-            return { question: `x²/${denX} + y²/${denY} = 1，${axisName}長度為何？`, ...M.s(ans, a, b, 2*a+2*b), explanation: `${isLong?'大':'小'}的分母為 ${isLong?a2:b2} ⮕ ${isLong?'a':'b'}=${isLong?a:b} ⮕ ${axisName} 2${isLong?'a':'b'} = ${ans}` };
-        }
-        if(t === "橢圓焦點關係") {
-            let triples = [[5,3,4], [10,6,8], [13,12,5], [17,15,8], [25,24,7]];
-            let t_vals = M.p(triples), a = t_vals[0], b = t_vals[1], c = t_vals[2];
-            if(M.r(0,1)) { let tmp = b; b = c; c = tmp; }
-            return { question: `橢圓 a=${a}, b=${b}，焦點距離中心 c=?`, ...M.s(c, c+1, a+b, Math.abs(a-b)), explanation: `${a*a} = ${b*b} + c² ⮕ c²=${c*c} ⮕ c=${c}` };
-        }
-        if(t === "雙曲線漸近線") {
-            let a = M.r(2, 6), b = M.r(2, 6), a2 = a*a, b2 = b*b;
-            let isXPos = M.r(0,1), q = isXPos ? `x²/${a2} - y²/${b2} = 1` : `y²/${b2} - x²/${a2} = 1`;
-            let ans = `${b}x±${a}y=0`;
-            return { question: `${q} 的漸近線為？`, ...M.s(ans, `${a}x±${b}y=0`, `${a2}x±${b2}y=0`, `${b2}x±${a2}y=0`), explanation: `x/${a} = ±y/${b} ⮕ ${ans}` };
-        }
-    } catch(e) {}
-    
-    return M.p(topic.variants);
-}
+    const unsubscribe = onAuthStateChanged(auth, u => setUser(u));
+    return () => unsubscribe();
+  }, []);
 
-function startApp(lang) {
-    curLang = lang;
-    let color = '#00a8ff';
-    if (lang === 'hiragana') color = '#ff4757';
-    if (lang === 'katakana') color = '#2ed573';
-    if (lang === 'math') color = '#e67e22';
-
-    document.getElementById('cardArea').style.borderColor = color;
-    document.getElementById('mLearn').style.backgroundColor = color;
-    document.getElementById('mQuiz').style.backgroundColor = color;
-
-    document.getElementById('homeUI').style.display = 'none';
-    document.getElementById('unitSelectUI').style.display = 'flex';
-    
-    const sBtn = document.getElementById('soundBtn');
-    if (lang === 'math') {
-        sBtn.className = 'ctrl-btn btn-math-reveal';
-        sBtn.innerHTML = '💡 顯示公式';
-        fullData = [...mathData];
-    } else {
-        sBtn.className = 'ctrl-btn btn-s';
-        sBtn.innerHTML = '🔊 聽發音';
-        if (lang === 'zhuyin') fullData = [...zhData];
-        else if (lang === 'hiragana') fullData = [...jpHiData];
-        else if (lang === 'katakana') fullData = [...jpKaData];
-    }
-    
-    renderUnitSelectUI(lang, color);
-}
-
-function renderUnitSelectUI(lang, color) {
-    let ui = document.getElementById('unitSelectUI');
-    let title = lang === 'math' ? '📐 選擇單元' : '📖 選擇範圍';
-    
-    let html = `<div style="width:90%; max-width:400px; padding-top:20px;">
-        <button onclick="goHome()" style="background:transparent; border:none; font-size:16px; font-weight:bold; color:#a4b0be; margin-bottom:15px; cursor:pointer;">◀ 返回首頁</button>
-        <h2 style="font-size:26px; font-weight:900; color:#4a148c; margin-bottom:20px;">${title}</h2>`;
-
-    if (lang === 'math') {
-        html += `<button onclick="startRandomQuiz(10)" style="width:100%; padding:15px; background:#f1c40f; color:white; border-radius:20px; font-weight:bold; font-size:18px; border:none; margin-bottom:10px; box-shadow:0 4px 10px rgba(0,0,0,0.1); cursor:pointer;">🔀 隨機抽考 10 題</button>`;
-        html += `<button onclick="directStartQuiz('all')" style="width:100%; padding:15px; background:#ff9f43; color:white; border-radius:20px; font-weight:bold; font-size:18px; border:none; margin-bottom:20px; box-shadow:0 4px 10px rgba(0,0,0,0.1); cursor:pointer;">🌟 全範圍綜合測驗</button>`;
-        
-        const vols = [...new Set(mathData.map(d=>d.volume))];
-        vols.forEach(vol => {
-            html += `<div style="display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #f1f2f6; margin-top:20px; margin-bottom:15px; padding-bottom:5px;">
-                <h3 style="font-size:20px; font-weight:900; color:${color}; margin:0;">${vol}</h3>
-                <button onclick="startVolumeQuiz('${vol}')" style="background:${color}; color:white; border:none; border-radius:10px; padding:6px 12px; font-weight:bold; cursor:pointer; box-shadow:0 2px 4px rgba(0,0,0,0.1);">🎮 測驗本冊</button>
-            </div>`;
-            const units = [...new Set(mathData.filter(d=>d.volume===vol).map(d=>d.unit))];
-            units.forEach(unit => {
-                let typeCount = mathData.filter(d=>d.volume===vol && d.unit===unit).length;
-                html += `
-                <div style="background:white; border-radius:20px; padding:15px; margin-bottom:12px; box-shadow:0 4px 6px rgba(0,0,0,0.05); border:2px solid #f1f2f6;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                        <div style="font-size:18px; font-weight:bold; color:#2f3542;">${unit}</div>
-                        <div style="font-size:12px; font-weight:bold; color:#e67e22; background:#fff0e6; padding:4px 8px; border-radius:10px;">${typeCount} 個題型</div>
-                    </div>
-                    <div style="display:flex; gap:10px;">
-                        <button onclick="enterUnitMode('${vol}', '${unit}', 'learn')" style="flex:1; padding:12px; border-radius:12px; border:none; background:#f0f8ff; color:#00a8ff; font-weight:bold; cursor:pointer; font-size:15px;">📖 公式卡</button>
-                        <button onclick="enterUnitMode('${vol}', '${unit}', 'quiz')" style="flex:1; padding:12px; border-radius:12px; border:none; background:#fff0e6; color:#e67e22; font-weight:bold; cursor:pointer; font-size:15px;">🎮 測驗</button>
-                    </div>
-                </div>`;
-            });
+  useEffect(() => {
+    if (!user) return; 
+    const id = new URLSearchParams(window.location.search).get('deckId');
+    if (id) {
+      setDeckId(id);
+      getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', id))
+        .then(s => {
+          if (s.exists()) {
+            const d = s.data();
+            setCards(d.cards);
+            setTotal(d.cards.length);
+            setQueue(d.queue || Array.from({length: d.cards.length}, (_, i) => i));
+            setHistory(d.history || { again: 0, hard: 0, good: 0, easy: 0 });
+            if (d.queue?.length === 0) setIsFinished(true);
+          }
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error("資料讀取失敗", err);
+          if (err.message.includes("permissions")) setError("❌ 資料庫權限不足！");
+          setLoading(false);
         });
     } else {
-        html += `<button onclick="startRandomQuiz(10)" style="width:100%; padding:15px; background:#f1c40f; color:white; border-radius:20px; font-weight:bold; font-size:18px; border:none; margin-bottom:10px; box-shadow:0 4px 10px rgba(0,0,0,0.1); cursor:pointer;">🔀 隨機抽考 10 題</button>`;
-        html += `<button onclick="directStartQuiz('all')" style="width:100%; padding:15px; background:${color}; color:white; border-radius:20px; font-weight:bold; font-size:18px; border:none; margin-bottom:20px; box-shadow:0 4px 10px rgba(0,0,0,0.1); cursor:pointer;">🌟 全範圍隨機測驗</button>`;
-        
-        let groups = [
-            {n:"第一組 (1~10音)", b:[0,10]}, {n:"第二組 (11~20音)", b:[10,20]},
-            {n:"第三組 (21~30音)", b:[20,30]}, {n:"第四組 (31~40音)", b:[30,40]}
-        ];
-        if(lang === 'zhuyin') groups[3].b = [30,37];
-        else groups.push({n:"第五組 (41~46音)", b:[40,46]});
-
-        groups.forEach((g, i) => {
-            let cardCount = g.b[1] - g.b[0];
-            html += `
-            <div style="background:white; border-radius:20px; padding:15px; margin-bottom:12px; box-shadow:0 4px 6px rgba(0,0,0,0.05); border:2px solid #f1f2f6;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                    <div style="font-size:18px; font-weight:bold; color:#2f3542;">${g.n}</div>
-                    <div style="font-size:12px; font-weight:bold; color:#00a8ff; background:#f0f8ff; padding:4px 8px; border-radius:10px;">${cardCount} 個字卡</div>
-                </div>
-                <div style="display:flex; gap:10px;">
-                    <button onclick="enterUnitMode('group', '${i}', 'learn')" style="flex:1; padding:12px; border-radius:12px; border:none; background:#f0f8ff; color:#00a8ff; font-weight:bold; cursor:pointer; font-size:15px;">📖 學習</button>
-                    <button onclick="enterUnitMode('group', '${i}', 'quiz')" style="flex:1; padding:12px; border-radius:12px; border:none; background:#fff0e6; color:#e67e22; font-weight:bold; cursor:pointer; font-size:15px;">🎮 測驗</button>
-                </div>
-            </div>`;
-        });
+      setLoading(false);
     }
-    html += `</div>`;
-    ui.innerHTML = html;
-}
+  }, [user]);
 
-// 🔥 升級：在進入不同測驗模式時，設定獨立的單元 ID 和名稱 🔥
-function startVolumeQuiz(vol) {
-    curData = fullData.filter(d => d.volume === vol);
-    currentBoardId = `math_vol_${vol}`;
-    currentBoardName = `數學 (${vol})`;
-    
-    document.getElementById('unitSelectUI').style.display = 'none';
-    document.getElementById('topBars').style.display = 'flex';
-    document.getElementById('cardArea').style.display = 'flex';
-    
-    let qLen = document.getElementById('qLen');
-    qLen.innerHTML = `
-        <option value="5">挑戰 5 題</option>
-        <option value="10">挑戰 10 題</option>
-        <option value="20">挑戰 20 題</option>
-        <option value="25">挑戰 25 題</option>
-        <option value="0">全冊制霸</option>
-    `;
-    setMode('quiz');
-}
-
-function enterUnitMode(cat, val, mode) {
-    if (cat === 'group') {
-        let bounds = [[0,10], [10,20], [20,30], [30,40], [40,46]];
-        if(curLang === 'zhuyin') bounds[3] = [30,37];
-        let b = bounds[parseInt(val)];
-        curData = fullData.slice(b[0], b[1]);
-        
-        let groupNames = ["第一組", "第二組", "第三組", "第四組", "第五組"];
-        currentBoardId = `${curLang}_group_${val}`;
-        currentBoardName = `${getLangName(curLang)} (${groupNames[parseInt(val)]})`;
-    } else {
-        curData = fullData.filter(d => d.volume === cat && d.unit === val);
-        currentBoardId = `math_${cat}_${val}`;
-        currentBoardName = `數學 (${cat} - ${val})`;
-    }
-    
-    document.getElementById('unitSelectUI').style.display = 'none';
-    document.getElementById('topBars').style.display = 'flex';
-    document.getElementById('cardArea').style.display = 'flex';
-    
-    curIdx = 0;
-    mathFormulaVisible = false;
-    
-    if (mode === 'learn') {
-        setMode('learn');
-    } else {
-        let qLen = document.getElementById('qLen');
-        qLen.innerHTML = `
-            <option value="5">挑戰 5 題</option>
-            <option value="10">挑戰 10 題</option>
-            <option value="20">挑戰 20 題</option>
-            <option value="25">挑戰 25 題</option>
-            <option value="0">全單元練習</option>
-        `;
-        setMode('quiz');
-    }
-}
-
-function directStartQuiz(val) {
-    curData = [...fullData];
-    currentBoardId = `${curLang}_all`;
-    currentBoardName = `${getLangName(curLang)} (全範圍綜合)`;
-    
-    document.getElementById('unitSelectUI').style.display = 'none';
-    document.getElementById('resultBoardUI').style.display = 'none';
-    document.getElementById('topBars').style.display = 'flex';
-    document.getElementById('cardArea').style.display = 'flex';
-    
-    let qLen = document.getElementById('qLen');
-    qLen.innerHTML = `
-        <option value="10">挑戰 10 題</option>
-        <option value="20">挑戰 20 題</option>
-        <option value="25">挑戰 25 題</option>
-        <option value="0">全範圍總複習</option>
-    `;
-    setMode('quiz');
-}
-
-function startRandomQuiz(num) {
-    curData = [...fullData];
-    currentBoardId = `${curLang}_random_${num}`;
-    currentBoardName = `${getLangName(curLang)} (隨機抽考 ${num} 題)`;
-    
-    document.getElementById('qLen').innerHTML = `<option value="${num}" selected>隨機抽考 ${num} 題</option>`;
-    
-    document.getElementById('unitSelectUI').style.display = 'none';
-    document.getElementById('topBars').style.display = 'flex'; 
-    document.getElementById('cardArea').style.display = 'flex';
-    
-    setMode('quiz');
-    runQuiz(); 
-}
-
-function goBackToUnits() {
-    document.getElementById('topBars').style.display = 'none';
-    document.getElementById('cardArea').style.display = 'none';
-    document.getElementById('resultBoardUI').style.display = 'none';
-    document.getElementById('unitSelectUI').style.display = 'flex';
-}
-
-function triggerTopShuffle() {
-    if (curMode === 'learn') {
-        shuffleData();
-    } else {
-        runQuiz();
-    }
-}
-
-// 點擊整張字卡的通用處理函數 (支援發音與數學公式切換)
-function handleCardClick() {
-    if (curLang === 'math') {
-        if (curMode === 'quiz') return; 
-        toggleMathFormula();
-    } else {
-        speakCurrent(); 
-        if (curLang === 'hiragana' || curLang === 'katakana') {
-            const romajiDiv = document.getElementById('romajiDisp');
-            if (romajiDiv) romajiDiv.style.display = 'block';
+  useEffect(() => {
+    if (cards.length > 0 && queue.length > 0) {
+      const correctCard = cards[queue[0]];
+      const choices = [correctCard.meaning];
+      
+      let attempts = 0;
+      while (choices.length < 3 && attempts < 50) {
+        const randomIndex = Math.floor(Math.random() * cards.length);
+        const randomCard = cards[randomIndex];
+        if (randomCard.word !== correctCard.word && !choices.includes(randomCard.meaning)) {
+          choices.push(randomCard.meaning);
         }
+        attempts++;
+      }
+      
+      setCurrentChoices(choices.sort(() => 0.5 - Math.random()));
     }
-}
+  }, [queue[0], cards]);
 
-// 底部按鈕同樣綁定此功能
-function handlePrimaryAction() {
-    handleCardClick();
-}
-
-function toggleMathFormula() {
-    if (curLang === 'math') {
-        mathFormulaVisible = !mathFormulaVisible;
-        const sBtn = document.getElementById('soundBtn');
-        if (mathFormulaVisible) {
-            sBtn.innerHTML = '👀 隱藏公式';
-            sBtn.style.backgroundColor = '#d35400';
-        } else {
-            sBtn.innerHTML = '💡 顯示公式';
-            sBtn.style.backgroundColor = '#e67e22';
-        }
-        renderDataToCard(curData[curIdx]);
-    }
-}
-
-function setMode(mode) {
-    curMode = mode;
-    let color = '#00a8ff';
-    if (curLang === 'hiragana') color = '#ff4757';
-    if (curLang === 'katakana') color = '#2ed573';
-    if (curLang === 'math') color = '#e67e22';
-
-    document.getElementById('mLearn').classList.toggle('active', mode === 'learn');
-    document.getElementById('mLearn').style.backgroundColor = mode === 'learn' ? color : 'transparent';
-    document.getElementById('mLearn').style.color = mode === 'learn' ? 'white' : '#a4b0be';
-    
-    document.getElementById('mQuiz').classList.toggle('active', mode === 'quiz');
-    document.getElementById('mQuiz').style.backgroundColor = mode === 'quiz' ? color : 'transparent';
-    document.getElementById('mQuiz').style.color = mode === 'quiz' ? 'white' : '#a4b0be';
-    
-    document.getElementById('learnView').style.display = 'none';
-    document.getElementById('quizStartView').style.display = 'none';
-    document.getElementById('quizPlayView').style.display = 'none';
-    document.getElementById('resultBoardUI').style.display = 'none';
-    document.getElementById('learnCtrls').style.display = 'none';
-    document.getElementById('quizCtrls').style.display = 'none';
-    
-    if (mode === 'learn') {
-        document.getElementById('learnView').style.display = 'flex';
-        document.getElementById('learnCtrls').style.display = 'flex';
-        document.getElementById('progText').style.display = 'block';
-        updateCard();
-    } else {
-        document.getElementById('quizStartView').style.display = 'flex';
-        document.getElementById('progText').style.display = 'none';
-    }
-}
-
-function updateCard() {
-    let d = curData[curIdx];
-    renderDataToCard(d);
-    document.getElementById('progText').innerText = `${curIdx + 1} / ${curData.length}`;
-}
-
-function renderDataToCard(d, quizExp = null) {
-    let html = '';
-    
-    if (curLang === 'math') {
-        document.getElementById('symDisp').innerText = d.title;
-        document.getElementById('symDisp').style.fontSize = 'clamp(35px, 8vh, 48px)';
-        document.getElementById('emoDisp').style.display = 'none'; 
-        document.getElementById('romajiDisp').style.display = 'none'; 
-        
-        let blurClass = (!mathFormulaVisible && !quizExp) ? 'blur-content' : '';
-        let formulaText = d.front.formula;
-        let hintText = `💡 ${d.front.hint}`;
-        
-        html = `<div style="display:flex; flex-direction:column; align-items:center; width:100%;">
-                    <div class="math-formula ${blurClass}">${formulaText}</div>
-                    <div class="math-hint ${blurClass}">${hintText}</div>`;
-        if (quizExp) {
-            html += `<div class="math-exp">【解析】 ${quizExp}</div>`;
-        }
-        html += `</div>`;
-    } else {
-        document.getElementById('symDisp').innerText = d.s;
-        document.getElementById('symDisp').style.fontSize = 'clamp(65px, 14vh, 90px)';
-        document.getElementById('emoDisp').innerText = d.e;
-        document.getElementById('emoDisp').style.display = 'block';
-
-        // 處理日文的羅馬拼音邏輯
-        if (curLang === 'hiragana' || curLang === 'katakana') {
-            document.getElementById('romajiDisp').innerText = romajiMap[d.s] || '';
-            document.getElementById('romajiDisp').style.display = quizExp ? 'block' : 'none';
-        } else {
-            document.getElementById('romajiDisp').style.display = 'none'; 
-        }
-
-        if (curLang === 'zhuyin') {
-            let chars = d.w.split(''), zys = d.z.split(' ');
-            chars.forEach((c, i) => {
-                let z = zys[i] || '', t = '', b = z;
-                if (z.includes('˙')) { b = z.replace('˙',''); html += `<div class="zh-char-row"><div class="zh-text">${c}</div><div class="zy-stack"><span>˙</span>${b.split('').map(s=>`<span>${s}</span>`).join('')}</div></div>`; }
-                else {
-                    if (z.includes('ˊ')) { t = 'ˊ'; b = z.replace('ˊ',''); }
-                    else if (z.includes('ˇ')) { t = 'ˇ'; b = z.replace('ˇ',''); }
-                    else if (z.includes('ˋ')) { t = 'ˋ'; b = z.replace('ˋ',''); }
-                    html += `<div class="zh-char-row"><div class="zh-text">${c}</div><div class="zy-stack">${b.split('').map(s=>`<span>${s}</span>`).join('')}</div><div style="font-size:16px; color:#ff4757; margin-left:1px; font-weight:900;">${t}</div></div>`;
-                }
-            });
-        } else {
-            html = `<div><div class="jp-text">${d.w}</div><div class="jp-mean">${d.m}</div></div>`;
-        }
-    }
-    document.getElementById('wordDisp').innerHTML = html;
-}
-
-function nav(dir) { 
-    curIdx = (curIdx + dir + curData.length) % curData.length; 
-    mathFormulaVisible = false;
-    if(curLang === 'math') {
-        document.getElementById('soundBtn').innerHTML = '💡 顯示公式';
-        document.getElementById('soundBtn').style.backgroundColor = '#e67e22';
-    }
-    updateCard(); 
-}
-
-function shuffleData() { 
-    curData = shuffleArray(curData); 
-    curIdx = 0; 
-    mathFormulaVisible = false;
-    if(curLang === 'math') {
-        document.getElementById('soundBtn').innerHTML = '💡 顯示公式';
-        document.getElementById('soundBtn').style.backgroundColor = '#e67e22';
-    }
-    updateCard(); 
-}
-
-function speakSequence(items) {
-    if (!window.speechSynthesis) return;
+  const playSimpleText = (text) => {
+    if (!text) return;
     window.speechSynthesis.cancel();
-    items.forEach(it => {
-        let u = new SpeechSynthesisUtterance(it.t);
-        u.lang = it.l || (curLang === 'zhuyin' ? 'zh-TW' : 'ja-JP');
-        u.rate = it.r || (u.lang === 'ja-JP' ? 0.45 : 0.8);
-        window.speechSynthesis.speak(u);
-    });
-}
-
-function speakCurrent() { 
-    if (curLang !== 'math') {
-        let d = (curMode === 'quiz' && curQ) ? curQ : curData[curIdx]; 
-        speakSequence([{t: d.s}, {t: d.w}]); 
-    }
-}
-
-function startQuizWithName() {
-    let name = document.getElementById('playerNameInputStart').value.trim();
-    currentPlayerName = name ? name : '無名英雄';
-    runQuiz();
-}
-
-function startQuizSkipName() {
-    document.getElementById('playerNameInputStart').value = '';
-    currentPlayerName = '無名英雄';
-    runQuiz();
-}
-
-function retryQuiz() {
-    document.getElementById('resultBoardUI').style.display = 'none';
-    document.getElementById('topBars').style.display = 'flex';
-    document.getElementById('cardArea').style.display = 'flex';
-    runQuiz();
-}
-
-function runQuiz() {
-    let len = parseInt(document.getElementById('qLen').value);
-    if (len === 0 || len > curData.length) len = curData.length;
+    if (speechTimeoutRef.current) clearTimeout(speechTimeoutRef.current);
     
-    quizPool = [];
-    if (curLang === 'math') {
-        len = parseInt(document.getElementById('qLen').value);
-        if (len === 0) len = curData.length;
-        let shuffledData = shuffleArray([...curData]);
-        for (let i = 0; i < len; i++) {
-            quizPool.push(shuffledData[i % shuffledData.length]);
-        }
+    const isEnglish = /[a-zA-Z]/.test(text) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(text);
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = isEnglish ? 'en-US' : 'ja-JP';
+    u.rate = 0.85;
+    window.speechSynthesis.speak(u);
+  };
+
+  const playWordAndFirstMeaning = (c) => {
+    if (!c) return;
+    window.speechSynthesis.cancel();
+    if (speechTimeoutRef.current) clearTimeout(speechTimeoutRef.current);
+
+    const wordUtterance = new SpeechSynthesisUtterance(c.word);
+    wordUtterance.lang = 'en-US';
+    wordUtterance.rate = 0.85;
+
+    let cleanMeaning = "";
+    if (c.meaning) {
+       const firstLine = c.meaning.split('\n')[0];
+       cleanMeaning = firstLine.replace(/\([a-zA-Z]+\.?\)|\[.*?\]/g, '').split(/[；;,，]/)[0].trim();
     } else {
-        quizPool = shuffleArray([...curData]).slice(0, len);
+       cleanMeaning = c.info ? c.info.split(' ')[0] : '';
     }
-    quizMax = quizPool.length;
-    quizPool = shuffleArray(quizPool); 
-    
-    quizIdx = 0; totalScore = 0; currentQuestionAttempts = 0; currentStreak = 0;
-    
-    document.getElementById('quizStartView').style.display = 'none';
-    document.getElementById('resultBoardUI').style.display = 'none';
-    nextQuestion();
-}
 
-function nextQuestion() {
-    if (quizIdx >= quizMax) {
-        document.getElementById('quizPlayView').style.display = 'none';
-        document.getElementById('quizCtrls').style.display = 'none';
-        document.getElementById('cardArea').style.display = 'none'; 
-        document.getElementById('topBars').style.display = 'none'; 
-        document.getElementById('resultBoardUI').style.display = 'flex'; 
-        
-        let finalScore = Math.round(totalScore);
-        document.getElementById('finalScoreText').innerText = finalScore;
-        document.getElementById('resultNameDisp').innerText = currentPlayerName;
-        
-        if (window.autoSubmitScore) {
-            window.autoSubmitScore(currentPlayerName, finalScore, curLang);
+    const meaningUtterance = new SpeechSynthesisUtterance(cleanMeaning);
+    meaningUtterance.lang = 'zh-TW';
+    meaningUtterance.rate = 0.85;
+
+    wordUtterance.onend = () => {
+       if (cleanMeaning) {
+          speechTimeoutRef.current = setTimeout(() => {
+             window.speechSynthesis.speak(meaningUtterance);
+          }, 500); 
+       }
+    };
+    window.speechSynthesis.speak(wordUtterance);
+  };
+
+  const playCardSequence = (c) => {
+    if (!c) return;
+    window.speechSynthesis.cancel();
+    if (speechTimeoutRef.current) clearTimeout(speechTimeoutRef.current);
+
+    const isEnglishCard = /[a-zA-Z]/.test(c.word) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(c.word);
+    const lang = isEnglishCard ? 'en-US' : 'ja-JP';
+
+    let wordText = c.word;
+    let exampleText = "";
+
+    if (c.example || (c.info && c.info.includes('【例句】'))) {
+      let exEn = c.example || "";
+      if (!exEn && c.info && c.info.includes('【例句】')) {
+        const exStr = c.info.split('【例句】')[1];
+        const match = exStr.match(/^(.*?)\((.*?)\)(.*)$/);
+        if (match) {
+          exEn = match[1].trim();
+        } else {
+          exEn = exStr;
         }
-        return;
+      }
+      exampleText = exEn.replace(/\s\/\s/g, '. ');
     }
-    
-    curQ = quizPool[quizIdx++];
-    currentQuestionAttempts = 0; 
-    
-    let currentScoreDisp = Math.round(totalScore);
-    document.getElementById('qStat').innerText = `第 ${quizIdx} / ${quizMax} 題 | 目前得分: ${currentScoreDisp} 分`;
-    document.getElementById('learnView').style.display = 'none';
-    document.getElementById('quizPlayView').style.display = 'flex';
-    document.getElementById('quizCtrls').style.display = 'flex';
-    document.getElementById('nextQBtn').style.display = 'none';
-    
-    let grid = document.getElementById('optGrid');
-    grid.innerHTML = '';
 
-    if (curLang === 'math') {
-        document.getElementById('quizSoundBtn').style.display = 'none'; 
-        
-        let variant = generateDynamicMathVariant(curQ);
-        
-        grid.innerHTML = `<div style="grid-column: 1 / -1; font-size: 18px; font-weight: bold; color: #333; margin-bottom: 10px; text-align: left; padding: 0 5px;">${variant.question}</div>`;
-        
-        variant.options.forEach((optText, idx) => {
-            let b = document.createElement('button');
-            b.className = 'opt-btn'; 
-            b.style.fontSize = 'clamp(14px, 4vw, 18px)'; 
-            b.innerText = `(${String.fromCharCode(65+idx)}) ${optText}`;
-            b.onclick = () => {
-                if(idx === variant.correctAnswer) {
-                    b.classList.add('correct');
-                    
-                    let earned = 0;
-                    if (currentQuestionAttempts === 0) {
-                        earned = 100 / quizMax;
-                        currentStreak++;
-                    } else if (currentQuestionAttempts === 1) {
-                        earned = 1;
-                        currentStreak = 0;
-                    } else {
-                        earned = 0;
-                        currentStreak = 0;
-                    }
-                    
-                    totalScore += earned;
-                    
-                    let newScoreDisp = Math.round(totalScore);
-                    document.getElementById('qStat').innerText = `第 ${quizIdx} / ${quizMax} 題 | 目前得分: ${newScoreDisp} 分`;
-
-                    if (currentQuestionAttempts === 0 && currentStreak % 5 === 0 && currentStreak > 0) {
-                        const randomPraise = praises[Math.floor(Math.random() * praises.length)];
-                        speakSequence([{t: randomPraise, l: "zh-TW"}]);
-                    }
-
-                    setTimeout(() => {
-                        document.getElementById('quizPlayView').style.display = 'none';
-                        document.getElementById('learnView').style.display = 'flex';
-                        renderDataToCard(curQ, variant.explanation); 
-                        document.getElementById('nextQBtn').style.display = 'block';
-                    }, 800);
-                } else { 
-                    b.classList.add('wrong'); 
-                    currentQuestionAttempts++; 
-                    let u = new SpeechSynthesisUtterance("再試一次喔"); u.lang="zh-TW"; window.speechSynthesis.speak(u); 
-                }
-            };
-            grid.appendChild(b);
-        });
-
-    } else {
-        document.getElementById('quizSoundBtn').style.display = 'block';
-        let opts = [curQ];
-        
-        let sourceData = [];
-        if (curLang === 'zhuyin') sourceData = zhData;
-        else if (curLang === 'hiragana') sourceData = jpHiData;
-        else if (curLang === 'katakana') sourceData = jpKaData;
-
-        while(opts.length < 4) {
-            let r = sourceData[Math.floor(Math.random() * sourceData.length)];
-            if(!opts.find(o => o.s === r.s)) opts.push(r);
-        }
-        opts.sort(() => Math.random() - 0.5);
-        
-        opts.forEach(o => {
-            let b = document.createElement('button');
-            b.className = 'opt-btn'; 
-            b.style.fontSize = 'clamp(32px, 12vw, 55px)';
-            b.style.padding = '25px 15px';
-            b.innerText = o.s;
-            b.onclick = () => {
-                if(o.s === curQ.s) {
-                    b.classList.add('correct');
-                    
-                    let earned = 0;
-                    if (currentQuestionAttempts === 0) {
-                        earned = 100 / quizMax;
-                        currentStreak++;
-                    } else if (currentQuestionAttempts === 1) {
-                        earned = 1;
-                        currentStreak = 0;
-                    } else {
-                        earned = 0;
-                        currentStreak = 0;
-                    }
-                    
-                    totalScore += earned;
-                    let newScoreDisp = Math.round(totalScore);
-                    document.getElementById('qStat').innerText = `第 ${quizIdx} / ${quizMax} 題 | 目前得分: ${newScoreDisp} 分`;
-
-                    let speechItems = [];
-                    if (currentQuestionAttempts === 0 && currentStreak % 5 === 0 && currentStreak > 0) {
-                        const randomPraise = praises[Math.floor(Math.random() * praises.length)];
-                        speechItems.push({t: randomPraise, l: "zh-TW"});
-                    }
-                    speechItems.push({t: curQ.s});
-                    speechItems.push({t: curQ.w});
-                    speakSequence(speechItems);
-
-                    setTimeout(() => {
-                        document.getElementById('quizPlayView').style.display = 'none';
-                        document.getElementById('learnView').style.display = 'flex';
-                        renderDataToCard(curQ, true); 
-                        document.getElementById('nextQBtn').style.display = 'block';
-                    }, 800);
-                } else { 
-                    b.classList.add('wrong'); 
-                    currentQuestionAttempts++;
-                    let u = new SpeechSynthesisUtterance("再試一次喔"); u.lang="zh-TW"; window.speechSynthesis.speak(u); 
-                }
-            };
-            grid.appendChild(b);
-        });
-        playQuizVoice();
-    }
-}
-
-function playQuizVoice() { 
-    if (curLang !== 'math') {
-        speakSequence([{t: curQ.s}, {t: curQ.w}]); 
-    }
-}
-</script>
-
-<!-- 🔥 Firebase 模組：極簡純資料庫連線 (完全移除 Auth，解決報錯) 🔥 -->
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-    // 🚨🚨 已經幫你把真實的 Firebase Config 填入囉！直接覆蓋上傳即可 🚨🚨
-    const myFirebaseConfig = {
-        apiKey: "AIzaSyC6uY2nVft8fSiAeF2Kl-0QEGa_H-sb94E",
-        authDomain: "card-card-love.firebaseapp.com",
-        projectId: "card-card-love",
-        storageBucket: "card-card-love.firebasestorage.app",
-        messagingSenderId: "678670908571",
-        appId: "1:678670908571:web:9ce1c4bdba676b70b6da3e",
-        measurementId: "G-KJ0GWKVMKV"
+    const speakPart = (text, onEndCallback) => {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = lang;
+      u.rate = 0.85;
+      if (onEndCallback) {
+        u.onend = onEndCallback;
+      }
+      window.speechSynthesis.speak(u);
     };
 
-    const isOfflineMode = myFirebaseConfig.apiKey === "請填入你的_API_KEY" || !myFirebaseConfig.apiKey;
-    
-    let leaderboardData = [];
-    
-    // 🔥 升級：動態渲染過濾後的獨立排行榜 🔥
-    function renderLeaderboardList() {
-        const listDiv = document.getElementById('leaderboardList');
-        if (!listDiv) return;
-        
-        // 1. 動態更新榜單的標題
-        const titleText = document.getElementById('leaderboardTitleText');
-        if (titleText) {
-            titleText.innerText = currentBoardName + ' 英雄榜';
-        }
+    if (exampleText) {
+      speakPart(wordText, () => {
+        speechTimeoutRef.current = setTimeout(() => {
+          speakPart(exampleText);
+        }, 1000);
+      });
+    } else {
+      speakPart(wordText);
+    }
+  };
 
-        // 2. 只過濾出屬於「目前單元」的成績資料
-        const filteredData = leaderboardData.filter(entry => entry.boardId === currentBoardId);
+  const handleAction = async (type) => {
+    const curr = queue[0];
+    let nextQ = [...queue];
+    nextQ.shift();
+    const nextH = { ...history, [type]: history[type] + 1 };
+    setHistory(nextH);
 
-        if (filteredData.length === 0) {
-            listDiv.innerHTML = `<div style="text-align:center; color:#999; margin-top:20px; line-height: 1.5;">這個單元目前還沒有人留下紀錄喔！<br>趕快搶下第一名吧！</div>`;
+    setSelectedChoice(null);
+    setIsChoiceCorrect(false);
+
+    if (type === 'again') nextQ.splice(1, 0, curr);
+    else if (type === 'hard') nextQ.splice(Math.floor(nextQ.length/2), 0, curr);
+    else if (type === 'good') nextQ.push(curr);
+    
+    setQueue(nextQ);
+    if (nextQ.length === 0) {
+      setIsFinished(true);
+    } else {
+      setIsFlipped(false);
+    }
+    
+    if (deckId && user) {
+      try {
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', deckId), { queue: nextQ, history: nextH });
+      } catch(err) {}
+    }
+  };
+
+  const handleShuffle = async () => {
+    if (queue.length <= 1) return;
+    const newQueue = [...queue];
+    for (let i = newQueue.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [newQueue[i], newQueue[j]] = [newQueue[j], newQueue[i]];
+    }
+    setQueue(newQueue);
+    setIsFlipped(false);
+    
+    setSelectedChoice(null);
+    setIsChoiceCorrect(false);
+
+    if (deckId && user) {
+      try {
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', deckId), { queue: newQueue });
+      } catch(err) {}
+    }
+  };
+
+  const openConfirm = (type, message) => setConfirmDialog({ isOpen: true, type, message });
+  const closeConfirm = () => setConfirmDialog({ isOpen: false, type: '', message: '' });
+
+  const executeConfirm = () => {
+    if (confirmDialog.type === 'home') {
+      setCards([]); setQueue([]); setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
+      setWrongClicks(0);
+      setIsFinished(false); setIsFlipped(false); setDeckId(null); setInput('');
+      lastMilestoneRef.current = 0;
+      setActiveCategory(null);
+      setActivePart(1);
+      setIsReadyToPlay(false);
+      
+      setSelectedChoice(null);
+      setIsChoiceCorrect(false);
+
+      safePushState(window.location.pathname);
+    } else if (confirmDialog.type === 'finish') {
+      setIsFinished(true);
+    }
+    closeConfirm();
+  };
+
+  const validateAndSaveKey = async () => {
+    const tk = keyInput.trim();
+    if (!tk) return;
+
+    if (tk === firebaseConfig.apiKey || tk === "AIzaSyBTcPWX29sXFY0dqzOpJn8We6uoJLwHv9U") {
+      setError('🚨 這把是「Firebase 資料庫」的鑰匙！請前往 Google AI Studio 申請真正的 AI 鑰匙！');
+      return;
+    }
+
+    setIsValidatingKey(true); setError('');
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${tk}`);
+      if (!res.ok) {
+        const data = await res.json();
+        setError(`❌ 驗證失敗 (${res.status}): ${data.error?.message || "未知錯誤"}`);
+        setIsValidatingKey(false);
+        return;
+      }
+      
+      const data = await res.json();
+      const validModels = (data.models || []).filter(m => m.supportedGenerationMethods?.includes("generateContent")).map(m => m.name.replace("models/", ""));
+      const preferred = ["gemini-1.5-flash", "gemini-2.5-flash", "gemini-1.5-pro", "gemini-pro"];
+      workingModelRef.current = preferred.find(p => validModels.includes(p)) || validModels[0] || "";
+
+      localStorage.setItem('my_gemini_key', tk);
+      setActiveApiKey(tk);
+    } catch (e) {
+      setError("❌ 網路異常，無法驗證金鑰。");
+    } finally {
+      setIsValidatingKey(false);
+    }
+  };
+
+  const generate = async (overrideText = null) => {
+    const targetText = typeof overrideText === 'string' ? overrideText : input;
+
+    if (typeof overrideText !== 'string') {
+      setActiveCategory(null);
+    }
+
+    if (!targetText.trim() || genLoading) return;
+    const reqKey = isCanvas ? "" : activeApiKey;
+    if (!reqKey && !isCanvas) {
+      setError('❌ 找不到 API 金鑰！請確認 Vercel 環境變數 VITE_GEMINI_API_KEY。');
+      return;
+    }
+
+    setCards([]);
+    setImgLoaded({});
+    setIsFinished(false);
+    setIsReadyToPlay(false);
+    setWrongClicks(0);
+    setGenLoading(true); 
+    setError('🔍 正在請 AI 為單字擴充詞性與例句...');
+    
+    setSelectedChoice(null);
+    setIsChoiceCorrect(false);
+
+    const engWordCount = (targetText.match(/[a-zA-Z]+/g) || []).length;
+    const hasKana = /[\u3040-\u309F\u30A0-\u30FF]/.test(targetText);
+    const hasChinese = /[\u4E00-\u9FFF]/.test(targetText);
+
+    let isEn = false;
+    if (hasKana) {
+        isEn = false; 
+    } else if (engWordCount >= 10) {
+        isEn = true;  
+    } else if (engWordCount > 0 && !hasChinese) {
+        isEn = true;  
+    } else {
+        isEn = false; 
+    }
+    
+    const prompt = isEn 
+      ? `請分析以下文字：\n"""${targetText}"""\n這是一份「英文學習清單」。請提取出所有英文單字（務必完整包含輸入的所有單字，不可遺漏！）。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」，請務必自動將其「翻譯成英文單字」。\n請為每個單字提供更廣泛且結構化的解釋：\n1. 包含不同「詞性」的意思，並換行顯示。⚠️【最重要】：請務必把最簡單、最常用的中文意思放在第一行的最前面（例如：書；(n.) 書本），幫助快速記憶。\n2. 補充類似的「同類詞、同義詞」或相反的「反義詞」。例如：[同義詞] reserve, order / [反義詞] cancel\n3. 提供對應的英文例句，若有多個詞性請提供多句，並用「 / 」隔開。\n4. 提供對應的中文翻譯，多句請用「 / 」隔開。\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "不同詞性與意思(務必使用 \\n 換行，最簡單的意思放最前)", "breakdown": "同義詞/反義詞補充", "example": "英文例句1 / 英文例句2", "example_kana": "", "example_zh": "中文翻譯1 / 中文翻譯2", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字"}]。請只回傳 JSON。`
+      : `請分析以下文字：\n"""${targetText}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象化連結說明 (💡請提供生動、好記的比喻或字根字首解析來幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`;
+
+    let modelToUse = isCanvas ? "gemini-2.5-flash-preview-09-2025" : workingModelRef.current;
+
+    if (!modelToUse) {
+        try {
+            const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${reqKey}`);
+            if (!listRes.ok) {
+                if (listRes.status === 403) {
+                    setError(`🚨 致命錯誤 (403)：您的金鑰完全沒有開通「AI 生成權限」！\n👉 請用一個全新的 Google 帳號，前往 aistudio.google.com 重新申請一把！`);
+                } else if (listRes.status === 400) {
+                    setError(`🚨 致命錯誤 (400)：這把金鑰是假的或格式錯誤！`);
+                    setActiveApiKey('');
+                    try { localStorage.removeItem('my_gemini_key'); } catch(e){}
+                } else {
+                    const errData = await listRes.json();
+                    setError(`❌ Google 拒絕連線 (${listRes.status}): ${errData.error?.message}`);
+                }
+                setGenLoading(false);
+                return;
+            }
+
+            const listData = await listRes.json();
+            const validModels = (listData.models || [])
+                .filter(m => m.supportedGenerationMethods?.includes("generateContent"))
+                .map(m => m.name.replace("models/", ""));
+
+            if (validModels.length === 0) {
+                 setError(`🚨 驚人發現：鑰匙是真的，但 Google 說您「擁有 0 個可用模型」！\n👉 唯一解法：請用一個「全新的 Google 帳號」，登入 aistudio.google.com 重新申請！`);
+                 setGenLoading(false);
+                 return;
+            }
+
+            const preferred = ["gemini-1.5-flash", "gemini-2.5-flash", "gemini-1.5-pro", "gemini-pro"];
+            modelToUse = preferred.find(p => validModels.includes(p)) || validModels[0];
+            workingModelRef.current = modelToUse;
+
+        } catch (e) {
+            setError(`❌ 掃描模型失敗：請檢查網路連線。`);
+            setGenLoading(false);
             return;
         }
-
-        let html = '';
-        filteredData.slice(0, 50).forEach((entry, idx) => {
-            let rankClass = '';
-            let medal = `#${idx + 1}`;
-            if (idx === 0) { rankClass = 'lb-rank-1'; medal = '🥇 1'; }
-            if (idx === 1) { rankClass = 'lb-rank-2'; medal = '🥈 2'; }
-            if (idx === 2) { rankClass = 'lb-rank-3'; medal = '🥉 3'; }
-            
-            let badgeColor = entry.lang === 'math' ? '#e67e22' : '#00a8ff';
-            let badgeText = entry.lang === 'math' ? '數' : '語';
-
-            html += `
-                <div class="lb-row ${rankClass}">
-                    <div style="display:flex; align-items:center; gap: 10px;">
-                        <span style="font-size:18px; width:45px;">${medal}</span>
-                        <span style="background:${badgeColor}; color:white; font-size:10px; padding:2px 5px; border-radius:5px;">${badgeText}</span>
-                        <span>${entry.name}</span>
-                    </div>
-                    <div style="font-size:20px; color:#2f3542;">${entry.score} <span style="font-size:12px; color:#a4b0be;">分</span></div>
-                </div>
-            `;
-        });
-        listDiv.innerHTML = html;
     }
 
-    if (isOfflineMode) {
-        setTimeout(() => {
-            const listDiv = document.getElementById('leaderboardList');
-            const titleDiv = document.getElementById('leaderboardTitle');
-            if (listDiv) {
-                listDiv.innerHTML = `
-                    <div style="text-align:center; color:#ff4757; margin-top:20px; font-weight:bold; line-height: 1.5;">
-                        📍 目前為單機模式<br>
-                        <span style="font-size:12px;color:#a4b0be;">
-                        （因為您沒有設定真實的 Firebase 金鑰，<br>目前分數只會保存在您的手機畫面上喔！）
-                        </span>
-                    </div>`;
-            }
-            if (titleDiv) titleDiv.innerHTML = '<span>📍</span> 本機英雄榜';
-        }, 500);
+    setError(''); 
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${reqKey}`;
+    const payload = {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json" }
+    };
 
-        window.autoSubmitScore = (name, score, lang) => {
-            leaderboardData.push({ name, score, lang, boardId: currentBoardId, boardName: currentBoardName, timestamp: Date.now() });
-            leaderboardData.sort((a, b) => b.score - a.score);
-            renderLeaderboardList();
-        };
+    let success = false;
+    let lastError = "";
 
-    } else {
+    for (let attempt = 0; attempt < 3; attempt++) {
         try {
-            const app = initializeApp(myFirebaseConfig);
-            const db = getFirestore(app);
-            const lbRef = collection(db, 'cardcardlove_leaderboard'); 
-
-            let isDataLoaded = false; 
-
-            onSnapshot(lbRef, (snapshot) => {
-                isDataLoaded = true; 
-                leaderboardData = snapshot.docs.map(doc => doc.data());
-                leaderboardData.sort((a, b) => b.score - a.score); 
-                renderLeaderboardList();
-                
-                document.getElementById('firebaseSetupWizard').style.display = 'none';
-            }, (error) => {
-                isDataLoaded = true; 
-                console.error("讀取榜單失敗", error);
-                
-                const listDiv = document.getElementById('leaderboardList');
-                if (listDiv) {
-                    if (error.message.includes('Missing or insufficient permissions') || error.code === 'permission-denied') {
-                        document.getElementById('firebaseSetupWizard').style.display = 'flex';
-                        listDiv.innerHTML = '<div style="text-align:center; color:#ff4757; font-weight:bold; margin-top:15px;">🛑 權限被阻擋，請按照彈出視窗的指示修改 Firebase 規則。</div>';
-                    } else {
-                        listDiv.innerHTML = `
-                            <div style="text-align:center; color:#ff4757; font-weight:bold; margin-top:15px; line-height:1.4;">
-                                無法讀取全球榜單 😢<br>
-                                <span style="font-size:12px;">資料庫讀取失敗。<br>請確認 Firestore 已成功建立並開啟「測試模式」。</span>
-                            </div>`;
-                    }
-                }
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
             });
 
-            setTimeout(() => {
-                if (!isDataLoaded) {
-                    const listDiv = document.getElementById('leaderboardList');
-                    if (listDiv && listDiv.innerHTML.includes('載入榜單中')) {
-                        listDiv.innerHTML = `
-                            <div style="text-align:center; color:#ff4757; font-weight:bold; margin-top:15px; line-height:1.4;">
-                                ⚠️ 連線逾時或失敗！<br>
-                                <span style="font-size:12px; color:#a4b0be;">
-                                請確認 Firebase 金鑰填寫無誤，<br>
-                                並且有在控制台按下「建立資料庫」。
-                                </span>
-                            </div>`;
-                    }
-                }
-            }, 5000);
+            const data = await res.json();
 
-            window.autoSubmitScore = async (name, score, lang) => {
-                try {
-                    await addDoc(lbRef, {
-                        name: name,
-                        score: score,
-                        lang: lang,
-                        // 🔥 寫入資料庫時加上單元 ID 和名稱的標籤
-                        boardId: currentBoardId,
-                        boardName: currentBoardName,
-                        timestamp: Date.now() 
-                    });
-                } catch (error) {
-                    console.error("寫入錯誤", error);
-                    const listDiv = document.getElementById('leaderboardList');
-                    if (listDiv) {
-                        if (error.message.includes('Missing or insufficient permissions') || error.code === 'permission-denied') {
-                            document.getElementById('firebaseSetupWizard').style.display = 'flex';
-                            listDiv.innerHTML = '<div style="text-align:center; color:#ff4757; font-weight:bold; margin-top:15px;">🛑 成績上傳被阻擋，請按照彈出視窗指示修改 Firebase 規則。</div>';
-                        } else {
-                            listDiv.innerHTML = `
-                                <div style="text-align:center; color:#ff4757; font-weight:bold; margin-top:15px; line-height:1.4;">
-                                    成績上傳失敗 😢<br>
-                                    <span style="font-size:12px;">寫入發生錯誤。<br>請前往 Firebase 規則確認是否已改為 Test Mode。</span>
-                                </div>`;
-                        }
-                    }
+            if (!res.ok) {
+                if (res.status === 429 || res.status === 503) {
+                    await new Promise(r => setTimeout(r, (attempt + 1) * 2000));
+                    lastError = "⏳ 伺服器目前接收到太多請求，請稍等幾秒後再試！";
+                    continue; 
+                } 
+                if (res.status === 400 || res.status === 403) {
+                    setActiveApiKey('');
+                    workingModelRef.current = "";
+                    try { localStorage.removeItem('my_gemini_key'); } catch(e){}
+                    lastError = `🚨 您的 API 金鑰無效或權限被收回，請重新設定！`;
+                    break;
                 }
-            };
-        } catch (error) {
-            console.error("Firebase 初始化失敗", error);
+                if (res.status === 404) {
+                    workingModelRef.current = ""; 
+                    lastError = `🚨 模型 ${modelToUse} 突然失效，請再點擊一次重新掃描。`;
+                    break;
+                }
+                
+                lastError = `發生錯誤：${data.error?.message || "未知錯誤"}`;
+                break;
+            }
+            
+            const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+            const parsed = JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim());
+            
+            const newCards = parsed.map(c => ({
+              word: c.word,
+              reading: c.reading || '',
+              meaning: c.meaning || '',
+              breakdown: c.breakdown || '',
+              example: c.example || '',
+              example_kana: c.example_kana || '',
+              example_zh: c.example_zh || '',
+              image_keyword: c.image_keyword || 'study',
+              info: `${c.reading || ''} ${c.meaning || ''} 💡 [分析] ${c.breakdown || ''} 【例句】${c.example || ''}(${c.example_kana || ''})${c.example_zh || ''}`
+            }));
+            
+            setCards(newCards);
+            setQueue(Array.from({length: newCards.length}, (_, i) => i));
+            setTotal(newCards.length);
+            setIsFinished(false); setIsFlipped(false);
+            success = true;
+            lastMilestoneRef.current = 0;
+            break; 
+            
+        } catch (e) { 
+            if (attempt < 2) {
+                await new Promise(r => setTimeout(r, 2000));
+            } else {
+                lastError = `系統連線異常：請稍後再試。`;
+            }
         }
     }
-</script>
-</body>
-</html>
+
+    if (!success) setError(`❌ ${lastError}`);
+    setGenLoading(false);
+  };
+
+  const loadPresetCategory = (cat, part = 1) => {
+    setActiveCategory(cat);
+    setActivePart(part);
+    
+    setSelectedChoice(null);
+    setIsChoiceCorrect(false);
+
+    let vocabList = [];
+    let useAI = true;
+
+    if (cat.type === 'kinder') {
+       useAI = false;
+       vocabList = kinderVocab.slice(cat.start, cat.end);
+    } else {
+       useAI = true;
+       const fullList = cat.words.map(w => ({ word: w, meaning: '' }));
+       if (part === 1) {
+          vocabList = fullList.slice(0, 25);
+       } else {
+          vocabList = fullList.slice(25);
+       }
+    }
+
+    const wordsOnlyStr = vocabList.map(item => item.word).join('\n');
+    setInput(wordsOnlyStr);
+
+    if (useAI) {
+      generate(wordsOnlyStr); 
+    } else {
+      const newCards = vocabList.map(item => ({
+        word: item.word,
+        reading: '',
+        meaning: item.meaning,
+        breakdown: '',
+        example: '',
+        example_kana: '',
+        example_zh: '',
+        image_keyword: item.word, 
+        info: item.meaning 
+      }));
+      
+      setCards(newCards);
+      setImgLoaded({});
+      setQueue(Array.from({length: newCards.length}, (_, i) => i));
+      setTotal(newCards.length);
+      setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
+      setWrongClicks(0);
+      setIsFinished(false); 
+      setIsFlipped(false);
+      setIsReadyToPlay(false);
+      lastMilestoneRef.current = 0;
+      setError('');
+    }
+  };
+
+  const getRating = () => {
+    const t = history.again + history.hard + history.good + history.easy;
+    if (t === 0) return { score: 0, text: "尚未作答", color: "text-slate-500", emoji: "🤔", wrongClicks: 0 };
+    
+    let baseScore = Math.round(((history.easy * 100) + (history.good * 100) + (history.hard * 50)) / t);
+    // 加入錯題扣分機制
+    let finalScore = baseScore - wrongClicks;
+    if (finalScore < 0) finalScore = 0;
+
+    let text, color, emoji;
+    if (finalScore >= 90) { text = "極佳"; color = "text-green-500"; emoji = "🏆"; }
+    else if (finalScore >= 60) { text = "穩定"; color = "text-blue-500"; emoji = "🌟"; }
+    else { text = "加油"; color = "text-orange-500"; emoji = "💪"; }
+    
+    return { score: finalScore, text, color, emoji, wrongClicks };
+  };
+
+  const renderCardBackText = (card) => {
+    if (!card) return null;
+    const isEnglishCard = /[a-zA-Z]/.test(card.word) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(card.word);
+    
+    let reading = card.reading || '';
+    let meaning = card.meaning || '';
+    let breakdown = card.breakdown || '';
+    let exEn = card.example || '';
+    let exKana = card.example_kana || '';
+    let exZh = card.example_zh || '';
+    
+    if (!meaning && card.info) {
+       const mainPart = card.info.split('【例句】')[0].trim();
+       const parts = mainPart.split('💡').map(p => p.trim());
+       const headerText = parts[0];
+       const firstSpaceIdx = headerText.indexOf(' ');
+       
+       if (firstSpaceIdx !== -1) {
+         reading = headerText.substring(0, firstSpaceIdx).trim();
+         meaning = headerText.substring(firstSpaceIdx).trim();
+       } else {
+         meaning = headerText;
+       }
+       
+       const extraSections = parts.slice(1);
+       if (extraSections.length > 0) {
+         breakdown = extraSections.map(s => s.replace(/\[.*?\]\s*/, '').trim()).join('\n');
+       }
+       
+       if (card.info.includes('【例句】')) {
+         const exStr = card.info.split('【例句】')[1];
+         const match = exStr.match(/^(.*?)\((.*?)\)(.*)$/);
+         if (match) {
+           exEn = match[1].trim();
+           exKana = match[2].trim();
+           exZh = match[3].trim();
+         } else {
+           exEn = exStr;
+         }
+       }
+    }
+
+    return (
+      <div className="flex-1 overflow-y-auto pr-1 pb-2 custom-scrollbar flex flex-col text-left">
+        <div className="font-bold text-slate-800 border-b border-slate-100 pb-3 mb-3 leading-tight">
+          
+          <div className="flex items-center flex-wrap gap-2 mb-2 w-full">
+            <span className="text-3xl font-black text-indigo-900 tracking-wide">{card.word}</span>
+            {reading && <span className="text-sm text-indigo-600 font-bold bg-indigo-50 px-2 py-1 rounded-md">{reading}</span>}
+            <button onClick={(e) => { e.stopPropagation(); playSimpleText(card.word); }} className="ml-auto w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 hover:bg-indigo-100 hover:scale-110 transition-all shadow-sm shrink-0">
+              <Volume2 size={20} />
+            </button>
+          </div>
+          
+          <div className="text-slate-700 text-lg mb-2 whitespace-pre-line leading-snug font-bold">
+            {meaning}
+          </div>
+          
+          {breakdown && (
+            <div className="mt-2 text-sm text-amber-800 bg-amber-50 p-3 rounded-xl border border-amber-100/50 leading-relaxed font-bold shadow-sm whitespace-pre-line">
+              💡 {breakdown}
+            </div>
+          )}
+        </div>
+
+        {(exEn || exZh) && (
+          <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 mt-2 space-y-2">
+            {exEn && <div className="text-base sm:text-lg font-black text-slate-800 leading-tight tracking-wide whitespace-pre-line">{exEn.replace(/\s\/\s/g, '\n')}</div>}
+            {exKana && !isEnglishCard && <div className="text-[13px] font-bold text-indigo-500 leading-tight whitespace-pre-line">{exKana.replace(/\s\/\s/g, '\n')}</div>}
+            {exZh && <div className="text-sm font-bold text-slate-600 leading-tight whitespace-pre-line">{exZh.replace(/\s\/\s/g, '\n')}</div>}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // --- Effects ---
+
+  useEffect(() => {
+    if (cards.length === 0 || isFinished) return;
+
+    const loadImages = async () => {
+      const nextCards = queue.slice(0, 4).map(idx => cards[idx]);
+      for (const card of nextCards) {
+        if (!card || imageUrls[card.word]) continue;
+        
+        let imgQuery = card.image_keyword || card.word || "study";
+        
+        if (!/[a-zA-Z]/.test(imgQuery)) {
+            imgQuery = card.word + " photography object";
+        } else {
+            imgQuery = imgQuery + " photography";
+        }
+        
+        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(imgQuery)}?width=400&height=300&nologo=true&seed=${card.word.length + Math.floor(Math.random() * 100)}`;
+        setImageUrls(prev => ({ ...prev, [card.word]: url }));
+      }
+    };
+    loadImages();
+  }, [queue, cards, isFinished, imageUrls]);
+
+  useEffect(() => {
+    if (queue.length > 0 && !isFinished && cards.length > 0) {
+      if (isFlipped) {
+        const currentCard = cards[queue[0]];
+        const isEnglishCard = /[a-zA-Z]/.test(currentCard.word) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(currentCard.word);
+        
+        if (isEnglishCard) {
+           playWordAndFirstMeaning(currentCard);
+        } else {
+           playCardSequence(currentCard);
+        }
+      }
+    }
+  }, [queue, isFlipped, isFinished, cards]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter' && cards.length > 0 && !isFinished && isReadyToPlay) {
+        if (!isFlipped) setIsFlipped(true);
+        else {
+           const currentCard = cards[queue[0]];
+           const isEnglishCard = /[a-zA-Z]/.test(currentCard.word) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(currentCard.word);
+           if (isEnglishCard) {
+              playWordAndFirstMeaning(currentCard);
+           } else {
+              playCardSequence(currentCard);
+           }
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFlipped, cards, queue, isFinished, isReadyToPlay]);
+
+  useEffect(() => {
+    if (total === 0 || isFinished) return;
+    const completedCount = total - queue.length;
+    
+    if (completedCount > 0 && completedCount % 10 === 0 && completedCount !== lastMilestoneRef.current && completedCount !== total) {
+      const messages = [
+        "你好厲害！🎉", "你真是記單字高手！💪", "你好強！🔥", 
+        "快要完成了哦！🚀", "有點厲害！😎", "太棒了！✨", 
+        "無人能敵！👑", "繼續保持！🎯"
+      ];
+      setEncouragement(messages[Math.floor(Math.random() * messages.length)]);
+      lastMilestoneRef.current = completedCount;
+
+      setTimeout(() => {
+        setEncouragement('');
+      }, 2500);
+    }
+  }, [queue.length, total, isFinished]);
+
+  // 英雄榜存取邏輯 (加上分類過濾)
+  useEffect(() => {
+    let isMounted = true;
+    if (isFinished) {
+      const fetchAndSubmit = async () => {
+        setIsSubmittingScore(true);
+        try {
+           if (!user) return;
+           
+           const currentCatName = activeCategory ? activeCategory.name : '自訂單字';
+
+           // 送出成績
+           if (playerName && total > 0) {
+               const r = getRating();
+               const docId = Date.now().toString() + Math.random().toString(36).substring(2);
+               
+               const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("英雄榜資料庫連線逾時")), 8000));
+               await Promise.race([
+                   setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'global_leaderboard', docId), {
+                      name: playerName,
+                      score: r.score,
+                      category: currentCatName,
+                      timestamp: new Date().toISOString()
+                   }),
+                   timeoutPromise
+               ]);
+           }
+
+           // 取得最新英雄榜，並依照單元做本地過濾與排序
+           const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'global_leaderboard'));
+           const docs = [];
+           querySnapshot.forEach((d) => {
+             const data = d.data();
+             if (data.category === currentCatName) {
+               docs.push(data);
+             }
+           });
+           docs.sort((a, b) => b.score - a.score);
+           if (isMounted) setLeaderboard(docs.slice(0, 10));
+
+        } catch (err) {
+           console.error("Leaderboard error", err);
+           if (isMounted) setError("英雄榜權限異常：" + (err.message || "請確認 Firebase 規則已開放讀寫"));
+        } finally {
+           if (isMounted) setIsSubmittingScore(false);
+        }
+      };
+      fetchAndSubmit();
+    }
+    return () => { isMounted = false; };
+  }, [isFinished, user, playerName, activeCategory, total, wrongClicks]);
+
+
+  // --- Render ---
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600 w-12 h-12" /></div>;
+
+  if (!isCanvas && !activeApiKey) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="bg-white p-8 rounded-[2rem] shadow-2xl max-w-md w-full border border-slate-100 text-center relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-2 bg-indigo-500"></div>
+          <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 mx-auto mb-6 shadow-inner">
+             <Lock size={32} />
+          </div>
+          <h1 className="text-2xl font-black text-slate-800 mb-4">系統安全鎖</h1>
+          
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-xl text-[13px] font-bold border border-red-100 whitespace-pre-wrap">
+              {error}
+            </div>
+          )}
+
+          <p className="text-[13px] text-slate-500 mb-6 font-medium text-left leading-relaxed">
+            請前往 <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-blue-500 underline font-bold">Google AI Studio</a> 申請金鑰。<br/><br/>
+            <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded">系統會自動驗證金鑰是否有效！</span>
+          </p>
+          <input
+            type="password"
+            value={keyInput}
+            onChange={e => setKeyInput(e.target.value)}
+            disabled={isValidatingKey}
+            placeholder="請貼上 AIzaSy 開頭的 AI 金鑰..."
+            className="w-full p-4 mb-4 bg-slate-50 border-2 border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-medium transition-colors disabled:opacity-50"
+          />
+          <button
+            onClick={validateAndSaveKey}
+            disabled={!keyInput.trim() || isValidatingKey}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black py-4 rounded-xl shadow-md transition-all flex justify-center items-center gap-2"
+          >
+            {isValidatingKey ? <Loader2 size={18} className="animate-spin" /> : null}
+            {isValidatingKey ? '驗證中...' : '驗證進入 App'} <ChevronRight size={18} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // --- 首頁 ---
+  if (cards.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center text-center">
+        
+        {pwdModal.isOpen && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
+              <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center text-amber-500 mx-auto mb-4">
+                <Lock size={24} />
+              </div>
+              <h3 className="text-xl font-black text-slate-800 mb-2">清除系統快取</h3>
+              <p className="text-xs text-slate-500 mb-6">這會清除本地所有的記憶金鑰</p>
+              <div className="flex gap-2 mt-4">
+                <button onClick={() => setPwdModal({ isOpen: false, value: '', error: '' })} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-all">取消</button>
+                <button onClick={() => {
+                    setActiveApiKey('');
+                    workingModelRef.current = ""; 
+                    try { localStorage.removeItem('my_gemini_key'); } catch(e){}
+                    setPwdModal({ isOpen: false, value: '', error: '' });
+                    setError("已清除舊金鑰！");
+                }} className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold transition-all shadow-md">確認清除</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-md w-full border border-slate-100">
+          <Brain className="text-indigo-600 w-12 h-12 mx-auto mb-4" />
+          <h1 className="text-2xl font-black mb-6 text-slate-800">Killer Cards</h1>
+          
+          <div className="bg-indigo-50/50 p-4 rounded-2xl mb-5 border border-indigo-100">
+            <div className="text-[13px] font-black text-indigo-800 mb-3 text-left flex items-center gap-2">
+              <Zap size={16} className="text-amber-500" />
+              免輸入！一鍵請 AI 擴充詞性與例句
+            </div>
+            
+            <div className="max-h-[300px] overflow-y-auto custom-scrollbar pr-2 pb-1">
+              
+              <div className="grid grid-cols-3 gap-2.5 mb-2.5">
+                {kinderCategories.map((cat, index) => (
+                  <button 
+                    key={`kinder-${index}`}
+                    onClick={() => loadPresetCategory(cat, 1)} 
+                    className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
+                  >
+                    <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
+                    <span>{cat.name}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="w-full h-px bg-indigo-200 my-5 relative">
+                <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-indigo-50 px-3 text-[11px] font-black tracking-widest text-indigo-400 uppercase rounded-full border border-indigo-100">
+                  Tier 1核心單字
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2.5">
+                {primaryCategories.map((cat, index) => (
+                  <button 
+                    key={`primary-${index}`}
+                    onClick={() => loadPresetCategory(cat, 1)} 
+                    className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
+                  >
+                    <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
+                    <span>{cat.name}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="w-full h-px bg-indigo-200 my-5 relative">
+                <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-indigo-50 px-3 text-[11px] font-black tracking-widest text-indigo-400 uppercase rounded-full border border-indigo-100">
+                  國中與進階挑戰區
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2.5">
+                {juniorCategories.map((cat, index) => (
+                  <button 
+                    key={`junior-${index}`}
+                    onClick={() => loadPresetCategory(cat, 1)} 
+                    className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
+                  >
+                    <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
+                    <span>{cat.name}</span>
+                  </button>
+                ))}
+              </div>
+
+            </div>
+          </div>
+
+          <div className="relative flex py-2 items-center mb-4">
+            <div className="flex-grow border-t border-slate-200"></div>
+            <span className="flex-shrink-0 mx-4 text-slate-400 text-xs font-bold tracking-wider">或輸入自訂單字</span>
+            <div className="flex-grow border-t border-slate-200"></div>
+          </div>
+
+          <textarea 
+            value={input} 
+            onChange={e => {
+              setInput(e.target.value);
+              setActiveCategory(null); 
+            }} 
+            placeholder="貼上想背的單字..." 
+            className="w-full h-32 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" 
+          />
+          
+          {error && (
+            <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed whitespace-pre-wrap ${error.includes('連線失敗') || error.includes('發現') || error.includes('錯誤') || error.includes('系統異常') || error.includes('異常') || error.includes('限制') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+              {error.includes('請求') || error.includes('掃描') || error.includes('請 AI 為單字擴充') ? <Clock size={18} className="shrink-0 mt-0.5" /> : <AlertTriangle size={18} className="shrink-0 mt-0.5" />}
+              {error}
+            </div>
+          )}
+
+          <button onClick={() => generate(input)} disabled={genLoading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50">
+            {genLoading ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {genLoading ? '處理中...' : 'AI 智慧生成單字卡'}
+          </button>
+          
+          <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-center">
+            <span>v15.1 獨立英雄榜版 for Chloe byKC</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- 測驗前：英雄登入畫面 ---
+  if (cards.length > 0 && !isFinished && !isReadyToPlay) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
+        <div className="bg-white p-10 rounded-[3rem] shadow-2xl border border-slate-100 max-w-md w-full relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-2 bg-indigo-500"></div>
+          <Trophy className="text-amber-400 w-20 h-20 mx-auto mb-6 drop-shadow-sm" />
+          <h2 className="text-2xl font-black mb-2 text-slate-800">英雄登入</h2>
+          <p className="text-sm text-slate-500 mb-8 font-medium">請輸入大名，準備將您的佳績寫入專屬排行榜！</p>
+
+          <div className="bg-slate-50 p-4 rounded-2xl mb-8 border border-slate-200">
+            <div className="text-[13px] font-bold text-slate-500 mb-2 text-left">輸入大名</div>
+            <input
+              type="text"
+              value={tempName}
+              onChange={e => setTempName(e.target.value)}
+              placeholder="例如：單字大師..."
+              className="w-full p-4 bg-white border-2 border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-black text-slate-700 transition-colors"
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  setPlayerName(tempName.trim() || '無名英雄');
+                  setIsReadyToPlay(true);
+                }
+              }}
+            />
+          </div>
+
+          <div className="flex gap-3 w-full">
+            <button
+              onClick={() => { setPlayerName('無名英雄'); setIsReadyToPlay(true); }}
+              className="flex-1 py-4 bg-slate-200 text-slate-600 rounded-2xl font-black transition-all hover:bg-slate-300 shadow-sm text-sm"
+            >
+              略過 ⏭️
+            </button>
+            <button
+              onClick={() => { setPlayerName(tempName.trim() || '無名英雄'); setIsReadyToPlay(true); }}
+              className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black transition-all shadow-xl hover:bg-indigo-700 flex justify-center items-center gap-2"
+            >
+              🚀 開始測驗！
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- 測驗後：結算與獨立英雄榜 ---
+  if (isFinished) {
+    const r = getRating();
+    return (
+      <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center text-center">
+        <div className="bg-white p-8 sm:p-10 rounded-[3rem] shadow-2xl border border-slate-100 max-w-md w-full">
+          
+          {/* Top: 個人分數區塊 (加入扣分顯示) */}
+          <div className="bg-indigo-50 border border-indigo-100 rounded-3xl p-5 mb-6 relative overflow-hidden">
+             <div className="absolute top-0 left-0 w-full h-1.5 bg-indigo-500"></div>
+             <div className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-1">Your Result</div>
+             <h2 className="text-xl font-black text-indigo-900 truncate mb-1">{playerName || '無名英雄'}</h2>
+             <div className={`text-4xl font-black ${r.color} drop-shadow-sm flex flex-col items-center justify-center gap-1 mt-2`}>
+                <div className="flex items-center justify-center gap-2">
+                  {r.emoji} {r.score} <span className="text-lg text-indigo-400">分</span>
+                </div>
+                {r.wrongClicks > 0 && (
+                  <span className="text-sm font-bold text-red-500 bg-red-50 px-3 py-1 rounded-full mt-1 border border-red-100">
+                    (答錯扣除 {r.wrongClicks} 分)
+                  </span>
+                )}
+             </div>
+          </div>
+
+          {/* Middle: 細部統計 */}
+          <div className="grid grid-cols-4 gap-2 mb-6">
+            <div className="bg-red-50 p-3 rounded-2xl border border-red-100 flex flex-col items-center justify-center">
+              <p className="text-red-600 font-black text-xl mb-1">{history.again}</p>
+              <p className="text-red-500 text-[9px] font-bold uppercase tracking-widest">Again</p>
+            </div>
+            <div className="bg-orange-50 p-3 rounded-2xl border border-orange-100 flex flex-col items-center justify-center">
+              <p className="text-orange-600 font-black text-xl mb-1">{history.hard}</p>
+              <p className="text-orange-500 text-[9px] font-bold uppercase tracking-widest">Hard</p>
+            </div>
+            <div className="bg-blue-50 p-3 rounded-2xl border border-blue-100 flex flex-col items-center justify-center">
+              <p className="text-blue-600 font-black text-xl mb-1">{history.good}</p>
+              <p className="text-blue-500 text-[9px] font-bold uppercase tracking-widest">Good</p>
+            </div>
+            <div className="bg-green-50 p-3 rounded-2xl border border-green-100 flex flex-col items-center justify-center">
+              <p className="text-green-600 font-black text-xl mb-1">{history.easy}</p>
+              <p className="text-green-500 text-[9px] font-bold uppercase tracking-widest">Easy</p>
+            </div>
+          </div>
+
+          {/* Bottom: 獨立分類英雄榜 */}
+          <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 mb-6">
+            <h3 className="text-sm font-black text-slate-700 mb-4 flex items-center justify-center gap-1.5">
+              <Trophy size={16} className="text-amber-500"/> {activeCategory ? activeCategory.name : '自訂單字'} 英雄榜 Top 10
+            </h3>
+            {isSubmittingScore ? (
+               <div className="py-4"><Loader2 className="animate-spin mx-auto text-indigo-400" /></div>
+            ) : (
+               <div className="space-y-2 text-sm text-left">
+                  {leaderboard.length === 0 ? (
+                     <p className="text-center text-slate-400 font-bold py-2">目前尚無紀錄，成為榜首吧！</p>
+                  ) : (
+                     leaderboard.map((lb, i) => (
+                        <div key={i} className="flex justify-between items-center bg-white p-2.5 rounded-xl shadow-sm border border-slate-100">
+                           <div className="flex items-center gap-2.5 overflow-hidden">
+                              <span className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${i===0?'bg-amber-100 text-amber-600':i===1?'bg-slate-200 text-slate-600':i===2?'bg-orange-100 text-orange-600':'bg-slate-50 text-slate-400'}`}>
+                                 {i+1}
+                              </span>
+                              <span className="font-bold text-slate-700 truncate max-w-[90px] sm:max-w-[120px]">{lb.name}</span>
+                              <span className="text-[10px] font-bold text-slate-400 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded-md truncate max-w-[60px]">{lb.category}</span>
+                           </div>
+                           <span className="font-black text-indigo-600 shrink-0">{lb.score} 分</span>
+                        </div>
+                     ))
+                  )}
+               </div>
+            )}
+          </div>
+          
+          {activeCategory && activeCategory.type !== 'kinder' && activePart === 1 && (
+            <button 
+              onClick={() => loadPresetCategory(activeCategory, 2)} 
+              disabled={genLoading || isSubmittingScore}
+              className="w-full mb-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl hover:scale-[1.02] transition-all disabled:opacity-75 disabled:scale-100"
+            >
+              {genLoading ? <Loader2 size={20} className="animate-spin" /> : <Zap size={20} />}
+              {genLoading ? '正在準備下半關，請稍候...' : '⚡ 進入下半關 (第 26~50 個單字)'}
+            </button>
+          )}
+
+          {/* 新版按鈕區：重新測驗 / 返回單元 / 返回首頁 */}
+          <div className="flex flex-col gap-2.5 w-full mt-2">
+             <div className="flex gap-2.5 w-full">
+                <button onClick={() => {
+                   setQueue(Array.from({length: cards.length}, (_, i) => i)); 
+                   setHistory({again:0, hard:0, good:0, easy:0}); 
+                   setWrongClicks(0);
+                   setIsFinished(false); 
+                   lastMilestoneRef.current = 0; 
+                   setSelectedChoice(null); setIsChoiceCorrect(false);
+                }} disabled={genLoading || isSubmittingScore} className="flex-1 bg-slate-900 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-1.5 shadow-xl hover:bg-black transition-all disabled:opacity-50 text-[13px] sm:text-base">
+                   <RefreshCcw size={16} />重新測驗
+                </button>
+                <button onClick={() => {
+                   setCards([]); setQueue([]); setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
+                   setWrongClicks(0);
+                   setIsFinished(false); setIsFlipped(false); setDeckId(null); setInput('');
+                   lastMilestoneRef.current = 0;
+                   setIsReadyToPlay(false);
+                   setSelectedChoice(null); setIsChoiceCorrect(false);
+                }} disabled={genLoading || isSubmittingScore} className="flex-1 bg-indigo-50 text-indigo-600 border border-indigo-100 font-black py-4 rounded-2xl flex items-center justify-center gap-1.5 shadow-sm hover:bg-indigo-100 transition-all disabled:opacity-50 text-[13px] sm:text-base">
+                   <Brain size={16} />返回單元
+                </button>
+             </div>
+             <button onClick={() => {
+                setCards([]); setQueue([]); setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
+                setWrongClicks(0);
+                setIsFinished(false); setIsFlipped(false); setDeckId(null); setInput('');
+                lastMilestoneRef.current = 0;
+                setActiveCategory(null);
+                setActivePart(1);
+                setIsReadyToPlay(false);
+                setSelectedChoice(null); setIsChoiceCorrect(false);
+                safePushState(window.location.pathname);
+             }} disabled={genLoading || isSubmittingScore} className="w-full bg-slate-100 text-slate-600 border border-slate-200 font-black py-4 rounded-2xl flex items-center justify-center gap-1.5 shadow-sm hover:bg-slate-200 transition-all disabled:opacity-50 text-[13px] sm:text-base">
+                <Home size={16} />返回首頁
+             </button>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
+  // --- 進行中：單字測驗主畫面 ---
+  const card = cards[queue[0]];
+  if (!card) return null;
+
+  const progress = total === 0 ? 0 : ((total - queue.length) / total) * 100;
+  
+  return (
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center py-4 px-4 font-sans text-slate-800 h-[100dvh] relative overflow-hidden">
+      
+      {encouragement && (
+        <div className="fixed top-[25%] left-1/2 transform -translate-x-1/2 z-[100] animate-bounce pointer-events-none">
+          <div className="bg-gradient-to-r from-amber-400 to-orange-500 text-white font-black px-6 py-3 rounded-full shadow-2xl text-lg sm:text-xl whitespace-nowrap border-4 border-white">
+            {encouragement}
+          </div>
+        </div>
+      )}
+
+      {shareModal.isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
+            <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center text-green-500 mx-auto mb-4"><Share2 size={32} /></div>
+            <h3 className="text-xl font-black text-slate-800 mb-2">進度已儲存！</h3>
+            <p className="text-sm text-slate-500 mb-6 font-medium">請複製下方專屬網址，傳給朋友或用手機打開就能繼續背單字囉：</p>
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-6 flex items-center gap-2">
+              <input type="text" readOnly value={shareModal.url} className="w-full bg-transparent text-sm text-slate-600 font-medium outline-none" />
+            </div>
+            <button onClick={() => { try { navigator.clipboard.writeText(shareModal.url); } catch(e){} setShareModal({ isOpen: false, url: '' }); }} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black transition-all shadow-md flex justify-center items-center gap-2">
+              <Check size={18} /> 複製並關閉
+            </button>
+          </div>
+        </div>
+      )}
+
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-black text-slate-800 mb-6">{confirmDialog.message}</h3>
+            <div className="flex gap-3">
+              <button onClick={closeConfirm} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-all">取消</button>
+              <button onClick={executeConfirm} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-md">確定</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRatingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onClick={() => setShowRatingModal(false)}>
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setShowRatingModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 font-bold text-xl">&times;</button>
+            <h3 className="text-xl font-black text-slate-800 mb-2">目前學習表現</h3>
+            <div className="text-6xl my-4 drop-shadow-md">{getRating().emoji}</div>
+            <div className={`text-4xl font-black ${getRating().color} mb-1 drop-shadow-sm`}>{getRating().score} 分</div>
+            <div className="text-lg font-bold text-slate-600 mb-6">{getRating().text}</div>
+            <div className="bg-slate-50 p-4 rounded-2xl mb-6 border border-slate-100">
+              <div className="text-sm font-bold text-slate-500 mb-1 tracking-wide">目前完成率</div>
+              <div className="text-2xl font-black text-indigo-600">{Math.round(progress)}%</div>
+            </div>
+            <button onClick={() => setShowRatingModal(false)} className="w-full py-3.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold transition-all shadow-lg">繼續練習</button>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-xl text-xs font-bold shadow-lg flex items-center gap-2">
+          <AlertTriangle size={14} /> {error}
+        </div>
+      )}
+
+      <div className="w-full max-w-md mb-3 space-y-3 shrink-0">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2 text-slate-700 font-black text-lg bg-white px-4 py-2 rounded-full shadow-sm border border-slate-100">
+            <button onClick={() => openConfirm('home', '確定放棄進度回首頁？')} className="text-slate-400 hover:text-red-500"><Home size={18}/></button>
+            <div className="w-px h-4 bg-slate-200 mx-0.5"></div>
+            <Brain size={20} className="text-indigo-600" />
+            <span>{total - queue.length} <span className="text-slate-400 text-sm font-medium">/ {total}</span></span>
+            <div className="w-px h-4 bg-slate-200 mx-0.5"></div>
+            <button onClick={handleShuffle} className="text-indigo-400 hover:text-indigo-600 transition-colors" title="隨機洗牌"><Shuffle size={18}/></button>
+            <div className="w-px h-4 bg-slate-200 mx-0.5"></div>
+            <button onClick={() => setShowRatingModal(true)} className="flex items-center gap-1 text-[13px] text-amber-600 hover:text-amber-700 transition-colors font-bold">📊 評分</button>
+          </div>
+          
+          <button onClick={async () => {
+            if (!user) return setError("尚未連線 Firebase 資料庫，請確認設定");
+            if (isSaving) return;
+            setIsSaving(true);
+            try {
+              let shareId = deckId || crypto.randomUUID();
+              const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'decks', shareId);
+              
+              // 加入 8 秒防呆機制，避免 Firebase 沒設好導致無限轉圈
+              const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("資料庫連線逾時！請確認 Firebase Firestore 是否已建立，且安全性規則已開放讀寫。")), 8000));
+              
+              await Promise.race([
+                 setDoc(docRef, { cards, queue, history, creator: user.uid, createdAt: new Date().toISOString() }),
+                 timeoutPromise
+              ]);
+
+              setDeckId(shareId); safePushState(`?deckId=${shareId}`);
+              
+              // 確保產生正確的專屬網址
+              const baseUrl = (window.location.hostname.includes('webcontainer') || window.location.hostname.includes('stackblitz')) ? 'https://您部署後的Vercel網址' : window.location.origin + window.location.pathname;
+              const url = `${baseUrl}?deckId=${shareId}`;
+              
+              try { await navigator.clipboard.writeText(url); } catch(e) {}
+              setCopyOk(true); setTimeout(() => setCopyOk(false), 2000);
+              setShareModal({ isOpen: true, url });
+            } catch (err) { 
+              console.error("儲存詳細錯誤:", err);
+              setError(err.message || "儲存失敗，請檢查 Firebase 設定"); 
+            } 
+            finally { setIsSaving(false); }
+          }} disabled={isSaving} className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${copyOk ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
+            {isSaving ? <Loader2 size={16} className="animate-spin" /> : copyOk ? <Check size={16} /> : <Share2 size={16} />}
+            {copyOk ? '已複製連結' : '儲存與分享'}
+          </button>
+        </div>
+        <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden shadow-inner">
+          <div className="bg-indigo-500 h-full transition-all duration-700 ease-out" style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+
+      <div className="relative w-full max-w-md flex-1 min-h-[450px] cursor-pointer perspective-1000 group mb-2" onClick={() => !isFlipped && setIsFlipped(true)}>
+        <div className={`relative w-full h-full transition-all duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
+          
+          <div className="absolute inset-0 backface-hidden bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 flex flex-col items-center justify-between p-6 border border-slate-100">
+            <div className="flex flex-col items-center justify-center flex-1 w-full gap-4">
+              <h2 className="text-[3rem] sm:text-[3.5rem] font-black text-slate-800 text-center leading-tight tracking-wide drop-shadow-sm w-full break-words">
+                {card.word}
+              </h2>
+              <button onClick={e => { e.stopPropagation(); playSimpleText(card.word); }} className="w-14 h-14 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 hover:bg-indigo-100 hover:scale-105 transition-all shadow-sm shrink-0">
+                <Volume2 size={28} />
+              </button>
+            </div>
+
+            <div className="w-full flex flex-col gap-2.5 mb-4 shrink-0">
+              {currentChoices.map((choice, idx) => {
+                let btnClass = "bg-slate-50 text-slate-600 active:bg-indigo-50 active:text-indigo-700 border-slate-200 active:border-indigo-200 sm:hover:bg-indigo-50 sm:hover:text-indigo-700 sm:hover:border-indigo-200";
+                if (selectedChoice !== null) {
+                  if (choice === card.meaning) {
+                    btnClass = "bg-green-100 text-green-700 border-green-400 shadow-sm"; 
+                  } else if (selectedChoice === idx) {
+                    btnClass = "bg-red-100 text-red-700 border-red-300"; 
+                  } else {
+                    btnClass = "bg-slate-50 text-slate-400 border-slate-100 opacity-50"; 
+                  }
+                }
+
+                return (
+                  <button
+                    key={`${card.word}-${idx}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (selectedChoice !== null) return; 
+                      setSelectedChoice(idx);
+                      const isCorrect = (choice === card.meaning);
+                      setIsChoiceCorrect(isCorrect);
+                      
+                      // 如果答錯了，扣分機制啟動：追蹤答錯次數
+                      if (!isCorrect) {
+                          setWrongClicks(prev => prev + 1);
+                      }
+                      
+                      setTimeout(() => {
+                        setIsFlipped(true);
+                      }, 600);
+                    }}
+                    className={`w-full p-4 sm:py-4 rounded-xl border text-[16px] sm:text-[18px] font-black transition-all text-left overflow-hidden text-ellipsis line-clamp-2 leading-relaxed ${btnClass}`}
+                  >
+                    {choice}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="text-slate-400 text-[10px] font-bold tracking-widest uppercase shrink-0">
+              [ 答對才能解鎖 Easy 按鈕 ]
+            </div>
+          </div>
+          
+          <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white rounded-[2rem] shadow-xl flex flex-col p-4 sm:p-5 overflow-hidden border border-slate-100">
+            
+            <div className="w-full h-36 sm:h-40 bg-slate-100 rounded-xl mb-3 overflow-hidden relative flex items-center justify-center shadow-inner shrink-0">
+              {!imgLoaded[card.word] && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-indigo-400 bg-slate-100 z-0">
+                  <Loader2 className="w-6 h-6 animate-spin mb-1" />
+                  <span className="text-[10px] font-black uppercase">Loading...</span>
+                </div>
+              )}
+              {imageUrls[card.word] && (
+                <img 
+                  src={imageUrls[card.word]} 
+                  className={`w-full h-full object-cover z-10 transition-opacity duration-300 ${imgLoaded[card.word] ? 'opacity-100' : 'opacity-0'}`} 
+                  alt="" 
+                  onLoad={() => setImgLoaded(prev => ({ ...prev, [card.word]: true }))}
+                  onError={e => {
+                    // 若原圖庫請求失敗，切換至更穩定的真實風景圖，避免出現醜醜的英文字替代圖
+                    if (!e.target.src.includes('picsum.photos')) {
+                      e.target.src = `https://picsum.photos/seed/${encodeURIComponent(card.word)}/400/300`;
+                    }
+                    setImgLoaded(prev => ({ ...prev, [card.word]: true }));
+                  }} 
+                />
+              )}
+            </div>
+
+            {renderCardBackText(card)}
+
+            <div className="grid grid-cols-5 gap-2 mt-auto pt-3 border-t border-slate-100 shrink-0 items-end pb-1">
+              <button onClick={(e) => { e.stopPropagation(); handleAction('again'); }} className="flex flex-col items-center gap-1.5 hover:scale-105 active:scale-95 transition-all">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center shadow-sm bg-red-50 text-red-600 border border-red-100"><RefreshCcw size={24} /></div>
+                <span className="text-xs font-black uppercase tracking-wider text-red-500">Again</span>
+              </button>
+
+              <button onClick={(e) => { e.stopPropagation(); handleAction('hard'); }} className="flex flex-col items-center gap-1.5 hover:scale-105 active:scale-95 transition-all">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center shadow-sm bg-orange-50 text-orange-600 border border-orange-100"><Flame size={24} /></div>
+                <span className="text-xs font-black uppercase tracking-wider text-orange-500">Hard</span>
+              </button>
+
+              <button onClick={(e) => { e.stopPropagation(); playCardSequence(card); }} className="flex flex-col items-center justify-start gap-1.5 hover:scale-105 active:scale-95 transition-all -mt-3 group">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center shadow-lg bg-indigo-600 text-white border-4 border-indigo-100 group-hover:bg-indigo-700">
+                  <Volume2 size={32} />
+                </div>
+                <span className="text-xs font-black uppercase tracking-wider text-indigo-600">Listen</span>
+              </button>
+
+              <button onClick={(e) => { e.stopPropagation(); handleAction('good'); }} className="flex flex-col items-center gap-1.5 hover:scale-105 active:scale-95 transition-all">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center shadow-sm bg-blue-50 text-blue-600 border border-blue-100"><Star size={24} /></div>
+                <span className="text-xs font-black uppercase tracking-wider text-blue-500">Good</span>
+              </button>
+
+              <button 
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  if (isChoiceCorrect) handleAction('easy'); 
+                }} 
+                disabled={!isChoiceCorrect}
+                className={`flex flex-col items-center gap-1.5 transition-all ${!isChoiceCorrect ? 'opacity-40 cursor-not-allowed' : 'hover:scale-105 active:scale-95'}`}
+              >
+                <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center shadow-sm border ${!isChoiceCorrect ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-green-50 text-green-600 border-green-100'}`}>
+                  {!isChoiceCorrect ? <Lock size={20} /> : <Zap size={24} />}
+                </div>
+                <span className={`text-xs font-black uppercase tracking-wider ${!isChoiceCorrect ? 'text-slate-400' : 'text-green-500'}`}>Easy</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+      <style dangerouslySetInnerHTML={{ __html: `.perspective-1000 { perspective: 1000px; } .backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; } .rotate-y-180 { transform: rotateY(180deg); } .transform-style-3d { transform-style: preserve-3d; } .custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }` }} />
+    </div>
+  );
+};
+
+export default App;
