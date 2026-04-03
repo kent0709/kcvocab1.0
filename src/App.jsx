@@ -145,6 +145,7 @@ const App = () => {
   const [cards, setCards] = useState([]);
   const [queue, setQueue] = useState([]);
   const [history, setHistory] = useState({ again: 0, hard: 0, good: 0, easy: 0 });
+  const [wrongClicks, setWrongClicks] = useState(0); // 追蹤答錯次數，用來扣分
   const [isFlipped, setIsFlipped] = useState(false);
   const [total, setTotal] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
@@ -395,6 +396,7 @@ const App = () => {
   const executeConfirm = () => {
     if (confirmDialog.type === 'home') {
       setCards([]); setQueue([]); setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
+      setWrongClicks(0);
       setIsFinished(false); setIsFlipped(false); setDeckId(null); setInput('');
       lastMilestoneRef.current = 0;
       setActiveCategory(null);
@@ -462,6 +464,7 @@ const App = () => {
     setImgLoaded({});
     setIsFinished(false);
     setIsReadyToPlay(false);
+    setWrongClicks(0);
     setGenLoading(true); 
     setError('🔍 正在請 AI 為單字擴充詞性與例句...');
     
@@ -654,6 +657,7 @@ const App = () => {
       setQueue(Array.from({length: newCards.length}, (_, i) => i));
       setTotal(newCards.length);
       setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
+      setWrongClicks(0);
       setIsFinished(false); 
       setIsFlipped(false);
       setIsReadyToPlay(false);
@@ -662,136 +666,22 @@ const App = () => {
     }
   };
 
-  useEffect(() => {
-    if (cards.length === 0 || isFinished) return;
-
-    const loadImages = async () => {
-      const nextCards = queue.slice(0, 4).map(idx => cards[idx]);
-      for (const card of nextCards) {
-        if (!card || imageUrls[card.word]) continue;
-        
-        let imgQuery = card.image_keyword || card.word || "study";
-        
-        if (!/[a-zA-Z]/.test(imgQuery)) {
-            imgQuery = card.word + " photography object";
-        } else {
-            imgQuery = imgQuery + " photography";
-        }
-        
-        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(imgQuery)}?width=400&height=300&nologo=true&seed=${card.word.length + Math.floor(Math.random() * 100)}`;
-        setImageUrls(prev => ({ ...prev, [card.word]: url }));
-      }
-    };
-    loadImages();
-  }, [queue, cards, isFinished, imageUrls]);
-
-  useEffect(() => {
-    if (queue.length > 0 && !isFinished && cards.length > 0) {
-      if (isFlipped) {
-        const currentCard = cards[queue[0]];
-        const isEnglishCard = /[a-zA-Z]/.test(currentCard.word) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(currentCard.word);
-        
-        if (isEnglishCard) {
-           playWordAndFirstMeaning(currentCard);
-        } else {
-           playCardSequence(currentCard);
-        }
-      }
-    }
-  }, [queue, isFlipped, isFinished, cards]);
-
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Enter' && cards.length > 0 && !isFinished && isReadyToPlay) {
-        if (!isFlipped) setIsFlipped(true);
-        else {
-           const currentCard = cards[queue[0]];
-           const isEnglishCard = /[a-zA-Z]/.test(currentCard.word) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(currentCard.word);
-           if (isEnglishCard) {
-              playWordAndFirstMeaning(currentCard);
-           } else {
-              playCardSequence(currentCard);
-           }
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFlipped, cards, queue, isFinished, isReadyToPlay]);
-
-  useEffect(() => {
-    if (total === 0 || isFinished) return;
-    const completedCount = total - queue.length;
-    
-    if (completedCount > 0 && completedCount % 10 === 0 && completedCount !== lastMilestoneRef.current && completedCount !== total) {
-      const messages = [
-        "你好厲害！🎉", "你真是記單字高手！💪", "你好強！🔥", 
-        "快要完成了哦！🚀", "有點厲害！😎", "太棒了！✨", 
-        "無人能敵！👑", "繼續保持！🎯"
-      ];
-      setEncouragement(messages[Math.floor(Math.random() * messages.length)]);
-      lastMilestoneRef.current = completedCount;
-
-      setTimeout(() => {
-        setEncouragement('');
-      }, 2500);
-    }
-  }, [queue.length, total, isFinished]);
-
   const getRating = () => {
     const t = history.again + history.hard + history.good + history.easy;
-    if (t === 0) return { score: 0, text: "尚未作答", color: "text-slate-500", emoji: "🤔" };
-    const score = Math.round(((history.easy * 100) + (history.good * 100) + (history.hard * 50)) / t);
-    if (score >= 90) return { score, text: "極佳", color: "text-green-500", emoji: "🏆" };
-    if (score >= 60) return { score, text: "穩定", color: "text-blue-500", emoji: "🌟" };
-    return { score, text: "加油", color: "text-orange-500", emoji: "💪" };
+    if (t === 0) return { score: 0, text: "尚未作答", color: "text-slate-500", emoji: "🤔", wrongClicks: 0 };
+    
+    let baseScore = Math.round(((history.easy * 100) + (history.good * 100) + (history.hard * 50)) / t);
+    // 加入錯題扣分機制
+    let finalScore = baseScore - wrongClicks;
+    if (finalScore < 0) finalScore = 0;
+
+    let text, color, emoji;
+    if (finalScore >= 90) { text = "極佳"; color = "text-green-500"; emoji = "🏆"; }
+    else if (finalScore >= 60) { text = "穩定"; color = "text-blue-500"; emoji = "🌟"; }
+    else { text = "加油"; color = "text-orange-500"; emoji = "💪"; }
+    
+    return { score: finalScore, text, color, emoji, wrongClicks };
   };
-
-  // 英雄榜存取邏輯
-  useEffect(() => {
-    let isMounted = true;
-    if (isFinished) {
-      const fetchAndSubmit = async () => {
-        setIsSubmittingScore(true);
-        try {
-           if (!user) return;
-           
-           // 送出成績
-           if (playerName && total > 0) {
-               const r = getRating();
-               const docId = Date.now().toString() + Math.random().toString(36).substring(2);
-               
-               // 加入逾時防呆，避免英雄榜無限轉圈
-               const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("英雄榜資料庫連線逾時")), 8000));
-               await Promise.race([
-                   setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'global_leaderboard', docId), {
-                      name: playerName,
-                      score: r.score,
-                      category: activeCategory ? activeCategory.name : '自訂單字',
-                      timestamp: new Date().toISOString()
-                   }),
-                   timeoutPromise
-               ]);
-           }
-
-           // 取得最新英雄榜 (遵循安全規則：全抓後在本地排序)
-           const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'global_leaderboard'));
-           const docs = [];
-           querySnapshot.forEach((d) => docs.push(d.data()));
-           docs.sort((a, b) => b.score - a.score);
-           if (isMounted) setLeaderboard(docs.slice(0, 10));
-
-        } catch (err) {
-           console.error("Leaderboard error", err);
-           if (isMounted) setError("英雄榜權限異常：" + (err.message || "請確認 Firebase 規則已開放讀寫"));
-        } finally {
-           if (isMounted) setIsSubmittingScore(false);
-        }
-      };
-      fetchAndSubmit();
-    }
-    return () => { isMounted = false; };
-  }, [isFinished, user, playerName, activeCategory, total]);
 
   const renderCardBackText = (card) => {
     if (!card) return null;
@@ -869,6 +759,139 @@ const App = () => {
     );
   };
 
+  // --- Effects ---
+
+  useEffect(() => {
+    if (cards.length === 0 || isFinished) return;
+
+    const loadImages = async () => {
+      const nextCards = queue.slice(0, 4).map(idx => cards[idx]);
+      for (const card of nextCards) {
+        if (!card || imageUrls[card.word]) continue;
+        
+        let imgQuery = card.image_keyword || card.word || "study";
+        
+        if (!/[a-zA-Z]/.test(imgQuery)) {
+            imgQuery = card.word + " photography object";
+        } else {
+            imgQuery = imgQuery + " photography";
+        }
+        
+        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(imgQuery)}?width=400&height=300&nologo=true&seed=${card.word.length + Math.floor(Math.random() * 100)}`;
+        setImageUrls(prev => ({ ...prev, [card.word]: url }));
+      }
+    };
+    loadImages();
+  }, [queue, cards, isFinished, imageUrls]);
+
+  useEffect(() => {
+    if (queue.length > 0 && !isFinished && cards.length > 0) {
+      if (isFlipped) {
+        const currentCard = cards[queue[0]];
+        const isEnglishCard = /[a-zA-Z]/.test(currentCard.word) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(currentCard.word);
+        
+        if (isEnglishCard) {
+           playWordAndFirstMeaning(currentCard);
+        } else {
+           playCardSequence(currentCard);
+        }
+      }
+    }
+  }, [queue, isFlipped, isFinished, cards]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter' && cards.length > 0 && !isFinished && isReadyToPlay) {
+        if (!isFlipped) setIsFlipped(true);
+        else {
+           const currentCard = cards[queue[0]];
+           const isEnglishCard = /[a-zA-Z]/.test(currentCard.word) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(currentCard.word);
+           if (isEnglishCard) {
+              playWordAndFirstMeaning(currentCard);
+           } else {
+              playCardSequence(currentCard);
+           }
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFlipped, cards, queue, isFinished, isReadyToPlay]);
+
+  useEffect(() => {
+    if (total === 0 || isFinished) return;
+    const completedCount = total - queue.length;
+    
+    if (completedCount > 0 && completedCount % 10 === 0 && completedCount !== lastMilestoneRef.current && completedCount !== total) {
+      const messages = [
+        "你好厲害！🎉", "你真是記單字高手！💪", "你好強！🔥", 
+        "快要完成了哦！🚀", "有點厲害！😎", "太棒了！✨", 
+        "無人能敵！👑", "繼續保持！🎯"
+      ];
+      setEncouragement(messages[Math.floor(Math.random() * messages.length)]);
+      lastMilestoneRef.current = completedCount;
+
+      setTimeout(() => {
+        setEncouragement('');
+      }, 2500);
+    }
+  }, [queue.length, total, isFinished]);
+
+  // 英雄榜存取邏輯 (加上分類過濾)
+  useEffect(() => {
+    let isMounted = true;
+    if (isFinished) {
+      const fetchAndSubmit = async () => {
+        setIsSubmittingScore(true);
+        try {
+           if (!user) return;
+           
+           const currentCatName = activeCategory ? activeCategory.name : '自訂單字';
+
+           // 送出成績
+           if (playerName && total > 0) {
+               const r = getRating();
+               const docId = Date.now().toString() + Math.random().toString(36).substring(2);
+               
+               const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("英雄榜資料庫連線逾時")), 8000));
+               await Promise.race([
+                   setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'global_leaderboard', docId), {
+                      name: playerName,
+                      score: r.score,
+                      category: currentCatName,
+                      timestamp: new Date().toISOString()
+                   }),
+                   timeoutPromise
+               ]);
+           }
+
+           // 取得最新英雄榜，並依照單元做本地過濾與排序
+           const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'global_leaderboard'));
+           const docs = [];
+           querySnapshot.forEach((d) => {
+             const data = d.data();
+             if (data.category === currentCatName) {
+               docs.push(data);
+             }
+           });
+           docs.sort((a, b) => b.score - a.score);
+           if (isMounted) setLeaderboard(docs.slice(0, 10));
+
+        } catch (err) {
+           console.error("Leaderboard error", err);
+           if (isMounted) setError("英雄榜權限異常：" + (err.message || "請確認 Firebase 規則已開放讀寫"));
+        } finally {
+           if (isMounted) setIsSubmittingScore(false);
+        }
+      };
+      fetchAndSubmit();
+    }
+    return () => { isMounted = false; };
+  }, [isFinished, user, playerName, activeCategory, total, wrongClicks]);
+
+
+  // --- Render ---
+
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600 w-12 h-12" /></div>;
 
   if (!isCanvas && !activeApiKey) {
@@ -912,132 +935,135 @@ const App = () => {
     );
   }
 
-  if (cards.length === 0) return (
-    <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center text-center">
-      
-      {pwdModal.isOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
-            <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center text-amber-500 mx-auto mb-4">
-              <Lock size={24} />
-            </div>
-            <h3 className="text-xl font-black text-slate-800 mb-2">清除系統快取</h3>
-            <p className="text-xs text-slate-500 mb-6">這會清除本地所有的記憶金鑰</p>
-            <div className="flex gap-2 mt-4">
-              <button onClick={() => setPwdModal({ isOpen: false, value: '', error: '' })} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-all">取消</button>
-              <button onClick={() => {
-                  setActiveApiKey('');
-                  workingModelRef.current = ""; 
-                  try { localStorage.removeItem('my_gemini_key'); } catch(e){}
-                  setPwdModal({ isOpen: false, value: '', error: '' });
-                  setError("已清除舊金鑰！");
-              }} className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold transition-all shadow-md">確認清除</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-md w-full border border-slate-100">
-        <Brain className="text-indigo-600 w-12 h-12 mx-auto mb-4" />
-        <h1 className="text-2xl font-black mb-6 text-slate-800">Killer Cards</h1>
+  // --- 首頁 ---
+  if (cards.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center text-center">
         
-        <div className="bg-indigo-50/50 p-4 rounded-2xl mb-5 border border-indigo-100">
-          <div className="text-[13px] font-black text-indigo-800 mb-3 text-left flex items-center gap-2">
-            <Zap size={16} className="text-amber-500" />
-            免輸入！一鍵請 AI 擴充詞性與例句
-          </div>
-          
-          <div className="max-h-[300px] overflow-y-auto custom-scrollbar pr-2 pb-1">
-            
-            <div className="grid grid-cols-3 gap-2.5 mb-2.5">
-              {kinderCategories.map((cat, index) => (
-                <button 
-                  key={`kinder-${index}`}
-                  onClick={() => loadPresetCategory(cat, 1)} 
-                  className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
-                >
-                  <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
-                  <span>{cat.name}</span>
-                </button>
-              ))}
+        {pwdModal.isOpen && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
+              <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center text-amber-500 mx-auto mb-4">
+                <Lock size={24} />
+              </div>
+              <h3 className="text-xl font-black text-slate-800 mb-2">清除系統快取</h3>
+              <p className="text-xs text-slate-500 mb-6">這會清除本地所有的記憶金鑰</p>
+              <div className="flex gap-2 mt-4">
+                <button onClick={() => setPwdModal({ isOpen: false, value: '', error: '' })} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-all">取消</button>
+                <button onClick={() => {
+                    setActiveApiKey('');
+                    workingModelRef.current = ""; 
+                    try { localStorage.removeItem('my_gemini_key'); } catch(e){}
+                    setPwdModal({ isOpen: false, value: '', error: '' });
+                    setError("已清除舊金鑰！");
+                }} className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold transition-all shadow-md">確認清除</button>
+              </div>
             </div>
-
-            <div className="w-full h-px bg-indigo-200 my-5 relative">
-              <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-indigo-50 px-3 text-[11px] font-black tracking-widest text-indigo-400 uppercase rounded-full border border-indigo-100">
-                Tier 1核心單字
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2.5">
-              {primaryCategories.map((cat, index) => (
-                <button 
-                  key={`primary-${index}`}
-                  onClick={() => loadPresetCategory(cat, 1)} 
-                  className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
-                >
-                  <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
-                  <span>{cat.name}</span>
-                </button>
-              ))}
-            </div>
-
-            <div className="w-full h-px bg-indigo-200 my-5 relative">
-              <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-indigo-50 px-3 text-[11px] font-black tracking-widest text-indigo-400 uppercase rounded-full border border-indigo-100">
-                國中與進階挑戰區
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2.5">
-              {juniorCategories.map((cat, index) => (
-                <button 
-                  key={`junior-${index}`}
-                  onClick={() => loadPresetCategory(cat, 1)} 
-                  className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
-                >
-                  <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
-                  <span>{cat.name}</span>
-                </button>
-              ))}
-            </div>
-
-          </div>
-        </div>
-
-        <div className="relative flex py-2 items-center mb-4">
-          <div className="flex-grow border-t border-slate-200"></div>
-          <span className="flex-shrink-0 mx-4 text-slate-400 text-xs font-bold tracking-wider">或輸入自訂單字</span>
-          <div className="flex-grow border-t border-slate-200"></div>
-        </div>
-
-        <textarea 
-          value={input} 
-          onChange={e => {
-            setInput(e.target.value);
-            setActiveCategory(null); 
-          }} 
-          placeholder="貼上想背的單字..." 
-          className="w-full h-32 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" 
-        />
-        
-        {error && (
-          <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed whitespace-pre-wrap ${error.includes('連線失敗') || error.includes('發現') || error.includes('錯誤') || error.includes('系統異常') || error.includes('異常') || error.includes('限制') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
-            {error.includes('請求') || error.includes('掃描') || error.includes('請 AI 為單字擴充') ? <Clock size={18} className="shrink-0 mt-0.5" /> : <AlertTriangle size={18} className="shrink-0 mt-0.5" />}
-            {error}
           </div>
         )}
 
-        <button onClick={() => generate(input)} disabled={genLoading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50">
-          {genLoading ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {genLoading ? '處理中...' : 'AI 智慧生成單字卡'}
-        </button>
-        
-        <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-center">
-          <span>v15 全球英雄榜版 for Chloe byKC</span>
+        <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-md w-full border border-slate-100">
+          <Brain className="text-indigo-600 w-12 h-12 mx-auto mb-4" />
+          <h1 className="text-2xl font-black mb-6 text-slate-800">Killer Cards</h1>
+          
+          <div className="bg-indigo-50/50 p-4 rounded-2xl mb-5 border border-indigo-100">
+            <div className="text-[13px] font-black text-indigo-800 mb-3 text-left flex items-center gap-2">
+              <Zap size={16} className="text-amber-500" />
+              免輸入！一鍵請 AI 擴充詞性與例句
+            </div>
+            
+            <div className="max-h-[300px] overflow-y-auto custom-scrollbar pr-2 pb-1">
+              
+              <div className="grid grid-cols-3 gap-2.5 mb-2.5">
+                {kinderCategories.map((cat, index) => (
+                  <button 
+                    key={`kinder-${index}`}
+                    onClick={() => loadPresetCategory(cat, 1)} 
+                    className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
+                  >
+                    <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
+                    <span>{cat.name}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="w-full h-px bg-indigo-200 my-5 relative">
+                <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-indigo-50 px-3 text-[11px] font-black tracking-widest text-indigo-400 uppercase rounded-full border border-indigo-100">
+                  Tier 1核心單字
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2.5">
+                {primaryCategories.map((cat, index) => (
+                  <button 
+                    key={`primary-${index}`}
+                    onClick={() => loadPresetCategory(cat, 1)} 
+                    className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
+                  >
+                    <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
+                    <span>{cat.name}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="w-full h-px bg-indigo-200 my-5 relative">
+                <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-indigo-50 px-3 text-[11px] font-black tracking-widest text-indigo-400 uppercase rounded-full border border-indigo-100">
+                  國中與進階挑戰區
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2.5">
+                {juniorCategories.map((cat, index) => (
+                  <button 
+                    key={`junior-${index}`}
+                    onClick={() => loadPresetCategory(cat, 1)} 
+                    className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
+                  >
+                    <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
+                    <span>{cat.name}</span>
+                  </button>
+                ))}
+              </div>
+
+            </div>
+          </div>
+
+          <div className="relative flex py-2 items-center mb-4">
+            <div className="flex-grow border-t border-slate-200"></div>
+            <span className="flex-shrink-0 mx-4 text-slate-400 text-xs font-bold tracking-wider">或輸入自訂單字</span>
+            <div className="flex-grow border-t border-slate-200"></div>
+          </div>
+
+          <textarea 
+            value={input} 
+            onChange={e => {
+              setInput(e.target.value);
+              setActiveCategory(null); 
+            }} 
+            placeholder="貼上想背的單字..." 
+            className="w-full h-32 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" 
+          />
+          
+          {error && (
+            <div className={`p-4 rounded-2xl text-[12px] font-bold mb-4 text-left flex gap-2 leading-relaxed whitespace-pre-wrap ${error.includes('連線失敗') || error.includes('發現') || error.includes('錯誤') || error.includes('系統異常') || error.includes('異常') || error.includes('限制') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+              {error.includes('請求') || error.includes('掃描') || error.includes('請 AI 為單字擴充') ? <Clock size={18} className="shrink-0 mt-0.5" /> : <AlertTriangle size={18} className="shrink-0 mt-0.5" />}
+              {error}
+            </div>
+          )}
+
+          <button onClick={() => generate(input)} disabled={genLoading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50">
+            {genLoading ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {genLoading ? '處理中...' : 'AI 智慧生成單字卡'}
+          </button>
+          
+          <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-center">
+            <span>v15.1 獨立英雄榜版 for Chloe byKC</span>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 
-  // --- 新增：測驗前 輸入大名與準備畫面 ---
+  // --- 測驗前：英雄登入畫面 ---
   if (cards.length > 0 && !isFinished && !isReadyToPlay) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
@@ -1045,7 +1071,7 @@ const App = () => {
           <div className="absolute top-0 left-0 w-full h-2 bg-indigo-500"></div>
           <Trophy className="text-amber-400 w-20 h-20 mx-auto mb-6 drop-shadow-sm" />
           <h2 className="text-2xl font-black mb-2 text-slate-800">英雄登入</h2>
-          <p className="text-sm text-slate-500 mb-8 font-medium">請輸入大名，準備將您的佳績寫入全球排行榜！</p>
+          <p className="text-sm text-slate-500 mb-8 font-medium">請輸入大名，準備將您的佳績寫入專屬排行榜！</p>
 
           <div className="bg-slate-50 p-4 rounded-2xl mb-8 border border-slate-200">
             <div className="text-[13px] font-bold text-slate-500 mb-2 text-left">輸入大名</div>
@@ -1083,20 +1109,27 @@ const App = () => {
     );
   }
 
-  // --- 更新：測驗後 顯示分數、英雄榜、新版按鈕 ---
+  // --- 測驗後：結算與獨立英雄榜 ---
   if (isFinished) {
     const r = getRating();
     return (
       <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center text-center">
         <div className="bg-white p-8 sm:p-10 rounded-[3rem] shadow-2xl border border-slate-100 max-w-md w-full">
           
-          {/* Top: 個人分數區塊 */}
+          {/* Top: 個人分數區塊 (加入扣分顯示) */}
           <div className="bg-indigo-50 border border-indigo-100 rounded-3xl p-5 mb-6 relative overflow-hidden">
              <div className="absolute top-0 left-0 w-full h-1.5 bg-indigo-500"></div>
              <div className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-1">Your Result</div>
              <h2 className="text-xl font-black text-indigo-900 truncate mb-1">{playerName || '無名英雄'}</h2>
-             <div className={`text-4xl font-black ${r.color} drop-shadow-sm flex items-center justify-center gap-2`}>
-                {r.emoji} {r.score} <span className="text-lg text-indigo-400">分</span>
+             <div className={`text-4xl font-black ${r.color} drop-shadow-sm flex flex-col items-center justify-center gap-1 mt-2`}>
+                <div className="flex items-center justify-center gap-2">
+                  {r.emoji} {r.score} <span className="text-lg text-indigo-400">分</span>
+                </div>
+                {r.wrongClicks > 0 && (
+                  <span className="text-sm font-bold text-red-500 bg-red-50 px-3 py-1 rounded-full mt-1 border border-red-100">
+                    (答錯扣除 {r.wrongClicks} 分)
+                  </span>
+                )}
              </div>
           </div>
 
@@ -1120,10 +1153,10 @@ const App = () => {
             </div>
           </div>
 
-          {/* Bottom: 全球英雄榜 */}
+          {/* Bottom: 獨立分類英雄榜 */}
           <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 mb-6">
             <h3 className="text-sm font-black text-slate-700 mb-4 flex items-center justify-center gap-1.5">
-              <Trophy size={16} className="text-amber-500"/> 全球英雄榜 Top 10
+              <Trophy size={16} className="text-amber-500"/> {activeCategory ? activeCategory.name : '自訂單字'} 英雄榜 Top 10
             </h3>
             {isSubmittingScore ? (
                <div className="py-4"><Loader2 className="animate-spin mx-auto text-indigo-400" /></div>
@@ -1166,6 +1199,7 @@ const App = () => {
                 <button onClick={() => {
                    setQueue(Array.from({length: cards.length}, (_, i) => i)); 
                    setHistory({again:0, hard:0, good:0, easy:0}); 
+                   setWrongClicks(0);
                    setIsFinished(false); 
                    lastMilestoneRef.current = 0; 
                    setSelectedChoice(null); setIsChoiceCorrect(false);
@@ -1174,6 +1208,7 @@ const App = () => {
                 </button>
                 <button onClick={() => {
                    setCards([]); setQueue([]); setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
+                   setWrongClicks(0);
                    setIsFinished(false); setIsFlipped(false); setDeckId(null); setInput('');
                    lastMilestoneRef.current = 0;
                    setIsReadyToPlay(false);
@@ -1184,6 +1219,7 @@ const App = () => {
              </div>
              <button onClick={() => {
                 setCards([]); setQueue([]); setHistory({ again: 0, hard: 0, good: 0, easy: 0 });
+                setWrongClicks(0);
                 setIsFinished(false); setIsFlipped(false); setDeckId(null); setInput('');
                 lastMilestoneRef.current = 0;
                 setActiveCategory(null);
@@ -1201,7 +1237,10 @@ const App = () => {
     );
   }
 
+  // --- 進行中：單字測驗主畫面 ---
   const card = cards[queue[0]];
+  if (!card) return null;
+
   const progress = total === 0 ? 0 : ((total - queue.length) / total) * 100;
   
   return (
@@ -1354,6 +1393,11 @@ const App = () => {
                       setSelectedChoice(idx);
                       const isCorrect = (choice === card.meaning);
                       setIsChoiceCorrect(isCorrect);
+                      
+                      // 如果答錯了，扣分機制啟動：追蹤答錯次數
+                      if (!isCorrect) {
+                          setWrongClicks(prev => prev + 1);
+                      }
                       
                       setTimeout(() => {
                         setIsFlipped(true);
