@@ -145,21 +145,19 @@ const App = () => {
   const [cards, setCards] = useState([]);
   const [queue, setQueue] = useState([]);
   const [history, setHistory] = useState({ again: 0, hard: 0, good: 0, easy: 0 });
-  const [wrongClicks, setWrongClicks] = useState(0); // 追蹤答錯次數，用來扣分
+  const [wrongClicks, setWrongClicks] = useState(0); 
   const [isFlipped, setIsFlipped] = useState(false);
   const [total, setTotal] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
   const [loading, setLoading] = useState(true);
   const [copyOk, setCopyOk] = useState(false);
   
-  // 英雄榜專屬設定
   const [playerName, setPlayerName] = useState('');
   const [tempName, setTempName] = useState('');
   const [isReadyToPlay, setIsReadyToPlay] = useState(false);
   const [leaderboard, setLeaderboard] = useState([]);
   const [isSubmittingScore, setIsSubmittingScore] = useState(false);
 
-  // 優化圖片載入狀態
   const [imageUrls, setImageUrls] = useState({});
   const [imgLoaded, setImgLoaded] = useState({});
 
@@ -187,14 +185,41 @@ const App = () => {
   const [selectedChoice, setSelectedChoice] = useState(null);
   const [isChoiceCorrect, setIsChoiceCorrect] = useState(false);
 
+  // --- 新增：選項清理工具 ---
+  const cleanChoiceText = (text) => {
+    if (!text) return '';
+    let cleaned = text;
+    // 1. 移除各類括號內的詞性標示
+    cleaned = cleaned.replace(/[\(（\[【<](.*?詞|n|v|adj|adv|prep|conj|pron|int|名|動|形|副|代|介|連|助|感|他|自|第[一二三]類.*?)[\)）\]】>]/gi, '');
+    // 2. 移除獨立的詞性開頭
+    cleaned = cleaned.replace(/(名詞|動詞|形容詞|副詞|代名詞|介系詞|連接詞|助詞|感嘆詞|自動詞|他動詞|第[一二三]類動詞)[：:\s]+/g, '');
+    // 3. 移除平假名與片假名
+    cleaned = cleaned.replace(/[\u3040-\u309F\u30A0-\u30FF]/g, '');
+    // 4. 移除英文字母 (避免英文單字殘留)
+    cleaned = cleaned.replace(/[a-zA-Z]+/g, '');
+    // 5. 移除孤立的括號與編號
+    cleaned = cleaned.replace(/[()（）\[\]【】<>]/g, '');
+    cleaned = cleaned.replace(/\d+[\.、]/g, '');
+    // 6. 整理多個換行與斜線為單一斜線
+    cleaned = cleaned.replace(/[\n\r]+/g, ' / ');
+    cleaned = cleaned.replace(/\s*\/\s*(\/\s*)+/g, ' / ');
+    cleaned = cleaned.replace(/^[ \/]+|[ \/]+$/g, '').trim();
+    // 7. 縮減過長的選項 (最多顯示3個意思)
+    const parts = cleaned.split('/').map(p => p.trim()).filter(p => p);
+    cleaned = parts.slice(0, 3).join(' / ');
+    return cleaned || '請翻面查看';
+  };
+
   useEffect(() => {
     const initAuth = async () => {
       try {
-        if (isCanvas && typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
+        const authPromise = isCanvas && typeof __initial_auth_token !== 'undefined' && __initial_auth_token
+          ? signInWithCustomToken(auth, __initial_auth_token)
+          : signInAnonymously(auth);
+        
+        // 8秒登入防呆機制
+        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Firebase 登入連線逾時")), 8000));
+        await Promise.race([authPromise, timeout]);
       } catch (err) {
         console.error("登入錯誤", err);
         setError("❌ Firebase 連線失敗，請檢查網路或專案設定。");
@@ -212,7 +237,10 @@ const App = () => {
     const id = new URLSearchParams(window.location.search).get('deckId');
     if (id) {
       setDeckId(id);
-      getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', id))
+      const docPromise = getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'decks', id));
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("讀取單字卡連線逾時")), 8000));
+      
+      Promise.race([docPromise, timeoutPromise])
         .then(s => {
           if (s.exists()) {
             const d = s.data();
@@ -226,7 +254,8 @@ const App = () => {
         })
         .catch(err => {
           console.error("資料讀取失敗", err);
-          if (err.message.includes("permissions")) setError("❌ 資料庫權限不足！");
+          if (err.message && err.message.includes("permissions")) setError("❌ 資料庫權限不足！");
+          else setError("❌ 讀取單字卡失敗或連線逾時");
           setLoading(false);
         });
     } else {
@@ -237,14 +266,17 @@ const App = () => {
   useEffect(() => {
     if (cards.length > 0 && queue.length > 0) {
       const correctCard = cards[queue[0]];
-      const choices = [correctCard.meaning];
+      const choices = [{ full: correctCard.meaning, display: cleanChoiceText(correctCard.meaning) }];
       
       let attempts = 0;
       while (choices.length < 3 && attempts < 50) {
         const randomIndex = Math.floor(Math.random() * cards.length);
         const randomCard = cards[randomIndex];
-        if (randomCard.word !== correctCard.word && !choices.includes(randomCard.meaning)) {
-          choices.push(randomCard.meaning);
+        const displayMeaning = cleanChoiceText(randomCard.meaning);
+        
+        // 確保選項不重複 (比對清理後的外觀)
+        if (randomCard.word !== correctCard.word && !choices.some(c => c.display === displayMeaning)) {
+          choices.push({ full: randomCard.meaning, display: displayMeaning });
         }
         attempts++;
       }
@@ -487,8 +519,8 @@ const App = () => {
     }
     
     const prompt = isEn 
-      ? `請分析以下文字：\n"""${targetText}"""\n這是一份「英文學習清單」。請提取出所有英文單字（務必完整包含輸入的所有單字，不可遺漏！）。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」，請務必自動將其「翻譯成英文單字」。\n請為每個單字提供更廣泛且結構化的解釋：\n1. 包含不同「詞性」的意思，並換行顯示。⚠️【最重要】：請務必把最簡單、最常用的中文意思放在第一行的最前面（例如：書；(n.) 書本），幫助快速記憶。\n2. 補充類似的「同類詞、同義詞」或相反的「反義詞」。例如：[同義詞] reserve, order / [反義詞] cancel\n3. 提供對應的英文例句，若有多個詞性請提供多句，並用「 / 」隔開。\n4. 提供對應的中文翻譯，多句請用「 / 」隔開。\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "不同詞性與意思(務必使用 \\n 換行，最簡單的意思放最前)", "breakdown": "同義詞/反義詞補充", "example": "英文例句1 / 英文例句2", "example_kana": "", "example_zh": "中文翻譯1 / 中文翻譯2", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字"}]。請只回傳 JSON。`
-      : `請分析以下文字：\n"""${targetText}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "詞性與意思 (若是動詞，務必明確標註為：第一/二/三類動詞)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象化連結說明 (💡請提供生動、好記的比喻或字根字首解析來幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`;
+      ? `請分析以下文字：\n"""${targetText}"""\n這是一份「英文學習清單」。請提取出所有英文單字（務必完整包含輸入的所有單字，不可遺漏！）。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」，請務必自動將其「翻譯成英文單字」。\n請為每個單字提供更廣泛且結構化的解釋：\n1. 包含不同「詞性」的意思，並換行顯示。⚠️【最重要】：請務必把最簡單、最常用的中文意思放在第一行的最前面（例如：書；(n.) 書本），幫助快速記憶。(⚠️絕對不要包含原英文單字在意思裡)\n2. 補充類似的「同類詞、同義詞」或相反的「反義詞」。例如：[同義詞] reserve, order / [反義詞] cancel\n3. 提供對應的英文例句，若有多個詞性請提供多句，並用「 / 」隔開。\n4. 提供對應的中文翻譯，多句請用「 / 」隔開。\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "不同詞性與意思(務必使用 \\n 換行，最簡單的意思放最前)", "breakdown": "同義詞/反義詞補充", "example": "英文例句1 / 英文例句2", "example_kana": "", "example_zh": "中文翻譯1 / 中文翻譯2", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字"}]。請只回傳 JSON。`
+      : `請分析以下文字：\n"""${targetText}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "純中文意思與詞性 (若是動詞，務必明確標註為：第一/二/三類動詞。⚠️絕對不要包含原日文單字或假名在意思裡！)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象化連結說明 (💡請提供生動、好記的比喻或字根字首解析來幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`;
 
     let modelToUse = isCanvas ? "gemini-2.5-flash-preview-09-2025" : workingModelRef.current;
 
@@ -779,6 +811,17 @@ const App = () => {
         
         const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(imgQuery)}?width=400&height=300&nologo=true&seed=${card.word.length + Math.floor(Math.random() * 100)}`;
         setImageUrls(prev => ({ ...prev, [card.word]: url }));
+
+        // 圖片 8 秒防呆：如果圖片伺服器卡住，強制取消轉圈並顯示備用圖
+        setTimeout(() => {
+           setImgLoaded(prev => {
+              if (!prev[card.word]) {
+                 setImageUrls(urls => ({ ...urls, [card.word]: `https://picsum.photos/seed/${encodeURIComponent(card.word)}/400/300` }));
+                 return { ...prev, [card.word]: true };
+              }
+              return prev;
+           });
+        }, 8000);
       }
     };
     loadImages();
@@ -848,25 +891,27 @@ const App = () => {
            
            const currentCatName = activeCategory ? activeCategory.name : '自訂單字';
 
-           // 送出成績
-           if (playerName && total > 0) {
-               const r = getRating();
-               const docId = Date.now().toString() + Math.random().toString(36).substring(2);
-               
-               const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("英雄榜資料庫連線逾時")), 8000));
-               await Promise.race([
-                   setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'global_leaderboard', docId), {
+           const dbOperations = async () => {
+               // 送出成績
+               if (playerName && total > 0) {
+                   const r = getRating();
+                   const docId = Date.now().toString() + Math.random().toString(36).substring(2);
+                   await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'global_leaderboard', docId), {
                       name: playerName,
                       score: r.score,
                       category: currentCatName,
                       timestamp: new Date().toISOString()
-                   }),
-                   timeoutPromise
-               ]);
-           }
+                   });
+               }
 
-           // 取得最新英雄榜，並依照單元做本地過濾與排序
-           const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'global_leaderboard'));
+               // 取得最新英雄榜
+               return await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'global_leaderboard'));
+           };
+
+           // 英雄榜 8 秒連線防呆
+           const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("英雄榜資料庫連線逾時")), 8000));
+           const querySnapshot = await Promise.race([dbOperations(), timeoutPromise]);
+
            const docs = [];
            querySnapshot.forEach((d) => {
              const data = d.data();
@@ -879,7 +924,7 @@ const App = () => {
 
         } catch (err) {
            console.error("Leaderboard error", err);
-           if (isMounted) setError("英雄榜權限異常：" + (err.message || "請確認 Firebase 規則已開放讀寫"));
+           if (isMounted) setError("英雄榜連線異常：" + (err.message || "請確認 Firebase 規則已開放讀寫"));
         } finally {
            if (isMounted) setIsSubmittingScore(false);
         }
@@ -1372,10 +1417,10 @@ const App = () => {
             </div>
 
             <div className="w-full flex flex-col gap-2.5 mb-4 shrink-0">
-              {currentChoices.map((choice, idx) => {
+              {currentChoices.map((choiceObj, idx) => {
                 let btnClass = "bg-slate-50 text-slate-600 active:bg-indigo-50 active:text-indigo-700 border-slate-200 active:border-indigo-200 sm:hover:bg-indigo-50 sm:hover:text-indigo-700 sm:hover:border-indigo-200";
                 if (selectedChoice !== null) {
-                  if (choice === card.meaning) {
+                  if (choiceObj.full === card.meaning) {
                     btnClass = "bg-green-100 text-green-700 border-green-400 shadow-sm"; 
                   } else if (selectedChoice === idx) {
                     btnClass = "bg-red-100 text-red-700 border-red-300"; 
@@ -1391,7 +1436,7 @@ const App = () => {
                       e.stopPropagation();
                       if (selectedChoice !== null) return; 
                       setSelectedChoice(idx);
-                      const isCorrect = (choice === card.meaning);
+                      const isCorrect = (choiceObj.full === card.meaning);
                       setIsChoiceCorrect(isCorrect);
                       
                       // 如果答錯了，扣分機制啟動：追蹤答錯次數
@@ -1405,7 +1450,7 @@ const App = () => {
                     }}
                     className={`w-full p-4 sm:py-4 rounded-xl border text-[16px] sm:text-[18px] font-black transition-all text-left overflow-hidden text-ellipsis line-clamp-2 leading-relaxed ${btnClass}`}
                   >
-                    {choice}
+                    {choiceObj.display}
                   </button>
                 )
               })}
