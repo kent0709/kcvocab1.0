@@ -136,6 +136,27 @@ const juniorCategories = [
   { name: "暑假下1", icon: "☀️" }, { name: "暑假下2", icon: "☀️" }, { name: "暑假下3", icon: "☀️" }
 ].map(c => ({ ...c, type: 'junior', words: juniorDataRaw[c.name].split(/、/) }));
 
+// --- 💡 隱藏版：日文特訓十大單元字庫 ---
+const japaneseDataRaw = {
+  "必學問候": "おはよう,こんにちは,こんばんは,ありがとう,すみません,ごめんなさい,さようなら,いただきます,ごちそうさま,いってきます,いってらっしゃい,ただいま,おかえりなさい,おやすみなさい,はじめまして,よろしく,おねがいします,おつかれさま,おだいじに,ようこそ",
+  "核心動詞": "食べる,飲む,行く,来る,帰る,見る,聞く,話す,読む,書く,買う,売る,立つ,座る,起きる,寝る,働く,休む,遊ぶ,走る",
+  "實用形容詞": "大きい,小さい,高い,低い,新しい,古い,良い,悪い,暑い,寒い,熱い,冷たい,難しい,易しい,甘い,辛い,美味しい,まずい,忙しい,楽しい",
+  "飲食文化": "ご飯,パン,肉,魚,野菜,果物,水,お茶,コーヒー,牛乳,お酒,ビール,ラーメン,うどん,寿司,刺身,天ぷら,弁当,定食,おにぎり",
+  "交通旅行": "車,バス,電車,地下鉄,新幹線,飛行機,船,自転車,タクシー,駅,空港,港,バス停,切符,改札口,ホーム,時刻表,地図,道,信号",
+  "購物血拼": "お金,現金,お釣り,レシート,財布,値段,安い,高い,割引,セール,サイズ,色,デザイン,服,靴,鞄,帽子,時計,眼鏡,店",
+  "數字時間": "一,二,三,四,五,六,七,八,九,十,百,千,万,今日,明日,昨日,今週,来週,朝,夜",
+  "身體健康": "頭,顔,髪,目,鼻,口,耳,首,肩,胸,手,腕,指,お腹,背中,足,膝,薬,病院,医者",
+  "居家生活": "家,部屋,居間,寝室,台所,お風呂,トイレ,庭,窓,ドア,壁,床,天井,家具,机,椅子,ベッド,布団,テレビ,冷蔵庫",
+  "職場學校": "会社,仕事,会議,出張,給料,社長,同僚,部下,学校,教室,図書館,食堂,先生,学生,授業,試験,宿題,成績,休み,卒業"
+};
+
+const japaneseCategories = Object.keys(japaneseDataRaw).map((name, idx) => ({
+  name,
+  icon: ["👋", "🏃", "✨", "🍣", "🚆", "🛍️", "🕒", "💪", "🏠", "🏢"][idx],
+  type: 'japanese',
+  words: japaneseDataRaw[name].split(',')
+}));
+
 const App = () => {
   const [activeApiKey, setActiveApiKey] = useState(() => isCanvas ? "" : (getEnvKey() || getLocalKey()));
   const [keyInput, setKeyInput] = useState('');
@@ -152,6 +173,9 @@ const App = () => {
   const [loading, setLoading] = useState(true);
   const [copyOk, setCopyOk] = useState(false);
   
+  // 大腦隱藏模式：全球綜合 (global) vs 日文特訓 (japanese)
+  const [appMode, setAppMode] = useState('global');
+
   const [playerName, setPlayerName] = useState('');
   const [tempName, setTempName] = useState('');
   const [isReadyToPlay, setIsReadyToPlay] = useState(false);
@@ -185,26 +209,19 @@ const App = () => {
   const [selectedChoice, setSelectedChoice] = useState(null);
   const [isChoiceCorrect, setIsChoiceCorrect] = useState(false);
 
-  // --- 新增：選項清理工具 ---
+  // --- 選項清理工具 ---
   const cleanChoiceText = (text) => {
     if (!text) return '';
     let cleaned = text;
-    // 1. 移除各類括號內的詞性標示
     cleaned = cleaned.replace(/[\(（\[【<](.*?詞|n|v|adj|adv|prep|conj|pron|int|名|動|形|副|代|介|連|助|感|他|自|第[一二三]類.*?)[\)）\]】>]/gi, '');
-    // 2. 移除獨立的詞性開頭
     cleaned = cleaned.replace(/(名詞|動詞|形容詞|副詞|代名詞|介系詞|連接詞|助詞|感嘆詞|自動詞|他動詞|第[一二三]類動詞)[：:\s]+/g, '');
-    // 3. 移除平假名與片假名
     cleaned = cleaned.replace(/[\u3040-\u309F\u30A0-\u30FF]/g, '');
-    // 4. 移除英文字母 (避免英文單字殘留)
     cleaned = cleaned.replace(/[a-zA-Z]+/g, '');
-    // 5. 移除孤立的括號與編號
     cleaned = cleaned.replace(/[()（）\[\]【】<>]/g, '');
     cleaned = cleaned.replace(/\d+[\.、]/g, '');
-    // 6. 整理多個換行與斜線為單一斜線
     cleaned = cleaned.replace(/[\n\r]+/g, ' / ');
     cleaned = cleaned.replace(/\s*\/\s*(\/\s*)+/g, ' / ');
     cleaned = cleaned.replace(/^[ \/]+|[ \/]+$/g, '').trim();
-    // 7. 縮減過長的選項 (最多顯示3個意思)
     const parts = cleaned.split('/').map(p => p.trim()).filter(p => p);
     cleaned = parts.slice(0, 3).join(' / ');
     return cleaned || '請翻面查看';
@@ -217,7 +234,6 @@ const App = () => {
           ? signInWithCustomToken(auth, __initial_auth_token)
           : signInAnonymously(auth);
         
-        // 8秒登入防呆機制
         const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Firebase 登入連線逾時")), 8000));
         await Promise.race([authPromise, timeout]);
       } catch (err) {
@@ -274,7 +290,6 @@ const App = () => {
         const randomCard = cards[randomIndex];
         const displayMeaning = cleanChoiceText(randomCard.meaning);
         
-        // 確保選項不重複 (比對清理後的外觀)
         if (randomCard.word !== correctCard.word && !choices.some(c => c.display === displayMeaning)) {
           choices.push({ full: randomCard.meaning, display: displayMeaning });
         }
@@ -503,9 +518,11 @@ const App = () => {
     setSelectedChoice(null);
     setIsChoiceCorrect(false);
 
+    // 智能語系與主題判斷邏輯
     const engWordCount = (targetText.match(/[a-zA-Z]+/g) || []).length;
     const hasKana = /[\u3040-\u309F\u30A0-\u30FF]/.test(targetText);
     const hasChinese = /[\u4E00-\u9FFF]/.test(targetText);
+    const isTopic = appMode === 'japanese' && targetText.length < 15 && !targetText.includes('\n') && !targetText.includes(',');
 
     let isEn = false;
     if (hasKana) {
@@ -517,10 +534,18 @@ const App = () => {
     } else {
         isEn = false; 
     }
-    
-    const prompt = isEn 
+
+    const globalPrompt = isEn 
       ? `請分析以下文字：\n"""${targetText}"""\n這是一份「英文學習清單」。請提取出所有英文單字（務必完整包含輸入的所有單字，不可遺漏！）。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」，請務必自動將其「翻譯成英文單字」。\n請為每個單字提供更廣泛且結構化的解釋：\n1. 包含不同「詞性」的意思，並換行顯示。⚠️【最重要】：請務必把最簡單、最常用的中文意思放在第一行的最前面（例如：書；(n.) 書本），幫助快速記憶。(⚠️絕對不要包含原英文單字在意思裡)\n2. 補充類似的「同類詞、同義詞」或相反的「反義詞」。例如：[同義詞] reserve, order / [反義詞] cancel\n3. 提供對應的英文例句，若有多個詞性請提供多句，並用「 / 」隔開。\n4. 提供對應的中文翻譯，多句請用「 / 」隔開。\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "不同詞性與意思(務必使用 \\n 換行，最簡單的意思放最前)", "breakdown": "同義詞/反義詞補充", "example": "英文例句1 / 英文例句2", "example_kana": "", "example_zh": "中文翻譯1 / 中文翻譯2", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字"}]。請只回傳 JSON。`
       : `請分析以下文字：\n"""${targetText}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "純中文意思與詞性 (若是動詞，務必明確標註為：第一/二/三類動詞。⚠️絕對不要包含原日文單字或假名在意思裡！)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象化連結說明 (💡請提供生動、好記的比喻或字根字首解析來幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`;
+
+    // 專屬日文特訓模式的 Prompt (支援主題延伸與大眾化意象解析)
+    const japanesePrompt = `使用者輸入了以下內容：\n"""${targetText}"""\n
+    任務 1：判斷輸入內容。如果這是一個「簡短的主題（例如：車子、機場、水果、職場）」，請發揮擴充能力，幫我生成 20 個與該主題高度相關的實用日文單字。如果這是一串單字清單，請直接分析這些單字（若含中文請翻譯成日文）。
+    任務 2：回傳 JSON 陣列，格式如下：
+    [{"word": "日文單字(漢字或假名)", "reading": "平假名讀音", "meaning": "純中文意思與詞性 (若是動詞，務必明確標註為：第一/二/三類動詞。⚠️絕對不要包含原日文單字或假名在意思裡！)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象化連結說明 (💡極度重要：請提供大眾容易產生共鳴、生動好記的比喻或字根字首解析來幫助建立單字背後的邏輯聯想！)", "example": "日文例句", "example_kana": "例句平假名", "example_zh": "中文翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`;
+
+    const prompt = appMode === 'japanese' ? japanesePrompt : globalPrompt;
 
     let modelToUse = isCanvas ? "gemini-2.5-flash-preview-09-2025" : workingModelRef.current;
 
@@ -656,6 +681,10 @@ const App = () => {
     if (cat.type === 'kinder') {
        useAI = false;
        vocabList = kinderVocab.slice(cat.start, cat.end);
+    } else if (cat.type === 'japanese') {
+       useAI = true;
+       // 日文特訓版一次送出 20 個單字
+       vocabList = cat.words.map(w => ({ word: w, meaning: '' }));
     } else {
        useAI = true;
        const fullList = cat.words.map(w => ({ word: w, meaning: '' }));
@@ -1008,74 +1037,120 @@ const App = () => {
         )}
 
         <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-md w-full border border-slate-100">
-          <Brain className="text-indigo-600 w-12 h-12 mx-auto mb-4" />
-          <h1 className="text-2xl font-black mb-6 text-slate-800">Killer Cards</h1>
           
-          <div className="bg-indigo-50/50 p-4 rounded-2xl mb-5 border border-indigo-100">
-            <div className="text-[13px] font-black text-indigo-800 mb-3 text-left flex items-center gap-2">
-              <Zap size={16} className="text-amber-500" />
-              免輸入！一鍵請 AI 擴充詞性與例句
+          {/* 大腦秘密開關：切換全球綜合模式與日文特訓模式 */}
+          <div 
+            className="cursor-pointer group flex flex-col items-center relative transition-transform hover:scale-105 active:scale-95 mb-4"
+            onClick={() => setAppMode(prev => prev === 'global' ? 'japanese' : 'global')}
+            title="點擊切換專屬特訓模式！"
+          >
+            <Brain className={`w-12 h-12 mx-auto mb-2 transition-colors ${appMode === 'japanese' ? 'text-rose-500' : 'text-indigo-600'}`} />
+            <h1 className="text-2xl font-black text-slate-800 relative inline-flex items-center justify-center">
+              Killer Cards
+              {appMode === 'japanese' && (
+                <span className="absolute left-full ml-3 text-[10px] bg-rose-100 text-rose-600 px-2 py-1 rounded-lg border border-rose-200 uppercase whitespace-nowrap">
+                  日文特訓
+                </span>
+              )}
+            </h1>
+            <div className="absolute -right-6 -top-2 bg-slate-800 text-white text-[9px] px-2 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 shadow-lg">
+              <RefreshCcw size={10} /> 點擊切換
             </div>
+          </div>
+          
+          <div className={`p-4 rounded-2xl mb-5 border ${appMode === 'japanese' ? 'bg-rose-50/50 border-rose-100' : 'bg-indigo-50/50 border-indigo-100'}`}>
             
-            <div className="max-h-[300px] overflow-y-auto custom-scrollbar pr-2 pb-1">
-              
-              <div className="grid grid-cols-3 gap-2.5 mb-2.5">
-                {kinderCategories.map((cat, index) => (
-                  <button 
-                    key={`kinder-${index}`}
-                    onClick={() => loadPresetCategory(cat, 1)} 
-                    className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
-                  >
-                    <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
-                    <span>{cat.name}</span>
-                  </button>
-                ))}
-              </div>
+            {appMode === 'global' ? (
+              <>
+                <div className="text-[13px] font-black text-indigo-800 mb-3 text-left flex items-center gap-2">
+                  <Zap size={16} className="text-amber-500" />
+                  免輸入！一鍵請 AI 擴充詞性與例句
+                </div>
+                
+                <div className="max-h-[300px] overflow-y-auto custom-scrollbar pr-2 pb-1">
+                  <div className="grid grid-cols-3 gap-2.5 mb-2.5">
+                    {kinderCategories.map((cat, index) => (
+                      <button 
+                        key={`kinder-${index}`}
+                        onClick={() => loadPresetCategory(cat, 1)} 
+                        className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
+                      >
+                        <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
+                        <span>{cat.name}</span>
+                      </button>
+                    ))}
+                  </div>
 
-              <div className="w-full h-px bg-indigo-200 my-5 relative">
-                <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-indigo-50 px-3 text-[11px] font-black tracking-widest text-indigo-400 uppercase rounded-full border border-indigo-100">
-                  Tier 1核心單字
-                </span>
-              </div>
+                  <div className="w-full h-px bg-indigo-200 my-5 relative">
+                    <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-indigo-50 px-3 text-[11px] font-black tracking-widest text-indigo-400 uppercase rounded-full border border-indigo-100">
+                      Tier 1核心單字
+                    </span>
+                  </div>
 
-              <div className="grid grid-cols-3 gap-2.5">
-                {primaryCategories.map((cat, index) => (
-                  <button 
-                    key={`primary-${index}`}
-                    onClick={() => loadPresetCategory(cat, 1)} 
-                    className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
-                  >
-                    <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
-                    <span>{cat.name}</span>
-                  </button>
-                ))}
-              </div>
+                  <div className="grid grid-cols-3 gap-2.5">
+                    {primaryCategories.map((cat, index) => (
+                      <button 
+                        key={`primary-${index}`}
+                        onClick={() => loadPresetCategory(cat, 1)} 
+                        className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
+                      >
+                        <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
+                        <span>{cat.name}</span>
+                      </button>
+                    ))}
+                  </div>
 
-              <div className="w-full h-px bg-indigo-200 my-5 relative">
-                <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-indigo-50 px-3 text-[11px] font-black tracking-widest text-indigo-400 uppercase rounded-full border border-indigo-100">
-                  國中與進階挑戰區
-                </span>
-              </div>
+                  <div className="w-full h-px bg-indigo-200 my-5 relative">
+                    <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-indigo-50 px-3 text-[11px] font-black tracking-widest text-indigo-400 uppercase rounded-full border border-indigo-100">
+                      國中與進階挑戰區
+                    </span>
+                  </div>
 
-              <div className="grid grid-cols-3 gap-2.5">
-                {juniorCategories.map((cat, index) => (
-                  <button 
-                    key={`junior-${index}`}
-                    onClick={() => loadPresetCategory(cat, 1)} 
-                    className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
-                  >
-                    <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
-                    <span>{cat.name}</span>
-                  </button>
-                ))}
-              </div>
-
-            </div>
+                  <div className="grid grid-cols-3 gap-2.5">
+                    {juniorCategories.map((cat, index) => (
+                      <button 
+                        key={`junior-${index}`}
+                        onClick={() => loadPresetCategory(cat, 1)} 
+                        className="bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 active:scale-95"
+                      >
+                        <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
+                        <span>{cat.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-[13px] font-black text-rose-800 mb-3 text-left flex items-center gap-2">
+                  <Star size={16} className="text-amber-500" />
+                  日文特訓！字根意象與財經攝影解析
+                </div>
+                
+                <div className="max-h-[300px] overflow-y-auto custom-scrollbar pr-2 pb-1">
+                  <div className="grid grid-cols-2 gap-2.5 mb-2.5">
+                    {japaneseCategories.map((cat, index) => (
+                      <button 
+                        key={`jp-${index}`}
+                        onClick={() => loadPresetCategory(cat, 1)} 
+                        className="bg-white hover:bg-rose-50 text-rose-700 font-bold py-2.5 px-1 rounded-xl text-[13px] sm:text-[14px] transition-all shadow-sm border border-rose-100 flex flex-col items-center gap-1 active:scale-95"
+                      >
+                        <span className="text-2xl drop-shadow-sm">{cat.icon}</span>
+                        <span>{cat.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+            
           </div>
 
           <div className="relative flex py-2 items-center mb-4">
             <div className="flex-grow border-t border-slate-200"></div>
-            <span className="flex-shrink-0 mx-4 text-slate-400 text-xs font-bold tracking-wider">或輸入自訂單字</span>
+            <span className="flex-shrink-0 mx-4 text-slate-400 text-xs font-bold tracking-wider">
+              {appMode === 'global' ? '或輸入自訂單字' : '輸入想學的主題或單字'}
+            </span>
             <div className="flex-grow border-t border-slate-200"></div>
           </div>
 
@@ -1085,7 +1160,7 @@ const App = () => {
               setInput(e.target.value);
               setActiveCategory(null); 
             }} 
-            placeholder="貼上想背的單字..." 
+            placeholder={appMode === 'global' ? "貼上想背的單字..." : "輸入想學的主題 (例如：車子、動漫、職場)..."} 
             className="w-full h-32 p-5 mb-4 bg-slate-50 border-2 rounded-3xl outline-none focus:border-indigo-500 font-medium resize-none shadow-inner" 
           />
           
@@ -1096,12 +1171,12 @@ const App = () => {
             </div>
           )}
 
-          <button onClick={() => generate(input)} disabled={genLoading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50">
+          <button onClick={() => generate(input)} disabled={genLoading} className={`w-full text-white font-black py-4.5 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 ${appMode === 'japanese' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
             {genLoading ? <Loader2 className="animate-spin" /> : <Star size={20} className="text-yellow-300" />} {genLoading ? '處理中...' : 'AI 智慧生成單字卡'}
           </button>
           
           <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-center">
-            <span>v15.1 獨立英雄榜版 for Chloe byKC</span>
+            <span>v16 特訓開關版 for Chloe byKC</span>
           </div>
         </div>
       </div>
@@ -1113,7 +1188,7 @@ const App = () => {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
         <div className="bg-white p-10 rounded-[3rem] shadow-2xl border border-slate-100 max-w-md w-full relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-2 bg-indigo-500"></div>
+          <div className={`absolute top-0 left-0 w-full h-2 ${appMode === 'japanese' ? 'bg-rose-500' : 'bg-indigo-500'}`}></div>
           <Trophy className="text-amber-400 w-20 h-20 mx-auto mb-6 drop-shadow-sm" />
           <h2 className="text-2xl font-black mb-2 text-slate-800">英雄登入</h2>
           <p className="text-sm text-slate-500 mb-8 font-medium">請輸入大名，準備將您的佳績寫入專屬排行榜！</p>
@@ -1144,7 +1219,7 @@ const App = () => {
             </button>
             <button
               onClick={() => { setPlayerName(tempName.trim() || '無名英雄'); setIsReadyToPlay(true); }}
-              className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black transition-all shadow-xl hover:bg-indigo-700 flex justify-center items-center gap-2"
+              className={`flex-[2] py-4 text-white rounded-2xl font-black transition-all shadow-xl flex justify-center items-center gap-2 ${appMode === 'japanese' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
             >
               🚀 開始測驗！
             </button>
@@ -1162,13 +1237,13 @@ const App = () => {
         <div className="bg-white p-8 sm:p-10 rounded-[3rem] shadow-2xl border border-slate-100 max-w-md w-full">
           
           {/* Top: 個人分數區塊 (加入扣分顯示) */}
-          <div className="bg-indigo-50 border border-indigo-100 rounded-3xl p-5 mb-6 relative overflow-hidden">
-             <div className="absolute top-0 left-0 w-full h-1.5 bg-indigo-500"></div>
-             <div className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-1">Your Result</div>
-             <h2 className="text-xl font-black text-indigo-900 truncate mb-1">{playerName || '無名英雄'}</h2>
+          <div className={`bg-slate-50 border rounded-3xl p-5 mb-6 relative overflow-hidden ${appMode === 'japanese' ? 'border-rose-100' : 'border-indigo-100'}`}>
+             <div className={`absolute top-0 left-0 w-full h-1.5 ${appMode === 'japanese' ? 'bg-rose-500' : 'bg-indigo-500'}`}></div>
+             <div className={`text-xs font-bold uppercase tracking-widest mb-1 ${appMode === 'japanese' ? 'text-rose-400' : 'text-indigo-400'}`}>Your Result</div>
+             <h2 className={`text-xl font-black truncate mb-1 ${appMode === 'japanese' ? 'text-rose-900' : 'text-indigo-900'}`}>{playerName || '無名英雄'}</h2>
              <div className={`text-4xl font-black ${r.color} drop-shadow-sm flex flex-col items-center justify-center gap-1 mt-2`}>
                 <div className="flex items-center justify-center gap-2">
-                  {r.emoji} {r.score} <span className="text-lg text-indigo-400">分</span>
+                  {r.emoji} {r.score} <span className={`text-lg ${appMode === 'japanese' ? 'text-rose-400' : 'text-indigo-400'}`}>分</span>
                 </div>
                 {r.wrongClicks > 0 && (
                   <span className="text-sm font-bold text-red-500 bg-red-50 px-3 py-1 rounded-full mt-1 border border-red-100">
@@ -1227,7 +1302,7 @@ const App = () => {
             )}
           </div>
           
-          {activeCategory && activeCategory.type !== 'kinder' && activePart === 1 && (
+          {activeCategory && activeCategory.type !== 'kinder' && activeCategory.type !== 'japanese' && activePart === 1 && (
             <button 
               onClick={() => loadPresetCategory(activeCategory, 2)} 
               disabled={genLoading || isSubmittingScore}
@@ -1258,7 +1333,7 @@ const App = () => {
                    lastMilestoneRef.current = 0;
                    setIsReadyToPlay(false);
                    setSelectedChoice(null); setIsChoiceCorrect(false);
-                }} disabled={genLoading || isSubmittingScore} className="flex-1 bg-indigo-50 text-indigo-600 border border-indigo-100 font-black py-4 rounded-2xl flex items-center justify-center gap-1.5 shadow-sm hover:bg-indigo-100 transition-all disabled:opacity-50 text-[13px] sm:text-base">
+                }} disabled={genLoading || isSubmittingScore} className={`flex-1 text-white border font-black py-4 rounded-2xl flex items-center justify-center gap-1.5 shadow-sm transition-all disabled:opacity-50 text-[13px] sm:text-base ${appMode === 'japanese' ? 'bg-rose-50 text-rose-600 border-rose-100 hover:bg-rose-100' : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100'}`}>
                    <Brain size={16} />返回單元
                 </button>
              </div>
@@ -1308,7 +1383,7 @@ const App = () => {
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-6 flex items-center gap-2">
               <input type="text" readOnly value={shareModal.url} className="w-full bg-transparent text-sm text-slate-600 font-medium outline-none" />
             </div>
-            <button onClick={() => { try { navigator.clipboard.writeText(shareModal.url); } catch(e){} setShareModal({ isOpen: false, url: '' }); }} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black transition-all shadow-md flex justify-center items-center gap-2">
+            <button onClick={() => { try { navigator.clipboard.writeText(shareModal.url); } catch(e){} setShareModal({ isOpen: false, url: '' }); }} className={`w-full py-3.5 text-white rounded-xl font-black transition-all shadow-md flex justify-center items-center gap-2 ${appMode === 'japanese' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
               <Check size={18} /> 複製並關閉
             </button>
           </div>
@@ -1321,7 +1396,7 @@ const App = () => {
             <h3 className="text-lg font-black text-slate-800 mb-6">{confirmDialog.message}</h3>
             <div className="flex gap-3">
               <button onClick={closeConfirm} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-all">取消</button>
-              <button onClick={executeConfirm} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-md">確定</button>
+              <button onClick={executeConfirm} className={`flex-1 py-3 text-white rounded-xl font-bold transition-all shadow-md ${appMode === 'japanese' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>確定</button>
             </div>
           </div>
         </div>
@@ -1337,7 +1412,7 @@ const App = () => {
             <div className="text-lg font-bold text-slate-600 mb-6">{getRating().text}</div>
             <div className="bg-slate-50 p-4 rounded-2xl mb-6 border border-slate-100">
               <div className="text-sm font-bold text-slate-500 mb-1 tracking-wide">目前完成率</div>
-              <div className="text-2xl font-black text-indigo-600">{Math.round(progress)}%</div>
+              <div className={`text-2xl font-black ${appMode === 'japanese' ? 'text-rose-600' : 'text-indigo-600'}`}>{Math.round(progress)}%</div>
             </div>
             <button onClick={() => setShowRatingModal(false)} className="w-full py-3.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold transition-all shadow-lg">繼續練習</button>
           </div>
@@ -1355,10 +1430,10 @@ const App = () => {
           <div className="flex items-center gap-2 text-slate-700 font-black text-lg bg-white px-4 py-2 rounded-full shadow-sm border border-slate-100">
             <button onClick={() => openConfirm('home', '確定放棄進度回首頁？')} className="text-slate-400 hover:text-red-500"><Home size={18}/></button>
             <div className="w-px h-4 bg-slate-200 mx-0.5"></div>
-            <Brain size={20} className="text-indigo-600" />
+            <Brain size={20} className={appMode === 'japanese' ? 'text-rose-500' : 'text-indigo-600'} />
             <span>{total - queue.length} <span className="text-slate-400 text-sm font-medium">/ {total}</span></span>
             <div className="w-px h-4 bg-slate-200 mx-0.5"></div>
-            <button onClick={handleShuffle} className="text-indigo-400 hover:text-indigo-600 transition-colors" title="隨機洗牌"><Shuffle size={18}/></button>
+            <button onClick={handleShuffle} className={`transition-colors ${appMode === 'japanese' ? 'text-rose-400 hover:text-rose-600' : 'text-indigo-400 hover:text-indigo-600'}`} title="隨機洗牌"><Shuffle size={18}/></button>
             <div className="w-px h-4 bg-slate-200 mx-0.5"></div>
             <button onClick={() => setShowRatingModal(true)} className="flex items-center gap-1 text-[13px] text-amber-600 hover:text-amber-700 transition-colors font-bold">📊 評分</button>
           </div>
@@ -1371,7 +1446,6 @@ const App = () => {
               let shareId = deckId || crypto.randomUUID();
               const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'decks', shareId);
               
-              // 加入 8 秒防呆機制，避免 Firebase 沒設好導致無限轉圈
               const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("資料庫連線逾時！請確認 Firebase Firestore 是否已建立，且安全性規則已開放讀寫。")), 8000));
               
               await Promise.race([
@@ -1381,7 +1455,6 @@ const App = () => {
 
               setDeckId(shareId); safePushState(`?deckId=${shareId}`);
               
-              // 確保產生正確的專屬網址
               const baseUrl = (window.location.hostname.includes('webcontainer') || window.location.hostname.includes('stackblitz')) ? 'https://您部署後的Vercel網址' : window.location.origin + window.location.pathname;
               const url = `${baseUrl}?deckId=${shareId}`;
               
@@ -1393,13 +1466,13 @@ const App = () => {
               setError(err.message || "儲存失敗，請檢查 Firebase 設定"); 
             } 
             finally { setIsSaving(false); }
-          }} disabled={isSaving} className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${copyOk ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
+          }} disabled={isSaving} className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${copyOk ? 'bg-green-500 text-white' : (appMode === 'japanese' ? 'bg-rose-600 text-white hover:bg-rose-700' : 'bg-indigo-600 text-white hover:bg-indigo-700')}`}>
             {isSaving ? <Loader2 size={16} className="animate-spin" /> : copyOk ? <Check size={16} /> : <Share2 size={16} />}
             {copyOk ? '已複製連結' : '儲存與分享'}
           </button>
         </div>
         <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden shadow-inner">
-          <div className="bg-indigo-500 h-full transition-all duration-700 ease-out" style={{ width: `${progress}%` }} />
+          <div className={`h-full transition-all duration-700 ease-out ${appMode === 'japanese' ? 'bg-rose-500' : 'bg-indigo-500'}`} style={{ width: `${progress}%` }} />
         </div>
       </div>
 
@@ -1411,14 +1484,17 @@ const App = () => {
               <h2 className="text-[3rem] sm:text-[3.5rem] font-black text-slate-800 text-center leading-tight tracking-wide drop-shadow-sm w-full break-words">
                 {card.word}
               </h2>
-              <button onClick={e => { e.stopPropagation(); playSimpleText(card.word); }} className="w-14 h-14 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 hover:bg-indigo-100 hover:scale-105 transition-all shadow-sm shrink-0">
+              <button onClick={e => { e.stopPropagation(); playSimpleText(card.word); }} className={`w-14 h-14 rounded-full flex items-center justify-center hover:scale-105 transition-all shadow-sm shrink-0 ${appMode === 'japanese' ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}>
                 <Volume2 size={28} />
               </button>
             </div>
 
             <div className="w-full flex flex-col gap-2.5 mb-4 shrink-0">
               {currentChoices.map((choiceObj, idx) => {
-                let btnClass = "bg-slate-50 text-slate-600 active:bg-indigo-50 active:text-indigo-700 border-slate-200 active:border-indigo-200 sm:hover:bg-indigo-50 sm:hover:text-indigo-700 sm:hover:border-indigo-200";
+                let btnClass = appMode === 'japanese' 
+                  ? "bg-slate-50 text-slate-600 active:bg-rose-50 active:text-rose-700 border-slate-200 active:border-rose-200 sm:hover:bg-rose-50 sm:hover:text-rose-700 sm:hover:border-rose-200"
+                  : "bg-slate-50 text-slate-600 active:bg-indigo-50 active:text-indigo-700 border-slate-200 active:border-indigo-200 sm:hover:bg-indigo-50 sm:hover:text-indigo-700 sm:hover:border-indigo-200";
+                
                 if (selectedChoice !== null) {
                   if (choiceObj.full === card.meaning) {
                     btnClass = "bg-green-100 text-green-700 border-green-400 shadow-sm"; 
@@ -1465,7 +1541,7 @@ const App = () => {
             
             <div className="w-full h-36 sm:h-40 bg-slate-100 rounded-xl mb-3 overflow-hidden relative flex items-center justify-center shadow-inner shrink-0">
               {!imgLoaded[card.word] && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-indigo-400 bg-slate-100 z-0">
+                <div className={`absolute inset-0 flex flex-col items-center justify-center bg-slate-100 z-0 ${appMode === 'japanese' ? 'text-rose-400' : 'text-indigo-400'}`}>
                   <Loader2 className="w-6 h-6 animate-spin mb-1" />
                   <span className="text-[10px] font-black uppercase">Loading...</span>
                 </div>
@@ -1501,10 +1577,10 @@ const App = () => {
               </button>
 
               <button onClick={(e) => { e.stopPropagation(); playCardSequence(card); }} className="flex flex-col items-center justify-start gap-1.5 hover:scale-105 active:scale-95 transition-all -mt-3 group">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center shadow-lg bg-indigo-600 text-white border-4 border-indigo-100 group-hover:bg-indigo-700">
+                <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center shadow-lg text-white border-4 group-hover:scale-105 transition-transform ${appMode === 'japanese' ? 'bg-rose-600 border-rose-100 group-hover:bg-rose-700' : 'bg-indigo-600 border-indigo-100 group-hover:bg-indigo-700'}`}>
                   <Volume2 size={32} />
                 </div>
-                <span className="text-xs font-black uppercase tracking-wider text-indigo-600">Listen</span>
+                <span className={`text-xs font-black uppercase tracking-wider ${appMode === 'japanese' ? 'text-rose-600' : 'text-indigo-600'}`}>Listen</span>
               </button>
 
               <button onClick={(e) => { e.stopPropagation(); handleAction('good'); }} className="flex flex-col items-center gap-1.5 hover:scale-105 active:scale-95 transition-all">
