@@ -136,23 +136,23 @@ const juniorCategories = [
   { name: "暑假下1", icon: "☀️" }, { name: "暑假下2", icon: "☀️" }, { name: "暑假下3", icon: "☀️" }
 ].map(c => ({ ...c, type: 'junior', words: juniorDataRaw[c.name].split(/、/) }));
 
-// --- 💡 隱藏版：日文特訓十大單元字庫 ---
+// --- 💡 隱藏版：日文特訓十大單元字庫 (結合超實用情境句與單字) ---
 const japaneseDataRaw = {
-  "必學問候": "おはよう,こんにちは,こんばんは,ありがとう,すみません,ごめんなさい,さようなら,いただきます,ごちそうさま,いってきます,いってらっしゃい,ただいま,おかえりなさい,おやすみなさい,はじめまして,よろしく,おねがいします,おつかれさま,おだいじに,ようこそ",
+  "必學問候": "おはようございます,こんにちは,こんばんは,ありがとうございます,はい,いいえ,すみません,いただきます,ごちそうさまでした,いってきます,ただいま,おやすみなさい,はじめまして,よろしくお願いします,おつかれさまでした",
+  "迷路方位": "おたずねしてもいいですか？,○○はどこにありますか？,地図を書いてもらえますか？,ここはどこですか？,日本語は話せません,もう一度お願いします,右に曲がる,左に曲がる,まっすぐ行く,近い,遠い",
+  "飯店住宿": "チェックインをお願いします,空いている部屋はありますか？,これは何の料金ですか？,大浴場はどこですか？,地図はありますか？,近くにおすすめのレストランはありますか？,中国語のツアーを紹介してください,部屋にカギを忘れました",
+  "餐廳用餐": "メニューをください,注文をお願いします,おすすめのメニューはどれですか？,これは何ですか？,これをお願いします,コーヒーはつきますか？,水をお願いします,トイレはどこですか？,お会計をお願いします,美味しい,甘い",
+  "交通旅行": "切符売り場はどこですか？,○○までの切符をください,○○にはどう行けばいいですか？,○○行きの電車はどれですか？,この電車は○○に行きますか？,次の○○行きは何時ですか？,ここは何駅ですか？,降ります",
+  "觀光拍照": "観光案内所はどこですか？,パンフレットはありますか？,写真を撮ってもいいですか？,写真を撮ってもらえますか？,タクシー乗り場はどこですか？,ここに行ってください,綺麗,有名",
+  "購物血拼": "これを見せてください,試着してもいいですか？,○○はありますか？,これをください,いくらですか？,クレジットカードは使えますか？,現金,お釣り,レシート,財布,高い,安い",
   "核心動詞": "食べる,飲む,行く,来る,帰る,見る,聞く,話す,読む,書く,買う,売る,立つ,座る,起きる,寝る,働く,休む,遊ぶ,走る",
-  "實用形容詞": "大きい,小さい,高い,低い,新しい,古い,良い,悪い,暑い,寒い,熱い,冷たい,難しい,易しい,甘い,辛い,美味しい,まずい,忙しい,楽しい",
-  "飲食文化": "ご飯,パン,肉,魚,野菜,果物,水,お茶,コーヒー,牛乳,お酒,ビール,ラーメン,うどん,寿司,刺身,天ぷら,弁当,定食,おにぎり",
-  "交通旅行": "車,バス,電車,地下鉄,新幹線,飛行機,船,自転車,タクシー,駅,空港,港,バス停,切符,改札口,ホーム,時刻表,地図,道,信号",
-  "購物血拼": "お金,現金,お釣り,レシート,財布,値段,安い,高い,割引,セール,サイズ,色,デザイン,服,靴,鞄,帽子,時計,眼鏡,店",
-  "數字時間": "一,二,三,四,五,六,七,八,九,十,百,千,万,今日,明日,昨日,今週,来週,朝,夜",
-  "身體健康": "頭,顔,髪,目,鼻,口,耳,首,肩,胸,手,腕,指,お腹,背中,足,膝,薬,病院,医者",
-  "居家生活": "家,部屋,居間,寝室,台所,お風呂,トイレ,庭,窓,ドア,壁,床,天井,家具,机,椅子,ベッド,布団,テレビ,冷蔵庫",
-  "職場學校": "会社,仕事,会議,出張,給料,社長,同僚,部下,学校,教室,図書館,食堂,先生,学生,授業,試験,宿題,成績,休み,卒業"
+  "實用形容詞": "大きい,小さい,新しい,古い,良い,悪い,暑い,寒い,熱い,冷たい,難しい,易しい,辛い,まずい,忙しい,楽しい,嬉しい,悲しい",
+  "數字時間": "一,二,三,四,五,六,七,八,九,十,百,千,万,今日,明日,昨日,今週,来週,朝,夜"
 };
 
 const japaneseCategories = Object.keys(japaneseDataRaw).map((name, idx) => ({
   name,
-  icon: ["👋", "🏃", "✨", "🍣", "🚆", "🛍️", "🕒", "💪", "🏠", "🏢"][idx],
+  icon: ["👋", "🧭", "🏨", "🍣", "🚆", "📸", "🛍️", "🏃", "✨", "🕒"][idx],
   type: 'japanese',
   words: japaneseDataRaw[name].split(',')
 }));
@@ -518,11 +518,9 @@ const App = () => {
     setSelectedChoice(null);
     setIsChoiceCorrect(false);
 
-    // 智能語系與主題判斷邏輯
     const engWordCount = (targetText.match(/[a-zA-Z]+/g) || []).length;
     const hasKana = /[\u3040-\u309F\u30A0-\u30FF]/.test(targetText);
     const hasChinese = /[\u4E00-\u9FFF]/.test(targetText);
-    const isTopic = appMode === 'japanese' && targetText.length < 15 && !targetText.includes('\n') && !targetText.includes(',');
 
     let isEn = false;
     if (hasKana) {
@@ -534,16 +532,16 @@ const App = () => {
     } else {
         isEn = false; 
     }
-
+    
     const globalPrompt = isEn 
       ? `請分析以下文字：\n"""${targetText}"""\n這是一份「英文學習清單」。請提取出所有英文單字（務必完整包含輸入的所有單字，不可遺漏！）。\n⚠️極度重要：如果文字中混雜了單獨的「中文詞彙」，請務必自動將其「翻譯成英文單字」。\n請為每個單字提供更廣泛且結構化的解釋：\n1. 包含不同「詞性」的意思，並換行顯示。⚠️【最重要】：請務必把最簡單、最常用的中文意思放在第一行的最前面（例如：書；(n.) 書本），幫助快速記憶。(⚠️絕對不要包含原英文單字在意思裡)\n2. 補充類似的「同類詞、同義詞」或相反的「反義詞」。例如：[同義詞] reserve, order / [反義詞] cancel\n3. 提供對應的英文例句，若有多個詞性請提供多句，並用「 / 」隔開。\n4. 提供對應的中文翻譯，多句請用「 / 」隔開。\n回傳 JSON 陣列：[{"word": "英文單字", "reading": "音標", "meaning": "不同詞性與意思(務必使用 \\n 換行，最簡單的意思放最前)", "breakdown": "同義詞/反義詞補充", "example": "英文例句1 / 英文例句2", "example_kana": "", "example_zh": "中文翻譯1 / 中文翻譯2", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字"}]。請只回傳 JSON。`
       : `請分析以下文字：\n"""${targetText}"""\n這是一份「日文學習清單」。\n⚠️極度重要：即使使用者輸入的全部都是「純中文」，你也必須把它當作是想要學習的目標，自動將這些中文「翻譯成對應的日文單字」，並為其建立日文單字卡！\n回傳 JSON 陣列：[{"word": "日文單字(若來源為中文請翻譯成日文)", "reading": "讀音", "meaning": "純中文意思與詞性 (若是動詞，務必明確標註為：第一/二/三類動詞。⚠️絕對不要包含原日文單字或假名在意思裡！)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象化連結說明 (💡請提供生動、好記的比喻或字根字首解析來幫助記憶)", "example": "例句", "example_kana": "例句平假名", "example_zh": "翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`;
 
     // 專屬日文特訓模式的 Prompt (支援主題延伸與大眾化意象解析)
     const japanesePrompt = `使用者輸入了以下內容：\n"""${targetText}"""\n
-    任務 1：判斷輸入內容。如果這是一個「簡短的主題（例如：車子、機場、水果、職場）」，請發揮擴充能力，幫我生成 20 個與該主題高度相關的實用日文單字。如果這是一串單字清單，請直接分析這些單字（若含中文請翻譯成日文）。
+    任務 1：判斷輸入內容。如果這是一個「簡短的主題（例如：車子、機場、水果、職場）」，請發揮擴充能力，幫我生成 20 個與該主題高度相關的實用日文單字或實用句子。如果這是一串單字或句子清單，請直接分析它們（若含中文請翻譯成日文）。
     任務 2：回傳 JSON 陣列，格式如下：
-    [{"word": "日文單字(漢字或假名)", "reading": "平假名讀音", "meaning": "純中文意思與詞性 (若是動詞，務必明確標註為：第一/二/三類動詞。⚠️絕對不要包含原日文單字或假名在意思裡！)", "breakdown": "字句拆解(例如:根強い=根+強い)與意象化連結說明 (💡極度重要：請提供大眾容易產生共鳴、生動好記的比喻或字根字首解析來幫助建立單字背後的邏輯聯想！)", "example": "日文例句", "example_kana": "例句平假名", "example_zh": "中文翻譯", "image_keyword": "用1到3個英文單字描述單字畫面的關鍵字(用來搜尋圖片)"}]。請只回傳 JSON。`;
+    [{"word": "日文單字或短句(漢字或假名)", "reading": "平假名讀音", "meaning": "純中文意思與詞性 (⚠️絕對不要包含原日文字或假名在意思裡！)", "breakdown": "字根意象與字句拆解 (💡極度重要：請提供大眾容易產生共鳴、生動好記的比喻或字根字首解析。例如：『注文』是注(灌注)+文(訊息)，意象是把選擇灌注到店家紀錄中；『忘れました』忘是亡+心，意象是從心裡消亡。請發揮創意！)", "example": "日文例句(若輸入本身已是句子，可給情境對話)", "example_kana": "例句平假名", "example_zh": "中文翻譯", "image_keyword": "用1到3個英文單字描述畫面的關鍵字"}]。請只回傳 JSON。`;
 
     const prompt = appMode === 'japanese' ? japanesePrompt : globalPrompt;
 
@@ -683,7 +681,6 @@ const App = () => {
        vocabList = kinderVocab.slice(cat.start, cat.end);
     } else if (cat.type === 'japanese') {
        useAI = true;
-       // 日文特訓版一次送出 20 個單字
        vocabList = cat.words.map(w => ({ word: w, meaning: '' }));
     } else {
        useAI = true;
@@ -732,7 +729,6 @@ const App = () => {
     if (t === 0) return { score: 0, text: "尚未作答", color: "text-slate-500", emoji: "🤔", wrongClicks: 0 };
     
     let baseScore = Math.round(((history.easy * 100) + (history.good * 100) + (history.hard * 50)) / t);
-    // 加入錯題扣分機制
     let finalScore = baseScore - wrongClicks;
     if (finalScore < 0) finalScore = 0;
 
@@ -841,7 +837,6 @@ const App = () => {
         const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(imgQuery)}?width=400&height=300&nologo=true&seed=${card.word.length + Math.floor(Math.random() * 100)}`;
         setImageUrls(prev => ({ ...prev, [card.word]: url }));
 
-        // 圖片 8 秒防呆：如果圖片伺服器卡住，強制取消轉圈並顯示備用圖
         setTimeout(() => {
            setImgLoaded(prev => {
               if (!prev[card.word]) {
@@ -921,7 +916,6 @@ const App = () => {
            const currentCatName = activeCategory ? activeCategory.name : '自訂單字';
 
            const dbOperations = async () => {
-               // 送出成績
                if (playerName && total > 0) {
                    const r = getRating();
                    const docId = Date.now().toString() + Math.random().toString(36).substring(2);
@@ -932,12 +926,9 @@ const App = () => {
                       timestamp: new Date().toISOString()
                    });
                }
-
-               // 取得最新英雄榜
                return await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'global_leaderboard'));
            };
 
-           // 英雄榜 8 秒連線防呆
            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("英雄榜資料庫連線逾時")), 8000));
            const querySnapshot = await Promise.race([dbOperations(), timeoutPromise]);
 
@@ -1045,8 +1036,8 @@ const App = () => {
             title="點擊切換專屬特訓模式！"
           >
             <Brain className={`w-12 h-12 mx-auto mb-2 transition-colors ${appMode === 'japanese' ? 'text-rose-500' : 'text-indigo-600'}`} />
-            <h1 className="text-2xl font-black text-slate-800 relative inline-flex items-center justify-center">
-              Killer Cards
+            <h1 className="text-2xl font-black text-slate-800 relative inline-flex items-center justify-center w-full">
+              <span>Killer Cards</span>
               {appMode === 'japanese' && (
                 <span className="absolute left-full ml-3 text-[10px] bg-rose-100 text-rose-600 px-2 py-1 rounded-lg border border-rose-200 uppercase whitespace-nowrap">
                   日文特訓
@@ -1124,7 +1115,7 @@ const App = () => {
               <>
                 <div className="text-[13px] font-black text-rose-800 mb-3 text-left flex items-center gap-2">
                   <Star size={16} className="text-amber-500" />
-                  日文特訓！字根意象與財經攝影解析
+                  日文特訓！字根意象與生動解析
                 </div>
                 
                 <div className="max-h-[300px] overflow-y-auto custom-scrollbar pr-2 pb-1">
@@ -1176,7 +1167,7 @@ const App = () => {
           </button>
           
           <div className="mt-8 text-slate-300 text-[10px] font-black tracking-widest flex items-center justify-center">
-            <span>v16 特訓開關版 for Chloe byKC</span>
+            <span>v16.1 特訓開關版 for Chloe byKC</span>
           </div>
         </div>
       </div>
